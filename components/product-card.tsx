@@ -31,6 +31,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
   const price = pricedVariation(product, variation, role);
   const availability = available(variation.stock);
+  const usesSelect = product.variations.length > 6;
 
   function addToCart() {
     const cart = readCart();
@@ -66,18 +67,33 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
           <Link href={`/product/${product.id}`}>{product.name}</Link>
         </div>
         <p>{product.description}</p>
-        <div className="variation-row">
-          {product.variations.map((item) => (
-            <button
-              className={item.id === variation.id ? "active" : ""}
-              key={item.id}
-              onClick={() => setVariationId(item.id)}
-              type="button"
-            >
-              {item.name}
-            </button>
-          ))}
-        </div>
+        {usesSelect ? (
+          <select
+            aria-label="Вариант товара"
+            className="variation-select"
+            value={variation.id}
+            onChange={(event) => setVariationId(event.target.value)}
+          >
+            {product.variations.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} · SKU {item.sku}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="variation-row">
+            {product.variations.map((item) => (
+              <button
+                className={item.id === variation.id ? "active" : ""}
+                key={item.id}
+                onClick={() => setVariationId(item.id)}
+                type="button"
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="product-meta">
           <span>SKU {variation.sku}</span>
           <span>{product.category}</span>

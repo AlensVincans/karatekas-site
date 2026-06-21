@@ -28,7 +28,7 @@ type OrderRow = {
 const initialOrders: OrderRow[] = [
   {
     id: "ORD-2026-041",
-    client: "SIA Baltic Service",
+    client: "Riga Karate Club",
     total: 684,
     payment: "счёт, 15 дней",
     status: "в резерве",
@@ -42,7 +42,7 @@ const initialOrders: OrderRow[] = [
   },
   {
     id: "ORD-2026-043",
-    client: "UAB North Retail",
+    client: "Tallinn Karate Dojo",
     total: 1240,
     payment: "счёт",
     status: "сборка",
@@ -112,7 +112,7 @@ export default function AdminPage() {
       <div className="section-heading admin-heading">
         <span className="eyebrow">Админ-панель</span>
         <h1>Управление магазином</h1>
-        <p>Товары, клиенты и заказы без лишних экранов.</p>
+        <p>Товары, клиенты и заказы магазина экипировки без лишних экранов.</p>
       </div>
 
       <div className="admin-stats compact">

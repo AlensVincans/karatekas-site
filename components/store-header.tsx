@@ -11,11 +11,11 @@ export function StoreHeader() {
   return (
     <header className="topbar">
       <div className="nav-shell">
-        <Link className="brand-mark" href="/" aria-label="Baltic Commerce">
-          <span className="brand-icon">BC</span>
+        <Link className="brand-mark" href="/" aria-label="Karatekas Gear">
+          <span className="brand-icon">KG</span>
           <span>
-            Baltic Commerce
-            <small>Retail & B2B supply</small>
+            Karatekas Gear
+            <small>экипировка для карате</small>
           </span>
         </Link>
 

@@ -323,6 +323,10 @@ main {
   padding: 7px 12px;
 }
 
+.variation-select {
+  width: 100%;
+}
+
 .section-shell {
   display: grid;
   gap: 22px;

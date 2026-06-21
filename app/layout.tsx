@@ -3,9 +3,9 @@ import { StoreHeader } from "../components/store-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Baltic Commerce",
+  title: "Karatekas Gear",
   description:
-    "B2C and B2B ecommerce catalog with admin, warehouse, invoices, discounts, delivery and security flows.",
+    "Интернет-магазин экипировки для карате с B2C/B2B ценами, складом, счетами, оплатой и доставкой по Балтии.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

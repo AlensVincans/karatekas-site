@@ -5,7 +5,7 @@ export default function CatalogPage() {
     <section className="section-shell">
       <div className="section-heading">
         <span className="eyebrow">Каталог</span>
-        <h1>Товары, категории, бренды и вариации</h1>
+        <h1>Кимоно, пояса, защита и инвентарь для карате</h1>
       </div>
       <CatalogBrowser />
     </section>
