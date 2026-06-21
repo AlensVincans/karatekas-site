@@ -6,27 +6,33 @@ import { useDemoSession } from "../../components/session";
 
 export default function LoginPage() {
   const { login, session } = useDemoSession();
-  const [email, setEmail] = useState("b2b@baltic.test");
-  const [password, setPassword] = useState("b2b123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   return (
     <section className="auth-page">
       <div className="auth-card">
-        <span className="eyebrow">Вход</span>
-        <h1>Login для трёх типов пользователей</h1>
-        <div className="demo-credentials">
-          <span>admin@baltic.test / admin123</span>
-          <span>buyer@baltic.test / user123</span>
-          <span>b2b@baltic.test / b2b123</span>
-        </div>
+        <span className="eyebrow">Личный кабинет</span>
+        <h1>Вход в аккаунт</h1>
+        <p className="auth-copy">
+          Войдите, чтобы видеть свои заказы, счета, условия оплаты и сохранённые
+          данные доставки.
+        </p>
         <label>
           Email
-          <input value={email} onChange={(event) => setEmail(event.target.value)} />
+          <input
+            autoComplete="email"
+            placeholder="you@company.lv"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
         </label>
         <label>
           Пароль
           <input
+            autoComplete="current-password"
+            placeholder="Ваш пароль"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -44,7 +50,12 @@ export default function LoginPage() {
         </button>
         {message ? <p className="status-box">{message}</p> : null}
         {session ? (
-          <p className="status-box">Вы вошли как {session.role.toUpperCase()}.</p>
+          <div className="auth-actions">
+            <Link href={session.role === "admin" ? "/admin" : "/account"}>
+              Перейти в кабинет
+            </Link>
+            {session.role === "b2b" ? <Link href="/b2b">B2B цены</Link> : null}
+          </div>
         ) : null}
         <Link href="/register">Нет аккаунта? Регистрация</Link>
       </div>

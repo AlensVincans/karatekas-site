@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProductCard } from "../components/product-card";
-import { categories, products, warehouseTotals, eur } from "../lib/store-data";
+import { categories, products, warehouseTotals } from "../lib/store-data";
 
 export default function Home() {
   const totals = warehouseTotals();
@@ -10,15 +10,15 @@ export default function Home() {
     <>
       <section className="hero">
         <div className="hero-copy">
-          <span className="eyebrow">Балтия · B2C · B2B · склад · счета</span>
-          <h1>Многостраничный интернет-магазин для розницы и B2B</h1>
+          <span className="eyebrow">Балтия · Европа · быстрые поставки</span>
+          <h1>Профессиональные товары для бизнеса и дома</h1>
           <p>
-            Каталог, регистрация, вход, роли пользователей, B2B цены, checkout,
-            доставка, счета и полноценная админка с товарной базой.
+            Инструменты, складское оборудование, маркировка, защита и освещение
+            с понятными ценами, доставкой по Балтии и оплатой онлайн или по счёту.
           </p>
           <div className="hero-actions">
-            <Link href="/catalog">Перейти в каталог</Link>
-            <Link href="/register">Зарегистрироваться</Link>
+            <Link href="/catalog">Открыть каталог</Link>
+            <Link href="/register">Стать клиентом</Link>
           </div>
         </div>
         <div className="hero-metrics">
@@ -31,18 +31,18 @@ export default function Home() {
             <span>категорий</span>
           </div>
           <div>
-            <strong>{eur(totals.cost)}</strong>
-            <span>себестоимость склада</span>
+            <strong>{totals.available}</strong>
+            <span>единиц доступно</span>
           </div>
         </div>
       </section>
 
       <section className="quick-commerce">
         <div className="promo-banner">
-          <strong>Акции и роли</strong>
+          <strong>Летние поставки</strong>
           <span>
-            Обычный пользователь видит B2C цену, B2B после входа видит розницу
-            зачёркнутой и активную B2B цену.
+            Скидки на складскую маркировку, инструменты и LED-освещение для
+            объектов в Латвии, Литве и Эстонии.
           </span>
         </div>
         <div className="category-rail">
@@ -57,7 +57,7 @@ export default function Home() {
       <section className="section-shell">
         <div className="section-heading">
           <span className="eyebrow">Популярное</span>
-          <h2>Товары с B2C/B2B ценами и складскими остатками</h2>
+          <h2>Ходовые позиции на складе</h2>
         </div>
         <div className="product-grid">
           {featured.map((product) => (
@@ -66,21 +66,18 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="role-grid">
+      <section className="trust-grid">
         <article>
-          <h3>Обычный пользователь</h3>
-          <p>Розничные цены, карта, Apple Pay/Google Pay, доставка по Балтии.</p>
-          <Link href="/login">Войти как B2C</Link>
+          <h3>Онлайн-оплата</h3>
+          <p>Visa, Mastercard, 3D Secure, Apple Pay и Google Pay для быстрых заказов.</p>
         </article>
         <article>
-          <h3>B2B клиент</h3>
-          <p>Две цены, оплата по счёту, отсрочка 15 дней и кредитный лимит.</p>
-          <Link href="/b2b">B2B кабинет</Link>
+          <h3>B2B условия</h3>
+          <p>После подтверждения компании доступны закупочные цены, счёт и отсрочка.</p>
         </article>
         <article>
-          <h3>Администратор</h3>
-          <p>Товары, склад, поставки, клиенты, заказы, счета и скидки.</p>
-          <Link href="/admin">Открыть админку</Link>
+          <h3>Доставка</h3>
+          <p>Omniva, DPD, Unisend, Latvijas Pasts и курьерская доставка по Балтии.</p>
         </article>
       </section>
     </>

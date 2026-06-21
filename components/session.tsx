@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { demoUsers, type DemoUser, type UserRole } from "../lib/store-data";
 
 const usersKey = "bc_registered_users";
 const sessionKey = "bc_session";
+const sessionChangeEvent = "bc-session-change";
 
 export type SessionUser = Omit<DemoUser, "password">;
 type StoredUser = DemoUser;
@@ -47,11 +48,30 @@ function withoutPassword(user: DemoUser): SessionUser {
   };
 }
 
+function notifySessionChange() {
+  window.dispatchEvent(new Event(sessionChangeEvent));
+}
+
 export function useDemoSession() {
   const [session, setSession] = useState<SessionUser | null>(() => readSession());
   const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>(() =>
     readStoredUsers(),
   );
+
+  useEffect(() => {
+    function syncFromStorage() {
+      setSession(readSession());
+      setRegisteredUsers(readStoredUsers());
+    }
+
+    window.addEventListener("storage", syncFromStorage);
+    window.addEventListener(sessionChangeEvent, syncFromStorage);
+
+    return () => {
+      window.removeEventListener("storage", syncFromStorage);
+      window.removeEventListener(sessionChangeEvent, syncFromStorage);
+    };
+  }, []);
 
   const allUsers = useMemo(
     () => [...demoUsers, ...registeredUsers],
@@ -66,6 +86,8 @@ export function useDemoSession() {
     } else {
       window.localStorage.removeItem(sessionKey);
     }
+
+    notifySessionChange();
   }
 
   function login(email: string, password: string) {
@@ -80,7 +102,7 @@ export function useDemoSession() {
     }
 
     if (!user.emailConfirmed) {
-      return { ok: false, message: "Email ещё не подтверждён double opt-in." };
+      return { ok: false, message: "Email ещё не подтверждён." };
     }
 
     persistSession(withoutPassword(user));
@@ -120,7 +142,7 @@ export function useDemoSession() {
     window.localStorage.setItem(usersKey, JSON.stringify(nextUsers));
     persistSession(withoutPassword(user));
 
-    return { ok: true, message: "Регистрация выполнена. Email подтверждён в демо-режиме." };
+    return { ok: true, message: "Регистрация выполнена. Email подтверждён." };
   }
 
   function logout() {

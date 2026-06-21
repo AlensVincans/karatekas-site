@@ -14,7 +14,10 @@ export default function B2BPage() {
       <section className="section-shell narrow">
         <span className="eyebrow">B2B</span>
         <h1>Доступ только для B2B-клиентов</h1>
-        <p>Войдите как `b2b@baltic.test / b2b123` или зарегистрируйте B2B аккаунт.</p>
+        <p>
+          Войдите в подтверждённый B2B-аккаунт или отправьте заявку на
+          регистрацию компании.
+        </p>
         <Link className="wide-button inline-button" href="/login">
           Войти
         </Link>
