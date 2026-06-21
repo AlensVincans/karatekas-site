@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { StoreHeader } from "../components/store-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <StoreHeader />
+        <main>{children}</main>
+      </body>
     </html>
   );
 }
