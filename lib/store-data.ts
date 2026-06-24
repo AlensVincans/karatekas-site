@@ -43,6 +43,8 @@ export type Variation = {
   id: string;
   sku: string;
   name: string;
+  color?: string;
+  size?: string;
   b2c: number;
   b2b: number;
   stock: Stock;
@@ -58,6 +60,7 @@ export type Product = {
   tags: string[];
   sheetX: string;
   sheetY: string;
+  images?: string[];
   variations: Variation[];
 };
 
@@ -134,7 +137,7 @@ export const discounts: DiscountRule[] = [
     id: "disc-arawaza-protector",
     name: "WKF комплект",
     scope: "variation",
-    target: "a0664xs",
+    target: "a0564xs",
     type: "percent",
     value: 7,
     audience: "both",

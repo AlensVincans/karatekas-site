@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import {
   available,
-  eur,
   pricedVariation,
   type Product,
   type UserRole,
 } from "../lib/store-data";
+import { categoryLabel, money, productDescription } from "../lib/i18n";
+import { useLanguage } from "./language";
+import { VariationPicker } from "./variation-picker";
 
 type CartLine = {
   productId: string;
@@ -25,13 +27,20 @@ function readCart() {
 }
 
 export function ProductCard({ product, role }: { product: Product; role: UserRole }) {
+  const { language, t } = useLanguage();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [added, setAdded] = useState(false);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
   const price = pricedVariation(product, variation, role);
   const availability = available(variation.stock);
-  const usesSelect = product.variations.length > 6;
+  const photo = product.images?.[0];
+  const photoStyle = photo
+    ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
+    : ({
+        "--sheet-x": product.sheetX,
+        "--sheet-y": product.sheetY,
+      } as CSSProperties);
 
   function addToCart() {
     const cart = readCart();
@@ -52,71 +61,39 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
   return (
     <article className="product-card">
       <Link
-        className="product-photo"
+        className={photo ? "product-photo real-photo" : "product-photo"}
         href={`/product/${product.id}`}
-        style={
-          {
-            "--sheet-x": product.sheetX,
-            "--sheet-y": product.sheetY,
-          } as CSSProperties
-        }
+        style={photoStyle}
       />
       <div className="product-body">
         <div className="product-heading">
           <span>{product.brand}</span>
           <Link href={`/product/${product.id}`}>{product.name}</Link>
         </div>
-        <p>{product.description}</p>
-        {usesSelect ? (
-          <select
-            aria-label="Вариант товара"
-            className="variation-select"
-            value={variation.id}
-            onChange={(event) => setVariationId(event.target.value)}
-          >
-            {product.variations.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} · SKU {item.sku}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="variation-row">
-            {product.variations.map((item) => (
-              <button
-                className={item.id === variation.id ? "active" : ""}
-                key={item.id}
-                onClick={() => setVariationId(item.id)}
-                type="button"
-              >
-                {item.name}
-              </button>
-            ))}
-          </div>
-        )}
+        <p>{productDescription(product, language)}</p>
+        <VariationPicker product={product} variationId={variation.id} onChange={setVariationId} />
         <div className="product-meta">
           <span>SKU {variation.sku}</span>
-          <span>{product.category}</span>
+          <span>{categoryLabel(product.category, language)}</span>
         </div>
         <div className="stock-line">
           <span className={availability > 20 ? "ok-dot" : "warn-dot"} />
-          {availability} доступно · {variation.stock.reserved} в резерве
+          {availability} {t.available} · {variation.stock.reserved} {t.reserved}
         </div>
         <div className="product-bottom">
           <div className="price-stack">
-            {price.isB2B ? <span className="old-price">{eur(price.retail)}</span> : null}
-            <strong>{eur(price.final)}</strong>
+            {price.isB2B ? <span className="old-price">{money(price.retail, language)}</span> : null}
+            <strong>{money(price.final, language)}</strong>
             {price.discount ? (
               <span className="discount-label">
                 {price.discount.type === "percent"
                   ? `-${price.discount.value}%`
-                  : `-${eur(price.discount.value)}`}{" "}
-                {price.discount.name}
+                  : `-${money(price.discount.value, language)}`}
               </span>
             ) : null}
           </div>
           <button disabled={availability === 0} onClick={addToCart} type="button">
-            {added ? "Добавлено" : "В корзину"}
+            {added ? t.added : t.addToCart}
           </button>
         </div>
       </div>

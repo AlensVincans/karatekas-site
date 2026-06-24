@@ -2,11 +2,56 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
 import type { UserRole } from "../../lib/store-data";
 
+const copy = {
+  ru: {
+    eyebrow: "Регистрация",
+    title: "Создать аккаунт",
+    regular: "Обычный",
+    name: "Имя",
+    password: "Пароль",
+    company: "Компания",
+    optIn: "Double opt-in email подтверждение",
+    submit: "Зарегистрироваться",
+    success: "Регистрация выполнена. Email подтверждён.",
+    exists: "Пользователь с таким email уже есть.",
+    haveAccount: "Уже есть аккаунт? Войти",
+  },
+  lv: {
+    eyebrow: "Reģistrācija",
+    title: "Izveidot kontu",
+    regular: "Privāts",
+    name: "Vārds",
+    password: "Parole",
+    company: "Uzņēmums",
+    optIn: "Double opt-in email apstiprinājums",
+    submit: "Reģistrēties",
+    success: "Reģistrācija pabeigta. Email apstiprināts.",
+    exists: "Lietotājs ar šādu email jau eksistē.",
+    haveAccount: "Konts jau ir? Ieiet",
+  },
+  en: {
+    eyebrow: "Registration",
+    title: "Create account",
+    regular: "Retail",
+    name: "Name",
+    password: "Password",
+    company: "Company",
+    optIn: "Double opt-in email confirmation",
+    submit: "Register",
+    success: "Registration complete. Email confirmed.",
+    exists: "A user with this email already exists.",
+    haveAccount: "Already have an account? Login",
+  },
+} as const;
+
 export default function RegisterPage() {
   const { register } = useDemoSession();
+  const { language } = useLanguage();
+  const c = copy[language];
   const [role, setRole] = useState<Extract<UserRole, "user" | "b2b">>("user");
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
@@ -20,15 +65,15 @@ export default function RegisterPage() {
   return (
     <section className="auth-page">
       <div className="auth-card">
-        <span className="eyebrow">Регистрация</span>
-        <h1>Создать аккаунт</h1>
+        <span className="eyebrow">{c.eyebrow}</span>
+        <h1>{c.title}</h1>
         <div className="segmented-control">
           <button
             className={role === "user" ? "active" : ""}
             onClick={() => setRole("user")}
             type="button"
           >
-            Обычный
+            {c.regular}
           </button>
           <button
             className={role === "b2b" ? "active" : ""}
@@ -39,7 +84,7 @@ export default function RegisterPage() {
           </button>
         </div>
         <label>
-          Имя
+          {c.name}
           <input
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
@@ -53,7 +98,7 @@ export default function RegisterPage() {
           />
         </label>
         <label>
-          Пароль
+          {c.password}
           <input
             type="password"
             value={form.password}
@@ -63,7 +108,7 @@ export default function RegisterPage() {
         {role === "b2b" ? (
           <>
             <label>
-              Компания
+              {c.company}
               <input
                 value={form.company}
                 onChange={(event) =>
@@ -84,7 +129,7 @@ export default function RegisterPage() {
         ) : null}
         <label className="check-row">
           <input defaultChecked type="checkbox" />
-          Double opt-in email подтверждение
+          {c.optIn}
         </label>
         <input
           aria-hidden="true"
@@ -97,14 +142,14 @@ export default function RegisterPage() {
           className="wide-button"
           onClick={() => {
             const result = register({ ...form, role });
-            setMessage(result.message);
+            setMessage(result.ok ? c.success : c.exists);
           }}
           type="button"
         >
-          Зарегистрироваться
+          {c.submit}
         </button>
         {message ? <p className="status-box">{message}</p> : null}
-        <Link href="/login">Уже есть аккаунт? Войти</Link>
+        <Link href="/login">{c.haveAccount}</Link>
       </div>
     </section>
   );

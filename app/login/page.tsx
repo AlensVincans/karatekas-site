@@ -2,10 +2,52 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
+
+const copy = {
+  ru: {
+    eyebrow: "Личный кабинет",
+    title: "Вход в аккаунт",
+    text: "Войдите, чтобы видеть свои заказы, счета, условия оплаты и сохранённые данные доставки.",
+    password: "Пароль",
+    passwordPlaceholder: "Ваш пароль",
+    submit: "Войти",
+    success: "Вход выполнен.",
+    failed: "Неверный email или пароль.",
+    goAccount: "Перейти в кабинет",
+    noAccount: "Нет аккаунта? Регистрация",
+  },
+  lv: {
+    eyebrow: "Mans konts",
+    title: "Ieiet kontā",
+    text: "Ieejiet, lai redzētu pasūtījumus, rēķinus, apmaksas nosacījumus un piegādes datus.",
+    password: "Parole",
+    passwordPlaceholder: "Jūsu parole",
+    submit: "Ieiet",
+    success: "Ieeja veiksmīga.",
+    failed: "Nepareizs email vai parole.",
+    goAccount: "Atvērt kabinetu",
+    noAccount: "Nav konta? Reģistrācija",
+  },
+  en: {
+    eyebrow: "Account",
+    title: "Login",
+    text: "Sign in to see your orders, invoices, payment terms and saved delivery details.",
+    password: "Password",
+    passwordPlaceholder: "Your password",
+    submit: "Sign in",
+    success: "Signed in.",
+    failed: "Incorrect email or password.",
+    goAccount: "Open account",
+    noAccount: "No account? Register",
+  },
+} as const;
 
 export default function LoginPage() {
   const { login, session } = useDemoSession();
+  const { language, t } = useLanguage();
+  const c = copy[language];
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -13,12 +55,9 @@ export default function LoginPage() {
   return (
     <section className="auth-page">
       <div className="auth-card">
-        <span className="eyebrow">Личный кабинет</span>
-        <h1>Вход в аккаунт</h1>
-        <p className="auth-copy">
-          Войдите, чтобы видеть свои заказы, счета, условия оплаты и сохранённые
-          данные доставки.
-        </p>
+        <span className="eyebrow">{c.eyebrow}</span>
+        <h1>{c.title}</h1>
+        <p className="auth-copy">{c.text}</p>
         <label>
           Email
           <input
@@ -29,10 +68,10 @@ export default function LoginPage() {
           />
         </label>
         <label>
-          Пароль
+          {c.password}
           <input
             autoComplete="current-password"
-            placeholder="Ваш пароль"
+            placeholder={c.passwordPlaceholder}
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -42,22 +81,22 @@ export default function LoginPage() {
           className="wide-button"
           onClick={() => {
             const result = login(email, password);
-            setMessage(result.message);
+            setMessage(result.ok ? c.success : c.failed);
           }}
           type="button"
         >
-          Войти
+          {c.submit}
         </button>
         {message ? <p className="status-box">{message}</p> : null}
         {session ? (
           <div className="auth-actions">
             <Link href={session.role === "admin" ? "/admin" : "/account"}>
-              Перейти в кабинет
+              {c.goAccount}
             </Link>
-            {session.role === "b2b" ? <Link href="/b2b">B2B цены</Link> : null}
+            {session.role === "b2b" ? <Link href="/b2b">{t.navB2B}</Link> : null}
           </div>
         ) : null}
-        <Link href="/register">Нет аккаунта? Регистрация</Link>
+        <Link href="/register">{c.noAccount}</Link>
       </div>
     </section>
   );

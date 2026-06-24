@@ -1,0 +1,293 @@
+import type { Product } from "./store-data";
+
+export const languages = [
+  { code: "ru", label: "RU", name: "Русский" },
+  { code: "lv", label: "LV", name: "Latviešu" },
+  { code: "en", label: "EN", name: "English" },
+] as const;
+
+export type Language = (typeof languages)[number]["code"];
+
+export const defaultLanguage: Language = "ru";
+
+export const dictionary = {
+  ru: {
+    brandSubline: "экипировка для карате",
+    navCatalog: "Каталог",
+    navCart: "Корзина",
+    navB2B: "B2B цены",
+    navAdmin: "Админка",
+    login: "Вход",
+    register: "Регистрация",
+    logout: "Выйти",
+    client: "Клиент",
+    heroEyebrow: "Карате · клубы · быстрые поставки",
+    heroTitle: "Экипировка для карате в розницу и для клубов",
+    heroText:
+      "Кимоно, пояса, защита, перчатки и тренировочный инвентарь с понятными B2C/B2B ценами, доставкой по Балтии и оплатой картой или по счёту.",
+    openCatalog: "Открыть каталог",
+    becomeClient: "Стать клиентом",
+    products: "товаров",
+    categories: "категорий",
+    inStockUnits: "единиц на складе",
+    clubSeason: "Клубный сезон",
+    clubSeasonText:
+      "Скидки на Kihon, защита для спаррингов и клубные закупки кимоно для залов в Латвии, Литве и Эстонии.",
+    popular: "Популярное",
+    popularTitle: "Ходовые позиции для тренировок",
+    payment: "Оплата",
+    paymentText: "Карты, 3D Secure, Apple Pay, Google Pay и оплата по счёту для клубов.",
+    b2bTerms: "B2B условия",
+    b2bTermsText: "После входа клуб видит розницу зачёркнутой и активную закупочную цену.",
+    delivery: "Доставка",
+    deliveryText: "Omniva, DPD, Unisend, Latvijas Pasts и курьерская доставка по Балтии.",
+    catalogTitle: "Кимоно, пояса, защита и инвентарь для карате",
+    filters: "Фильтры",
+    search: "Поиск",
+    searchPlaceholder: "товар, бренд, категория",
+    category: "Категория",
+    brand: "Бренд",
+    all: "Все",
+    b2bActive: "B2B-цены активны: розница показана зачёркнутой.",
+    retailActive: "Обычный пользователь видит розничную цену.",
+    available: "доступно",
+    reserved: "в резерве",
+    addToCart: "В корзину",
+    added: "Добавлено",
+    color: "Цвет",
+    size: "Размер",
+    option: "Вариант",
+    buyInCatalog: "Купить в каталоге",
+    similarProducts: "Похожие товары",
+    variation: "Вариация",
+    batch: "Партия",
+    cost: "Себестоимость",
+    marginB2B: "Маржа B2B",
+  },
+  lv: {
+    brandSubline: "karatē ekipējums",
+    navCatalog: "Katalogs",
+    navCart: "Grozs",
+    navB2B: "B2B cenas",
+    navAdmin: "Administrācija",
+    login: "Ieeja",
+    register: "Reģistrācija",
+    logout: "Iziet",
+    client: "Klients",
+    heroEyebrow: "Karatē · klubi · ātras piegādes",
+    heroTitle: "Karatē ekipējums sportistiem un klubiem",
+    heroText:
+      "Kimono, jostas, aizsargi, cimdi un treniņu inventārs ar skaidrām B2C/B2B cenām, piegādi Baltijā un apmaksu ar karti vai rēķinu.",
+    openCatalog: "Atvērt katalogu",
+    becomeClient: "Kļūt par klientu",
+    products: "preces",
+    categories: "kategorijas",
+    inStockUnits: "vienības noliktavā",
+    clubSeason: "Klubu sezona",
+    clubSeasonText:
+      "Atlaides Kihon precēm, sparinga aizsargi un klubu kimono iepirkumi zālēm Latvijā, Lietuvā un Igaunijā.",
+    popular: "Populāri",
+    popularTitle: "Pieprasītas treniņu preces",
+    payment: "Apmaksa",
+    paymentText: "Kartes, 3D Secure, Apple Pay, Google Pay un apmaksa ar rēķinu klubiem.",
+    b2bTerms: "B2B nosacījumi",
+    b2bTermsText: "Pēc ieejas klubs redz mazumtirdzniecības cenu un aktīvo iepirkuma cenu.",
+    delivery: "Piegāde",
+    deliveryText: "Omniva, DPD, Unisend, Latvijas Pasts un kurjera piegāde Baltijā.",
+    catalogTitle: "Kimono, jostas, aizsargi un inventārs karatē",
+    filters: "Filtri",
+    search: "Meklēt",
+    searchPlaceholder: "prece, zīmols, kategorija",
+    category: "Kategorija",
+    brand: "Zīmols",
+    all: "Visi",
+    b2bActive: "B2B cenas aktīvas: mazumtirdzniecības cena ir pārsvītrota.",
+    retailActive: "Parasts lietotājs redz mazumtirdzniecības cenu.",
+    available: "pieejams",
+    reserved: "rezervē",
+    addToCart: "Grozā",
+    added: "Pievienots",
+    color: "Krāsa",
+    size: "Izmērs",
+    option: "Variants",
+    buyInCatalog: "Pirkt katalogā",
+    similarProducts: "Līdzīgas preces",
+    variation: "Variācija",
+    batch: "Partija",
+    cost: "Pašizmaksa",
+    marginB2B: "B2B marža",
+  },
+  en: {
+    brandSubline: "karate equipment",
+    navCatalog: "Catalog",
+    navCart: "Cart",
+    navB2B: "B2B prices",
+    navAdmin: "Admin",
+    login: "Login",
+    register: "Register",
+    logout: "Log out",
+    client: "Client",
+    heroEyebrow: "Karate · clubs · fast delivery",
+    heroTitle: "Karate equipment for athletes and clubs",
+    heroText:
+      "Gi, belts, protection, gloves and training gear with clear B2C/B2B prices, Baltic delivery and card or invoice payment.",
+    openCatalog: "Open catalog",
+    becomeClient: "Become a client",
+    products: "products",
+    categories: "categories",
+    inStockUnits: "units in stock",
+    clubSeason: "Club season",
+    clubSeasonText:
+      "Kihon offers, sparring protection and club gi orders for dojos in Latvia, Lithuania and Estonia.",
+    popular: "Popular",
+    popularTitle: "Training essentials in stock",
+    payment: "Payment",
+    paymentText: "Cards, 3D Secure, Apple Pay, Google Pay and invoice payment for clubs.",
+    b2bTerms: "B2B terms",
+    b2bTermsText: "After login, clubs see retail crossed out and the active B2B price.",
+    delivery: "Delivery",
+    deliveryText: "Omniva, DPD, Unisend, Latvijas Pasts and courier delivery across the Baltics.",
+    catalogTitle: "Gi, belts, protection and karate training gear",
+    filters: "Filters",
+    search: "Search",
+    searchPlaceholder: "product, brand, category",
+    category: "Category",
+    brand: "Brand",
+    all: "All",
+    b2bActive: "B2B prices are active: retail is shown crossed out.",
+    retailActive: "Retail customers see the retail price.",
+    available: "available",
+    reserved: "reserved",
+    addToCart: "Add to cart",
+    added: "Added",
+    color: "Color",
+    size: "Size",
+    option: "Option",
+    buyInCatalog: "Buy in catalog",
+    similarProducts: "Similar products",
+    variation: "Variation",
+    batch: "Batch",
+    cost: "Cost",
+    marginB2B: "B2B margin",
+  },
+} as const;
+
+const categoryLabels: Record<Language, Record<string, string>> = {
+  ru: {
+    Accessories: "Аксессуары",
+    Belts: "Пояса",
+    Kimono: "Кимоно",
+    "Protective Equipment": "Защита",
+    "Punching bags": "Мешки и манекены",
+    Tatami: "Татами",
+    WUKF: "WUKF",
+    Equipment: "Экипировка",
+  },
+  lv: {
+    Accessories: "Aksesuāri",
+    Belts: "Jostas",
+    Kimono: "Kimono",
+    "Protective Equipment": "Aizsargi",
+    "Punching bags": "Maisi un manekeni",
+    Tatami: "Tatami",
+    WUKF: "WUKF",
+    Equipment: "Ekipējums",
+  },
+  en: {
+    Accessories: "Accessories",
+    Belts: "Belts",
+    Kimono: "Gi",
+    "Protective Equipment": "Protective equipment",
+    "Punching bags": "Punching bags",
+    Tatami: "Tatami",
+    WUKF: "WUKF",
+    Equipment: "Equipment",
+  },
+};
+
+const colorLabels: Record<Language, Record<string, string>> = {
+  ru: {
+    White: "Белый",
+    Black: "Черный",
+    Blue: "Синий",
+    Red: "Красный",
+    Pink: "Розовый",
+    Green: "Зеленый",
+    Yellow: "Желтый",
+    Orange: "Оранжевый",
+    Grey: "Серый",
+    Skin: "Телесный",
+  },
+  lv: {
+    White: "Balts",
+    Black: "Melns",
+    Blue: "Zils",
+    Red: "Sarkans",
+    Pink: "Rozā",
+    Green: "Zaļš",
+    Yellow: "Dzeltens",
+    Orange: "Oranžs",
+    Grey: "Pelēks",
+    Skin: "Ādas krāsa",
+  },
+  en: {
+    White: "White",
+    Black: "Black",
+    Blue: "Blue",
+    Red: "Red",
+    Pink: "Pink",
+    Green: "Green",
+    Yellow: "Yellow",
+    Orange: "Orange",
+    Grey: "Grey",
+    Skin: "Skin",
+  },
+};
+
+export const colorHex: Record<string, string> = {
+  White: "#ffffff",
+  Black: "#161616",
+  Blue: "#0f61d6",
+  Red: "#d7252f",
+  Pink: "#ef7aa7",
+  Green: "#26824a",
+  Yellow: "#f2c94c",
+  Orange: "#f08a24",
+  Grey: "#8b949e",
+  Skin: "#d7a982",
+};
+
+export function categoryLabel(category: string, language: Language) {
+  return categoryLabels[language][category] ?? category;
+}
+
+export function colorLabel(color: string | undefined, language: Language) {
+  if (!color) {
+    return "";
+  }
+  return colorLabels[language][color] ?? color;
+}
+
+export function productDescription(product: Product, language: Language) {
+  const category = categoryLabel(product.category, language).toLowerCase();
+
+  if (language === "lv") {
+    return `${product.name} ${product.brand}: ${category} treniņiem, sacensībām un klubu iepirkumiem.`;
+  }
+
+  if (language === "en") {
+    return `${product.name} by ${product.brand}: ${category} for training, competition and club orders.`;
+  }
+
+  return `${product.name} ${product.brand}: ${category} для тренировок, соревнований и клубных закупок.`;
+}
+
+export function money(value: number, language: Language) {
+  const locale = language === "lv" ? "lv-LV" : language === "en" ? "en-GB" : "ru-RU";
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: value < 20 ? 2 : 0,
+  }).format(value);
+}

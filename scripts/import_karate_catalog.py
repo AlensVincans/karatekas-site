@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import csv
+import html
 import json
 import re
+import shutil
 import sqlite3
 import sys
+import urllib.parse
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,10 +16,33 @@ from typing import Any
 from openpyxl import load_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = Path(r"C:/Users/alenv/Downloads/Sajt_karatekas kihon_price_list.xlsx")
+EXCEL_SOURCE = Path(r"C:/Users/alenv/Downloads/Sajt_karatekas kihon_price_list.xlsx")
+WOO_SOURCE = Path(r"C:/Users/alenv/Downloads/wc-product-export-23-6-2026-1782247894297.csv")
+UPLOADS_ROOT = Path(r"C:/Users/alenv/Downloads/uploads")
+PRODUCT_IMAGE_DIR = ROOT / "public" / "product-images"
 SCHEMA = ROOT / "data" / "products.schema.sql"
 DB_PATH = ROOT / "data" / "products.sqlite"
 TS_PATH = ROOT / "lib" / "karate-products.ts"
+KNOWN_BRANDS = {
+    "Arawaza",
+    "Best Sport",
+    "Century",
+    "Kihon",
+    "Punok",
+    "Sentei",
+    "Smai",
+    "Tokaido",
+}
+CATEGORY_ORDER = {
+    "Kimono": 10,
+    "Protective Equipment": 20,
+    "Belts": 30,
+    "Punching bags": 40,
+    "Tatami": 50,
+    "Accessories": 60,
+    "WUKF": 70,
+    "Equipment": 80,
+}
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -28,7 +55,12 @@ def clean(value: Any) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     text = str(value).replace("\r\n", "\n").replace("\r", "\n").strip()
-    return re.sub(r"[ \t]+", " ", text)
+    return re.sub(r"[ \t]+", " ", html.unescape(text))
+
+
+def strip_html(value: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", clean(value))
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def number(value: Any, default: float = 0) -> float:
@@ -44,10 +76,16 @@ def number(value: Any, default: float = 0) -> float:
 
 
 def slug(value: str) -> str:
-    value = value.lower()
+    value = clean(value).lower()
     value = re.sub(r"[^a-z0-9а-яё]+", "-", value, flags=re.IGNORECASE)
     value = value.strip("-")
     return value or "item"
+
+
+def safe_asset_name(value: str) -> str:
+    name = urllib.parse.unquote(value)
+    name = re.sub(r"[^a-zA-Z0-9._-]+", "-", name).strip("-")
+    return name.lower() or "image.jpg"
 
 
 def ts(value: Any) -> str:
@@ -55,56 +93,53 @@ def ts(value: Any) -> str:
 
 
 def category_name(raw: str) -> str:
-    key = raw.strip().lower()
-    if "protect" in key:
-        return "Защита"
-    if "kimono" in key or key == "gi":
-        return "Кимоно"
+    key = clean(raw).lower()
+    if "kimono" in key or "gi" in key:
+        return "Kimono"
+    if "protect" in key or "guard" in key:
+        return "Protective Equipment"
     if "belt" in key:
-        return "Пояса"
-    if "punching" in key or "bag" in key:
-        return "Мешки и манекены"
-    if "target" in key:
-        return "Лапы и макивары"
-
-    mapping = {
-        "kimono": "Кимоно",
-        "gi": "Кимоно",
-        "belts": "Пояса",
-        "belt": "Пояса",
-        "gloves": "Перчатки",
-        "glove": "Перчатки",
-        "protection": "Защита",
-        "protectors": "Защита",
-        "shin guards": "Защита ног",
-        "foot protection": "Защита ног",
-        "punching bags": "Мешки и манекены",
-        "bags": "Мешки и манекены",
-        "equipment": "Экипировка",
-        "accessories": "Аксессуары",
-        "training": "Тренировки",
-    }
-    return mapping.get(key, raw.strip().title() or "Экипировка")
+        return "Belts"
+    if "punching" in key or "bag" in key or "dummy" in key:
+        return "Punching bags"
+    if "tatami" in key:
+        return "Tatami"
+    if "wukf" in key:
+        return "WUKF"
+    if "accessor" in key:
+        return "Accessories"
+    if "music box" in key:
+        return "Accessories"
+    return clean(raw) or "Equipment"
 
 
 def colour_name(raw: str) -> str:
     mapping = {
-        "white": "белый",
-        "black": "черный",
-        "blue": "синий",
-        "red": "красный",
-        "pink": "розовый",
-        "green": "зеленый",
-        "yellow": "желтый",
-        "orange": "оранжевый",
+        "white": "White",
+        "black": "Black",
+        "blue": "Blue",
+        "red": "Red",
+        "pink": "Pink",
+        "green": "Green",
+        "yellow": "Yellow",
+        "orange": "Orange",
+        "grey": "Grey",
+        "gray": "Grey",
+        "skin colour": "Skin",
+        "skin color": "Skin",
         "no colour": "",
         "no color": "",
     }
-    key = raw.strip().lower()
-    return mapping.get(key, raw.strip())
+    key = clean(raw).lower()
+    return mapping.get(key, clean(raw))
 
 
-def find_header(rows: list[tuple[Any, ...]]) -> tuple[int, list[str]] | None:
+def split_values(value: str) -> list[str]:
+    parts = [clean(part) for part in re.split(r"\s*,\s*|\s*\|\s*", clean(value)) if clean(part)]
+    return parts or [""]
+
+
+def find_excel_header(rows: list[tuple[Any, ...]]) -> tuple[int, list[str]] | None:
     for index, row in enumerate(rows[:20]):
         headers = [clean(cell) for cell in row]
         lowered = {header.lower() for header in headers}
@@ -121,31 +156,43 @@ def row_value(row: tuple[Any, ...], headers: list[str], name: str) -> Any:
     return None
 
 
-def unique_sku(base: str, seen: Counter[str]) -> str:
-    base = base.strip() or "SKU"
+def unique_value(base: str, seen: Counter[str]) -> str:
+    base = clean(base) or "item"
     seen[base] += 1
     if seen[base] == 1:
         return base
     return f"{base}-{seen[base]}"
 
 
-def unique_slug(base: str, seen: Counter[str]) -> str:
-    base = slug(base)
-    seen[base] += 1
-    if seen[base] == 1:
-        return base
-    return f"{base}-{seen[base]}"
+def parse_attrs(row: dict[str, Any]) -> dict[str, list[str]]:
+    attrs: dict[str, list[str]] = {}
+    for index in (1, 2):
+        name = clean(row.get(f"Atribūta {index} nosaukums"))
+        value = clean(row.get(f"Atribūta {index} vērtība (-s)"))
+        if not name or not value:
+            continue
+        key = name.lower()
+        if "color" in key or "colour" in key:
+            attrs["color"] = [colour_name(part) for part in split_values(value)]
+        elif "size" in key:
+            attrs["size"] = split_values(value)
+        else:
+            attrs[name.lower()] = split_values(value)
+    return attrs
 
 
-def import_rows() -> list[dict[str, Any]]:
-    wb = load_workbook(SOURCE, data_only=True)
+def import_excel_rows() -> list[dict[str, Any]]:
+    if not EXCEL_SOURCE.exists():
+        return []
+
+    wb = load_workbook(EXCEL_SOURCE, data_only=True)
     imported_at = datetime.now(timezone.utc).isoformat()
     items: list[dict[str, Any]] = []
     seen_skus: Counter[str] = Counter()
 
     for ws in wb.worksheets:
         rows = list(ws.iter_rows(values_only=True))
-        header_match = find_header(rows)
+        header_match = find_excel_header(rows)
         if not header_match:
             continue
 
@@ -174,12 +221,12 @@ def import_rows() -> list[dict[str, Any]]:
 
             raw_sku = clean(row_value(row, headers, "Product code/ SKU"))
             generated = f"{slug(brand)[:4].upper()}-{slug(title)[:18].upper()}-{slug(size or colour or str(excel_row_number)).upper()}"
-            sku = unique_sku(raw_sku or generated, seen_skus)
+            sku = unique_value(raw_sku or generated, seen_skus)
 
             images = [clean(row_value(row, headers, f"img{i}")) for i in range(1, 5)]
             items.append(
                 {
-                    "source_sheet": ws.title,
+                    "source_sheet": f"excel:{ws.title}",
                     "brand": brand,
                     "product_group": group,
                     "category": category_name(group),
@@ -192,9 +239,202 @@ def import_rows() -> list[dict[str, Any]]:
                     "club_price": club_price,
                     "retail_price": retail_price,
                     "images": images,
+                    "image_urls": [],
                     "imported_at": imported_at,
                 }
             )
+
+    return items
+
+
+def image_urls(row: dict[str, Any]) -> list[str]:
+    raw = clean(row.get("Attēli"))
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip() and item.strip() != "0"]
+
+
+def upload_index() -> dict[str, Path]:
+    files = [path for path in UPLOADS_ROOT.rglob("*") if path.is_file()]
+    return {path.name.lower(): path for path in files}
+
+
+def url_candidates(url: str) -> list[str]:
+    name = urllib.parse.unquote(Path(urllib.parse.urlparse(url).path).name)
+    stem = Path(name).stem
+    suffix = Path(name).suffix
+    return [
+        name,
+        re.sub(r"-\d+$", "", stem) + suffix,
+        re.sub(r"-\d+x\d+$", "", stem) + suffix,
+    ]
+
+
+def copy_product_images(urls: list[str]) -> dict[str, str]:
+    PRODUCT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    by_name = upload_index()
+    used_names: Counter[str] = Counter()
+    mapped: dict[str, str] = {}
+
+    for url in sorted(set(urls)):
+        source = None
+        for candidate in url_candidates(url):
+            source = by_name.get(candidate.lower())
+            if source:
+                break
+        if not source:
+            continue
+
+        base = safe_asset_name(source.name)
+        stem = Path(base).stem
+        suffix = Path(base).suffix or source.suffix or ".jpg"
+        used_names[base] += 1
+        filename = base if used_names[base] == 1 else f"{stem}-{used_names[base]}{suffix}"
+        target = PRODUCT_IMAGE_DIR / filename
+        if not target.exists() or target.stat().st_size != source.stat().st_size:
+            shutil.copy2(source, target)
+        mapped[url] = f"/product-images/{filename}"
+
+    return mapped
+
+
+def display_title(row: dict[str, Any]) -> str:
+    name = clean(row.get("Vārds"))
+    brand = product_brand(row)
+    pieces = name_parts(name)
+    if len(pieces) >= 3 and pieces[0].lower() == brand.lower():
+        return pieces[-1]
+    if len(pieces) >= 2 and (pieces[0] in KNOWN_BRANDS or category_name(pieces[0]) != "Equipment"):
+        return pieces[-1]
+    return name
+
+
+def name_parts(name: str) -> list[str]:
+    return [part.strip() for part in re.split(r"\s*[–-]\s*", clean(name)) if part.strip()]
+
+
+def product_brand(row: dict[str, Any]) -> str:
+    explicit = clean(row.get("Zīmoli"))
+    if explicit and explicit != "1":
+        return explicit
+    pieces = name_parts(clean(row.get("Vārds")))
+    if pieces and pieces[0] in KNOWN_BRANDS:
+        return pieces[0]
+    return "Karatekas"
+
+
+def product_category(row: dict[str, Any]) -> str:
+    explicit = clean(row.get("Kategorija"))
+    if explicit:
+        return category_name(explicit)
+    pieces = name_parts(clean(row.get("Vārds")))
+    if len(pieces) >= 2:
+        inferred = category_name(pieces[1])
+        if inferred != "Equipment":
+            return inferred
+    if pieces:
+        inferred = category_name(pieces[0])
+        if inferred != "Equipment":
+            return inferred
+    return "Equipment"
+
+
+def row_stock(row: dict[str, Any]) -> int:
+    stock = int(round(number(row.get("Noliktavā"))))
+    if stock <= 0 and clean(row.get("Ir noliktavā?")) == "1":
+        return 1
+    return max(0, stock)
+
+
+def woo_rows() -> list[dict[str, Any]]:
+    if not WOO_SOURCE.exists():
+        return []
+    with WOO_SOURCE.open(encoding="utf-8-sig", newline="") as handle:
+        sample = handle.read(4096)
+        handle.seek(0)
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
+        return [
+            row
+            for row in csv.DictReader(handle, dialect=dialect)
+            if row.get("Tips") in {"simple", "variable", "variation"}
+            and clean(row.get("Publicēts")) != "0"
+        ]
+
+
+def import_woo_items() -> list[dict[str, Any]]:
+    rows = woo_rows()
+    if not rows:
+        return []
+
+    imported_at = datetime.now(timezone.utc).isoformat()
+    parents_by_sku = {clean(row.get("SKU")): row for row in rows if row.get("Tips") == "variable"}
+    children_by_parent: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        if row.get("Tips") == "variation" and clean(row.get("Vecāks")):
+            children_by_parent[clean(row.get("Vecāks"))].append(row)
+
+    all_urls: list[str] = []
+    for row in rows:
+        all_urls.extend(image_urls(row))
+    image_map = copy_product_images(all_urls)
+    items: list[dict[str, Any]] = []
+    seen_skus: Counter[str] = Counter()
+
+    def add_item(parent: dict[str, Any], child: dict[str, Any], size: str, colour: str) -> None:
+        brand = product_brand(parent)
+        category = product_category(parent)
+        title = display_title(parent)
+        retail = number(child.get("Akcijas cena")) or number(child.get("Parastā cena:"))
+        if retail <= 0:
+            return
+        club = round(retail * 0.78, 2)
+        sku = unique_value(clean(child.get("SKU")) or clean(parent.get("SKU")) or title, seen_skus)
+        parent_images = [image_map[url] for url in image_urls(parent) if url in image_map]
+        child_images = [image_map[url] for url in image_urls(child) if url in image_map]
+        images = (child_images or parent_images)[:8]
+        description = strip_html(clean(parent.get("Īss apraksts")) or clean(parent.get("Apraksts")))
+
+        items.append(
+            {
+                "source_sheet": "woocommerce-csv",
+                "brand": brand,
+                "product_group": clean(parent.get("Kategorija")) or category,
+                "category": category,
+                "sku": sku,
+                "title": title,
+                "description": description,
+                "stock": row_stock(child),
+                "size": clean(size),
+                "colour": colour_name(colour),
+                "club_price": club,
+                "retail_price": round(retail, 2),
+                "images": images,
+                "image_urls": image_urls(parent),
+                "imported_at": imported_at,
+            }
+        )
+
+    for parent_sku, parent in parents_by_sku.items():
+        children = children_by_parent.get(parent_sku, [])
+        for child in children:
+            attrs = parse_attrs(child)
+            colours = attrs.get("color", [""])
+            sizes = attrs.get("size", [""])
+            add_item(parent, child, sizes[0] if sizes else "", colours[0] if colours else "")
+
+    for row in rows:
+        if row.get("Tips") != "simple":
+            continue
+        attrs = parse_attrs(row)
+        colours = attrs.get("color", [""])
+        sizes = attrs.get("size", [""])
+        for colour in colours:
+            for size in sizes:
+                child = dict(row)
+                suffix = "-".join(part for part in [colour, size] if part)
+                if suffix:
+                    child["SKU"] = f"{clean(row.get('SKU'))}-{slug(suffix)}"
+                add_item(row, child, size, colour)
 
     return items
 
@@ -225,10 +465,10 @@ def write_sqlite(items: list[dict[str, Any]]) -> None:
                 item["colour"],
                 item["club_price"],
                 item["retail_price"],
-                item["images"][0],
-                item["images"][1],
-                item["images"][2],
-                item["images"][3],
+                item["images"][0] if len(item["images"]) > 0 else "",
+                item["images"][1] if len(item["images"]) > 1 else "",
+                item["images"][2] if len(item["images"]) > 2 else "",
+                item["images"][3] if len(item["images"]) > 3 else "",
                 1,
                 item["imported_at"],
             )
@@ -240,28 +480,25 @@ def write_sqlite(items: list[dict[str, Any]]) -> None:
 
 
 def build_products(items: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
-    grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     visible_items = [
         item
         for item in items
-        if number(item["club_price"]) > 0 or number(item["retail_price"]) > 0
+        if item["source_sheet"] == "woocommerce-csv"
+        and (number(item["club_price"]) > 0 or number(item["retail_price"]) > 0)
     ]
-
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for item in visible_items:
-        key = (
-            item["brand"],
-            item["category"],
-            item["title"],
-            item["description"][:160],
-        )
-        grouped[key].append(item)
+        grouped[(item["brand"], item["category"], item["title"])].append(item)
 
     positions = [("0%", "0%"), ("50%", "0%"), ("100%", "0%"), ("0%", "100%"), ("50%", "100%"), ("100%", "100%")]
-    categories = sorted({item["category"] for item in visible_items})
+    categories = sorted(
+        {item["category"] for item in visible_items},
+        key=lambda category: (CATEGORY_ORDER.get(category, 999), category),
+    )
     products: list[dict[str, Any]] = []
     seen_product_ids: Counter[str] = Counter()
 
-    for index, ((brand, category, title, description), variations) in enumerate(grouped.items()):
+    for index, ((brand, category, title), variations) in enumerate(grouped.items()):
         deduped: dict[tuple[str, str, float, float], dict[str, Any]] = {}
         for item in variations:
             key = (
@@ -276,43 +513,36 @@ def build_products(items: list[dict[str, Any]]) -> tuple[list[str], list[dict[st
 
         variations = sorted(
             deduped.values(),
-            key=lambda item: (item["stock"] <= 0, item["size"], item["colour"], item["sku"]),
+            key=lambda item: (item["stock"] <= 0, item["colour"], item["size"], item["sku"]),
         )
-        product_id = unique_slug(f"{brand}-{title}", seen_product_ids)
-        category_copy = {
-            "Защита": f"{title} {brand}: защитная экипировка для тренировок, спаррингов и соревнований по карате.",
-            "Кимоно": f"{title} {brand}: кимоно для карате с подбором размера и актуальными остатками.",
-            "Лапы и макивары": f"{title} {brand}: инвентарь для отработки ударов и клубных тренировок.",
-            "Мешки и манекены": f"{title} {brand}: оборудование для зала и регулярной ударной практики.",
-            "Пояса": f"{title} {brand}: пояс для карате, экзаменов, тренировок и клубных закупок.",
-        }
+        first = variations[0]
+        product_id = unique_value(slug(f"{brand}-{title}"), seen_product_ids)
         product = {
             "id": product_id,
             "name": title,
             "brand": brand,
             "category": category,
-            "description": category_copy.get(
-                category,
-                f"{title} {brand}: экипировка для тренировок и соревнований по карате.",
-            ),
+            "description": first["description"],
             "specs": sorted({value for item in variations for value in [category, item["colour"]] if value})[:4],
             "tags": [brand, category],
             "sheetX": positions[index % len(positions)][0],
             "sheetY": positions[index % len(positions)][1],
+            "images": first["images"],
             "variations": [],
         }
 
         for item in variations:
-            label_parts = [part for part in [item["size"], item["colour"]] if part]
-            label = " / ".join(label_parts) or item["sku"]
             club_price = item["club_price"] or item["retail_price"] * 0.78
             retail_price = item["retail_price"] or club_price * 1.28
             purchase = round(club_price * 0.62, 2)
+            label_parts = [part for part in [item["colour"], item["size"]] if part]
             product["variations"].append(
                 {
                     "id": slug(item["sku"]),
                     "sku": item["sku"],
-                    "name": label,
+                    "name": " / ".join(label_parts) or item["sku"],
+                    "color": item["colour"],
+                    "size": item["size"],
                     "b2c": round(retail_price, 2),
                     "b2b": round(club_price, 2),
                     "stock": {
@@ -326,7 +556,7 @@ def build_products(items: list[dict[str, Any]]) -> tuple[list[str], list[dict[st
                         "fx": 1,
                         "lots": [
                             {
-                                "batch": f"{slug(item['source_sheet']).upper()}-{slug(item['brand']).upper()}",
+                                "batch": "WOO-KARATEKAS",
                                 "qty": item["stock"],
                                 "purchase": purchase,
                                 "shipping": round(max(0.5, purchase * 0.05), 2),
@@ -351,7 +581,7 @@ def build_products(items: list[dict[str, Any]]) -> tuple[list[str], list[dict[st
     products.sort(
         key=lambda p: (
             product_available(p) <= 0,
-            p["category"],
+            CATEGORY_ORDER.get(p["category"], 999),
             p["brand"],
             p["name"],
         )
@@ -361,8 +591,8 @@ def build_products(items: list[dict[str, Any]]) -> tuple[list[str], list[dict[st
 
 def write_ts(categories: list[str], products: list[dict[str, Any]]) -> None:
     content = (
-        "// Generated from Sajt_karatekas kihon_price_list.xlsx by scripts/import_karate_catalog.py.\n"
-        "// Do not edit product rows manually; update the workbook import instead.\n\n"
+        "// Generated from WooCommerce CSV and Excel price list by scripts/import_karate_catalog.py.\n"
+        "// Do not edit product rows manually; update source files and rerun the importer instead.\n\n"
         "import type { Product } from './store-data';\n\n"
         f"export const karateCategories = {ts(categories)} as const;\n\n"
         f"export const karateProducts: Product[] = {ts(products)};\n"
@@ -370,20 +600,26 @@ def write_ts(categories: list[str], products: list[dict[str, Any]]) -> None:
     TS_PATH.write_text(content, encoding="utf-8")
 
 
+def import_rows() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    excel_items = import_excel_rows()
+    woo_items = import_woo_items()
+    return excel_items + woo_items, woo_items
+
+
 if __name__ == "__main__":
-    if not SOURCE.exists():
-        raise SystemExit(f"Workbook not found: {SOURCE}")
-    items = import_rows()
-    write_sqlite(items)
-    categories, products = build_products(items)
+    all_items, woo_items = import_rows()
+    write_sqlite(all_items)
+    categories, products = build_products(woo_items)
     write_ts(categories, products)
     print(
         json.dumps(
             {
-                "rows": len(items),
+                "sqlite_rows": len(all_items),
+                "woocommerce_rows": len(woo_items),
                 "products": len(products),
                 "categories": categories,
-                "brands": sorted({item["brand"] for item in items}),
+                "brands": sorted({item["brand"] for item in woo_items}),
+                "images_copied_to": str(PRODUCT_IMAGE_DIR),
                 "db": str(DB_PATH),
                 "ts": str(TS_PATH),
             },

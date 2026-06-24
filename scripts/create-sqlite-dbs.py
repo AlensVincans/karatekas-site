@@ -86,9 +86,9 @@ def create_users_db() -> None:
 
 
 def create_products_db() -> None:
-  items = import_rows()
+  items, woo_items = import_rows()
   write_sqlite(items)
-  categories, products = build_products(items)
+  categories, products = build_products(woo_items)
   write_ts(categories, products)
 
 
