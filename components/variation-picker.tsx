@@ -2,15 +2,11 @@
 
 import type { CSSProperties } from "react";
 import { colorHex, colorLabel } from "../lib/i18n";
-import type { Product, Variation } from "../lib/store-data";
+import type { Product } from "../lib/store-data";
 import { useLanguage } from "./language";
 
 function uniqueValues(values: Array<string | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
-}
-
-function variationTitle(variation: Variation) {
-  return [variation.color, variation.size].filter(Boolean).join(" / ") || variation.name;
 }
 
 export function VariationPicker({
@@ -27,7 +23,9 @@ export function VariationPicker({
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
   const colors = uniqueValues(product.variations.map((item) => item.color));
   const sizes = uniqueValues(product.variations.map((item) => item.size));
-  const hasSplitOptions = colors.length > 0 || sizes.length > 0;
+  const showColors = colors.length >= 2;
+  const showSizes = sizes.length >= 2;
+  const hasSplitOptions = showColors || showSizes;
 
   function choose(nextColor?: string, nextSize?: string) {
     const color = nextColor ?? variation.color;
@@ -48,13 +46,13 @@ export function VariationPicker({
     onChange(next.id);
   }
 
-  if (!hasSplitOptions && product.variations.length <= 1) {
+  if (!hasSplitOptions) {
     return null;
   }
 
   return (
     <div className="option-panel">
-      {colors.length ? (
+      {showColors ? (
         <div className="option-group">
           <span className="option-label">{t.color}</span>
           <div className="color-options">
@@ -73,7 +71,7 @@ export function VariationPicker({
         </div>
       ) : null}
 
-      {sizes.length ? (
+      {showSizes ? (
         <div className="option-group">
           <span className="option-label">{t.size}</span>
           <div className="size-options">
@@ -91,23 +89,6 @@ export function VariationPicker({
         </div>
       ) : null}
 
-      {!hasSplitOptions ? (
-        <div className="option-group">
-          <span className="option-label">{t.option}</span>
-          <div className="size-options">
-            {product.variations.map((item) => (
-              <button
-                className={variation.id === item.id ? "size-pill active" : "size-pill"}
-                key={item.id}
-                onClick={() => onChange(item.id)}
-                type="button"
-              >
-                {variationTitle(item)}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

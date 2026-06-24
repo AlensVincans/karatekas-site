@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
@@ -46,7 +47,8 @@ const copy = {
 
 export default function LoginPage() {
   const { login, session } = useDemoSession();
-  const { language, t } = useLanguage();
+  const router = useRouter();
+  const { language } = useLanguage();
   const c = copy[language];
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,7 +83,13 @@ export default function LoginPage() {
           className="wide-button"
           onClick={() => {
             const result = login(email, password);
-            setMessage(result.ok ? c.success : c.failed);
+            if (result.ok) {
+              setMessage(c.success);
+              router.push("/");
+              return;
+            }
+
+            setMessage(c.failed);
           }}
           type="button"
         >
@@ -93,7 +101,6 @@ export default function LoginPage() {
             <Link href={session.role === "admin" ? "/admin" : "/account"}>
               {c.goAccount}
             </Link>
-            {session.role === "b2b" ? <Link href="/b2b">{t.navB2B}</Link> : null}
           </div>
         ) : null}
         <Link href="/register">{c.noAccount}</Link>

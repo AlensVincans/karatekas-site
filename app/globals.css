@@ -186,28 +186,18 @@ main {
 
 .language-switch {
   align-items: center;
+  display: inline-flex;
+}
+
+.language-switch select {
   background: #eef2ef;
   border: 1px solid var(--line);
   border-radius: 6px;
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-}
-
-.language-switch button {
-  background: transparent;
-  border-radius: 5px;
-  color: var(--muted);
+  color: var(--deep);
   font-size: 12px;
   font-weight: 850;
-  min-height: 28px;
-  min-width: 34px;
-  padding: 0 7px;
-}
-
-.language-switch button.active {
-  background: var(--deep);
-  color: #fff;
+  min-height: 34px;
+  padding: 6px 28px 6px 9px;
 }
 
 .hero {
@@ -782,18 +772,21 @@ td span {
   padding: 22px;
 }
 
-.detail-prices,
+.detail-price-line,
 .admin-stats {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(4, 1fr);
 }
 
-.detail-prices {
-  grid-template-columns: repeat(2, 1fr);
+.detail-price-line {
+  align-items: end;
+  background: #eef2ef;
+  border-radius: 8px;
+  grid-template-columns: 1fr;
+  padding: 14px;
 }
 
-.detail-prices div,
 .admin-stats div {
   background: #eef2ef;
   border-radius: 8px;
@@ -802,13 +795,36 @@ td span {
   padding: 14px;
 }
 
-.detail-prices span,
+.detail-price-line strong {
+  color: var(--deep);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.detail-stock {
+  align-items: center;
+  background: var(--teal-soft);
+  border-radius: 8px;
+  color: var(--deep);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr auto;
+  padding: 12px 14px;
+}
+
+.detail-stock div {
+  display: grid;
+  gap: 2px;
+}
+
+.detail-stock span:not(.ok-dot, .warn-dot),
+.detail-stock small,
 .admin-stats span {
   color: var(--muted);
   font-size: 12px;
 }
 
-.detail-prices strong,
+.detail-stock strong,
 .admin-stats strong {
   color: var(--deep);
   font-size: 22px;
@@ -866,8 +882,25 @@ td span {
   grid-template-columns: auto minmax(260px, 420px);
 }
 
+.admin-actions {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(220px, 1fr);
+}
+
 .admin-search {
   width: 100%;
+}
+
+.admin-form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-editor textarea {
+  min-height: 92px;
 }
 
 .admin-table input,
@@ -900,6 +933,20 @@ td span {
 .status-pill.ok {
   background: var(--teal-soft);
   color: var(--deep);
+}
+
+.selected-row {
+  background: #f5faf8;
+}
+
+.table-action {
+  background: var(--teal-soft);
+  border-radius: 6px;
+  color: var(--deep);
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .tool-panel {
@@ -1004,7 +1051,9 @@ td span {
   .trust-grid,
   .admin-layout,
   .admin-stats,
-  .admin-toolbar {
+  .admin-toolbar,
+  .admin-actions,
+  .admin-form-grid {
     grid-template-columns: 1fr;
   }
 

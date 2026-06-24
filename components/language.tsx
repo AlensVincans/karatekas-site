@@ -53,18 +53,17 @@ export function LanguageSelect() {
 
   return (
     <div className="language-switch" aria-label="Language">
-      {languages.map((item) => (
-        <button
-          aria-pressed={item.code === language}
-          className={item.code === language ? "active" : ""}
-          key={item.code}
-          onClick={() => setLanguage(item.code)}
-          title={item.name}
-          type="button"
-        >
-          {item.label}
-        </button>
-      ))}
+      <select
+        aria-label="Language"
+        value={language}
+        onChange={(event) => setLanguage(event.target.value as Language)}
+      >
+        {languages.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

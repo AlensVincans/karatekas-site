@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
-import { categories, products, warehouseTotals } from "../../lib/store-data";
+import { categories, products } from "../../lib/store-data";
 
 type ProductRow = {
   id: string;
@@ -13,11 +13,17 @@ type ProductRow = {
   name: string;
   brand: string;
   category: string;
+  description: string;
+  color: string;
+  size: string;
   b2c: number;
   b2b: number;
   stock: number;
   active: boolean;
 };
+
+type OrderPayment = "invoice15" | "card" | "invoice";
+type OrderStatus = "reserved" | "paid" | "packing" | "sent" | "closed";
 
 type OrderRow = {
   id: string;
@@ -26,9 +32,6 @@ type OrderRow = {
   payment: OrderPayment;
   status: OrderStatus;
 };
-
-type OrderPayment = "invoice15" | "card" | "invoice";
-type OrderStatus = "reserved" | "paid" | "packing" | "sent" | "closed";
 
 const orderStatuses: OrderStatus[] = ["reserved", "paid", "packing", "sent", "closed"];
 
@@ -47,12 +50,28 @@ const copy = {
     products: "Товары",
     orders: "Заказы",
     search: "Поиск по SKU, названию или бренду",
+    addProduct: "Добавить товар",
+    editProduct: "Редактирование товара",
+    selectedProduct: "Выбранная позиция",
+    saveHint: "Изменения применяются в этой демо-админке сразу.",
+    newProduct: "Новый товар",
     product: "Товар",
+    name: "Название",
+    description: "Описание",
+    brand: "Бренд",
     category: "Категория",
+    sku: "SKU",
+    color: "Цвет",
+    size: "Размер",
+    variant: "Вариант",
+    retailPrice: "B2C цена",
+    b2bPrice: "B2B цена",
     stock: "Остаток",
     status: "Статус",
     active: "активен",
     hidden: "скрыт",
+    edit: "Редактировать",
+    noDescription: "Описание не заполнено",
     type: "Тип",
     company: "Компания",
     confirmed: "подтверждён",
@@ -87,12 +106,28 @@ const copy = {
     products: "Preces",
     orders: "Pasūtījumi",
     search: "Meklēt pēc SKU, nosaukuma vai zīmola",
+    addProduct: "Pievienot preci",
+    editProduct: "Preces rediģēšana",
+    selectedProduct: "Izvēlētā pozīcija",
+    saveHint: "Izmaiņas šajā demo administrācijā tiek piemērotas uzreiz.",
+    newProduct: "Jauna prece",
     product: "Prece",
+    name: "Nosaukums",
+    description: "Apraksts",
+    brand: "Zīmols",
     category: "Kategorija",
+    sku: "SKU",
+    color: "Krāsa",
+    size: "Izmērs",
+    variant: "Variants",
+    retailPrice: "B2C cena",
+    b2bPrice: "B2B cena",
     stock: "Atlikums",
     status: "Statuss",
     active: "aktīvs",
     hidden: "slēpts",
+    edit: "Rediģēt",
+    noDescription: "Apraksts nav aizpildīts",
     type: "Tips",
     company: "Uzņēmums",
     confirmed: "apstiprināts",
@@ -127,12 +162,28 @@ const copy = {
     products: "Products",
     orders: "Orders",
     search: "Search by SKU, name or brand",
+    addProduct: "Add product",
+    editProduct: "Edit product",
+    selectedProduct: "Selected item",
+    saveHint: "Changes are applied immediately in this demo admin.",
+    newProduct: "New product",
     product: "Product",
+    name: "Name",
+    description: "Description",
+    brand: "Brand",
     category: "Category",
+    sku: "SKU",
+    color: "Color",
+    size: "Size",
+    variant: "Variant",
+    retailPrice: "B2C price",
+    b2bPrice: "B2B price",
     stock: "Stock",
     status: "Status",
     active: "active",
     hidden: "hidden",
+    edit: "Edit",
+    noDescription: "Description is empty",
     type: "Type",
     company: "Company",
     confirmed: "confirmed",
@@ -184,9 +235,12 @@ function productRows() {
     product.variations.map((variation) => ({
       id: variation.id,
       sku: variation.sku,
-      name: `${product.name} · ${variation.name}`,
+      name: product.name,
       brand: product.brand,
       category: product.category,
+      description: product.description,
+      color: variation.color ?? "",
+      size: variation.size ?? "",
       b2c: variation.b2c,
       b2b: variation.b2b,
       stock: variation.stock.physical,
@@ -195,15 +249,39 @@ function productRows() {
   );
 }
 
+function createProductRow(name: string): ProductRow {
+  const stamp = Date.now().toString().slice(-6);
+
+  return {
+    id: `admin-${stamp}`,
+    sku: `NEW-${stamp}`,
+    name,
+    brand: "Karatekas",
+    category: categories[0] ?? "Accessories",
+    description: "",
+    color: "",
+    size: "",
+    b2c: 0,
+    b2b: 0,
+    stock: 0,
+    active: true,
+  };
+}
+
 export default function AdminPage() {
   const { session, allUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language];
   const [tab, setTab] = useState<"products" | "clients" | "orders">("products");
   const [rows, setRows] = useState<ProductRow[]>(() => productRows());
+  const [selectedId, setSelectedId] = useState(products[0]?.variations[0]?.id ?? "");
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
   const [query, setQuery] = useState("");
-  const totals = warehouseTotals();
+  const selectedRow = rows.find((row) => row.id === selectedId) ?? rows[0];
+  const availableTotal = rows.reduce(
+    (sum, row) => sum + (row.active ? Math.max(0, row.stock) : 0),
+    0,
+  );
 
   const filteredRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -213,7 +291,10 @@ export default function AdminPage() {
     }
 
     return rows.filter((row) =>
-      [row.sku, row.name, row.brand, row.category].join(" ").toLowerCase().includes(normalized),
+      [row.sku, row.name, row.brand, row.category, row.color, row.size]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
     );
   }, [query, rows]);
 
@@ -236,6 +317,21 @@ export default function AdminPage() {
     );
   }
 
+  function updateSelected(patch: Partial<ProductRow>) {
+    if (!selectedRow) {
+      return;
+    }
+
+    updateProduct(selectedRow.id, patch);
+  }
+
+  function addProduct() {
+    const row = createProductRow(c.newProduct);
+    setRows((items) => [row, ...items]);
+    setSelectedId(row.id);
+    setTab("products");
+  }
+
   return (
     <section className="section-shell admin-page">
       <div className="section-heading admin-heading">
@@ -255,7 +351,7 @@ export default function AdminPage() {
         </div>
         <div>
           <span>{c.stockAvailable}</span>
-          <strong>{totals.available}</strong>
+          <strong>{availableTotal}</strong>
         </div>
         <div>
           <span>{c.categories}</span>
@@ -289,83 +385,190 @@ export default function AdminPage() {
         </div>
 
         {tab === "products" ? (
-          <input
-            className="admin-search"
-            placeholder={c.search}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <div className="admin-actions">
+            <button className="primary-link" onClick={addProduct} type="button">
+              {c.addProduct}
+            </button>
+            <input
+              className="admin-search"
+              placeholder={c.search}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
         ) : null}
       </div>
 
-      {tab === "products" ? (
-        <div className="table-wrap admin-table">
-          <table>
-            <thead>
-              <tr>
-                <th>{c.product}</th>
-                <th>{c.category}</th>
-                <th>B2C</th>
-                <th>B2B</th>
-                <th>{c.stock}</th>
-                <th>{c.status}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <strong>{row.name}</strong>
-                    <span>{row.sku} · {row.brand}</span>
-                  </td>
-                  <td>{categoryLabel(row.category, language)}</td>
-                  <td>
-                    <input
-                      min={0}
-                      type="number"
-                      value={row.b2c}
-                      onChange={(event) =>
-                        updateProduct(row.id, { b2c: Number(event.target.value) })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      min={0}
-                      type="number"
-                      value={row.b2b}
-                      onChange={(event) =>
-                        updateProduct(row.id, { b2b: Number(event.target.value) })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      min={0}
-                      type="number"
-                      value={row.stock}
-                      onChange={(event) =>
-                        updateProduct(row.id, { stock: Number(event.target.value) })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <label className="switch-row">
-                      <input
-                        checked={row.active}
-                        type="checkbox"
-                        onChange={(event) =>
-                          updateProduct(row.id, { active: event.target.checked })
-                        }
-                      />
-                      {row.active ? c.active : c.hidden}
-                    </label>
-                  </td>
+      {tab === "products" && selectedRow ? (
+        <>
+          <div className="admin-layout">
+            <div className="tool-panel admin-editor">
+              <h3>{c.editProduct}</h3>
+              <div className="admin-form-grid">
+                <label>
+                  {c.name}
+                  <input
+                    value={selectedRow.name}
+                    onChange={(event) => updateSelected({ name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  {c.brand}
+                  <input
+                    value={selectedRow.brand}
+                    onChange={(event) => updateSelected({ brand: event.target.value })}
+                  />
+                </label>
+                <label>
+                  {c.category}
+                  <select
+                    value={selectedRow.category}
+                    onChange={(event) => updateSelected({ category: event.target.value })}
+                  >
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {categoryLabel(category, language)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {c.sku}
+                  <input
+                    value={selectedRow.sku}
+                    onChange={(event) => updateSelected({ sku: event.target.value })}
+                  />
+                </label>
+                <label>
+                  {c.color}
+                  <input
+                    value={selectedRow.color}
+                    onChange={(event) => updateSelected({ color: event.target.value })}
+                  />
+                </label>
+                <label>
+                  {c.size}
+                  <input
+                    value={selectedRow.size}
+                    onChange={(event) => updateSelected({ size: event.target.value })}
+                  />
+                </label>
+                <label>
+                  {c.retailPrice}
+                  <input
+                    min={0}
+                    type="number"
+                    value={selectedRow.b2c}
+                    onChange={(event) => updateSelected({ b2c: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  {c.b2bPrice}
+                  <input
+                    min={0}
+                    type="number"
+                    value={selectedRow.b2b}
+                    onChange={(event) => updateSelected({ b2b: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  {c.stock}
+                  <input
+                    min={0}
+                    type="number"
+                    value={selectedRow.stock}
+                    onChange={(event) => updateSelected({ stock: Number(event.target.value) })}
+                  />
+                </label>
+              </div>
+              <label>
+                {c.description}
+                <textarea
+                  value={selectedRow.description}
+                  onChange={(event) => updateSelected({ description: event.target.value })}
+                />
+              </label>
+              <label className="switch-row">
+                <input
+                  checked={selectedRow.active}
+                  type="checkbox"
+                  onChange={(event) => updateSelected({ active: event.target.checked })}
+                />
+                {selectedRow.active ? c.active : c.hidden}
+              </label>
+              <p>{c.saveHint}</p>
+            </div>
+
+            <div className="tool-panel">
+              <h3>{c.selectedProduct}</h3>
+              <div className="metric-row">
+                <span>{c.product}</span>
+                <strong>{selectedRow.name}</strong>
+              </div>
+              <div className="metric-row">
+                <span>{c.variant}</span>
+                <strong>{[selectedRow.color, selectedRow.size].filter(Boolean).join(" / ") || "-"}</strong>
+              </div>
+              <div className="metric-row">
+                <span>{c.retailPrice}</span>
+                <strong>{money(selectedRow.b2c, language)}</strong>
+              </div>
+              <div className="metric-row">
+                <span>{c.b2bPrice}</span>
+                <strong>{money(selectedRow.b2b, language)}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="table-wrap admin-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>{c.product}</th>
+                  <th>{c.category}</th>
+                  <th>{c.sku}</th>
+                  <th>{c.variant}</th>
+                  <th>B2C / B2B</th>
+                  <th>{c.stock}</th>
+                  <th>{c.status}</th>
+                  <th>{c.edit}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredRows.map((row) => (
+                  <tr className={row.id === selectedRow.id ? "selected-row" : ""} key={row.id}>
+                    <td>
+                      <strong>{row.name}</strong>
+                      <span>{row.description || c.noDescription}</span>
+                    </td>
+                    <td>{categoryLabel(row.category, language)}</td>
+                    <td>{row.sku}</td>
+                    <td>{[row.color, row.size].filter(Boolean).join(" / ") || "-"}</td>
+                    <td>
+                      {money(row.b2c, language)}
+                      <span>{money(row.b2b, language)}</span>
+                    </td>
+                    <td>{row.stock}</td>
+                    <td>
+                      <span className={row.active ? "status-pill ok" : "status-pill"}>
+                        {row.active ? c.active : c.hidden}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="table-action"
+                        onClick={() => setSelectedId(row.id)}
+                        type="button"
+                      >
+                        {c.edit}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : null}
 
       {tab === "clients" ? (

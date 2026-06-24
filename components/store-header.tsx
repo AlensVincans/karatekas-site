@@ -8,7 +8,6 @@ export function StoreHeader() {
   const { session, logout } = useDemoSession();
   const { t } = useLanguage();
   const isAdmin = session?.role === "admin";
-  const isB2B = session?.role === "b2b" || isAdmin;
 
   return (
     <header className="topbar">
@@ -24,7 +23,6 @@ export function StoreHeader() {
         <nav aria-label="Main navigation">
           <Link href="/catalog">{t.navCatalog}</Link>
           <Link href="/cart">{t.navCart}</Link>
-          {isB2B ? <Link href="/b2b">{t.navB2B}</Link> : null}
           {isAdmin ? <Link href="/admin">{t.navAdmin}</Link> : null}
         </nav>
 

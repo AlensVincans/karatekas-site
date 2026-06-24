@@ -5,11 +5,9 @@ import { useState } from "react";
 import { categoryLabel, colorLabel, money, productDescription } from "../lib/i18n";
 import {
   available,
-  margin,
   pricedVariation,
   products,
   type Product,
-  unitCost,
 } from "../lib/store-data";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
@@ -49,9 +47,8 @@ export function ProductDetail({ product }: { product: Product }) {
   const [added, setAdded] = useState(false);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
-  const userPrice = pricedVariation(product, variation, "user");
-  const b2bPrice = pricedVariation(product, variation, "b2b");
   const activePrice = pricedVariation(product, variation, role);
+  const availability = available(variation.stock);
   const photo = product.images?.[0];
   const photoStyle = photo
     ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
@@ -88,15 +85,21 @@ export function ProductDetail({ product }: { product: Product }) {
           <h1>{product.name}</h1>
           <p>{productDescription(product, language)}</p>
           <VariationPicker product={product} variationId={variation.id} onChange={setVariationId} />
-          <div className="detail-prices">
+          <div className="detail-stock">
+            <span className={availability > 20 ? "ok-dot" : "warn-dot"} />
             <div>
-              <span>B2C</span>
-              <strong>{money(userPrice.final, language)}</strong>
+              <span>{t.available}</span>
+              <strong>{availability}</strong>
             </div>
-            <div>
-              <span>B2B</span>
-              <strong>{money(b2bPrice.final, language)}</strong>
-            </div>
+            <small>
+              {variation.stock.reserved} {t.reserved}
+            </small>
+          </div>
+          <div className="detail-price-line">
+            {activePrice.isB2B ? (
+              <span className="old-price">{money(activePrice.retail, language)}</span>
+            ) : null}
+            <strong>{money(activePrice.final, language)}</strong>
           </div>
           <div className="spec-list">
             <span>{categoryLabel(product.category, language)}</span>
@@ -105,44 +108,13 @@ export function ProductDetail({ product }: { product: Product }) {
           </div>
           <button
             className="wide-button inline-button"
-            disabled={available(variation.stock) === 0}
+            disabled={availability === 0}
             onClick={addToCart}
             type="button"
           >
             {added ? t.added : `${t.addToCart} · ${money(activePrice.final, language)}`}
           </button>
         </div>
-      </div>
-
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{t.variation}</th>
-              <th>SKU</th>
-              <th>B2C</th>
-              <th>B2B</th>
-              <th>{t.available}</th>
-              <th>{t.batch}</th>
-              <th>{t.cost}</th>
-              <th>{t.marginB2B}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {product.variations.map((item) => (
-              <tr key={item.id}>
-                <td>{variationTitle(item, language)}</td>
-                <td>{item.sku}</td>
-                <td>{money(item.b2c, language)}</td>
-                <td>{money(item.b2b, language)}</td>
-                <td>{available(item.stock)}</td>
-                <td>{item.stock.lots[0]?.batch ?? "-"}</td>
-                <td>{money(unitCost(item.stock), language)}</td>
-                <td>{money(margin(item.b2b, item.stock), language)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       <div className="section-heading">
