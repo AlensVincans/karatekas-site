@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { categories, products } from "../lib/store-data";
 import { categoryLabel, productDescription } from "../lib/i18n";
 import { useLanguage } from "./language";
@@ -9,20 +9,56 @@ import { useDemoSession } from "./session";
 
 const allValue = "__all";
 
+function readCatalogParams(brands: string[]) {
+  if (typeof window === "undefined") {
+    return {
+      query: "",
+      category: allValue,
+      brand: allValue,
+    };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const category = params.get("category");
+  const brand = params.get("brand");
+
+  return {
+    query: params.get("q") ?? "",
+    category: category && categories.some((item) => item === category) ? category : allValue,
+    brand: brand && brands.some((item) => item === brand) ? brand : allValue,
+  };
+}
+
 export function CatalogBrowser() {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState(() => {
-    if (typeof window === "undefined") {
-      return allValue;
+  const brands = Array.from(new Set(products.map((product) => product.brand)));
+  const initialFilters = readCatalogParams(brands);
+  const [query, setQuery] = useState(initialFilters.query);
+  const [category, setCategory] = useState(initialFilters.category);
+  const [brand, setBrand] = useState(initialFilters.brand);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    if (query.trim()) {
+      params.set("q", query.trim());
     }
 
-    const current = new URLSearchParams(window.location.search).get("category");
-    return current && categories.some((item) => item === current) ? current : allValue;
-  });
-  const [brand, setBrand] = useState(allValue);
-  const brands = Array.from(new Set(products.map((product) => product.brand)));
+    if (category !== allValue) {
+      params.set("category", category);
+    }
+
+    if (brand !== allValue) {
+      params.set("brand", brand);
+    }
+
+    const nextUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname;
+
+    window.history.replaceState(window.history.state, "", nextUrl);
+  }, [brand, category, query]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
