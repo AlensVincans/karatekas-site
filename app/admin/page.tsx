@@ -1,25 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
 import { categories, products } from "../../lib/store-data";
 
-type ProductRow = {
+type AdminVariation = {
   id: string;
   sku: string;
-  name: string;
-  brand: string;
-  category: string;
-  description: string;
   color: string;
   size: string;
   b2c: number;
   b2b: number;
   stock: number;
   active: boolean;
+};
+
+type AdminProduct = {
+  id: string;
+  name: string;
+  brand: string;
+  category: string;
+  description: string;
+  active: boolean;
+  variations: AdminVariation[];
 };
 
 type OrderPayment = "invoice15" | "card" | "invoice";
@@ -49,12 +55,14 @@ const copy = {
     categories: "Категории",
     products: "Товары",
     orders: "Заказы",
-    search: "Поиск по SKU, названию или бренду",
+    search: "Поиск по названию, бренду, SKU, цвету или размеру",
     addProduct: "Добавить товар",
+    addProductTitle: "Новый товар",
+    saveProduct: "Сохранить товар",
+    cancel: "Отмена",
+    close: "Закрыть",
     editProduct: "Редактирование товара",
-    selectedProduct: "Выбранная позиция",
     saveHint: "Изменения применяются в этой демо-админке сразу.",
-    newProduct: "Новый товар",
     product: "Товар",
     name: "Название",
     description: "Описание",
@@ -63,15 +71,22 @@ const copy = {
     sku: "SKU",
     color: "Цвет",
     size: "Размер",
-    variant: "Вариант",
+    variant: "Вариация",
+    variants: "Вариации",
+    addVariation: "Добавить вариацию",
+    removeVariation: "Удалить вариацию",
     retailPrice: "B2C цена",
     b2bPrice: "B2B цена",
+    price: "Цена",
     stock: "Остаток",
     status: "Статус",
     active: "активен",
     hidden: "скрыт",
     edit: "Редактировать",
+    delete: "Удалить",
+    deleteConfirm: "Удалить товар",
     noDescription: "Описание не заполнено",
+    noVariant: "без вариации",
     type: "Тип",
     company: "Компания",
     confirmed: "подтверждён",
@@ -105,12 +120,14 @@ const copy = {
     categories: "Kategorijas",
     products: "Preces",
     orders: "Pasūtījumi",
-    search: "Meklēt pēc SKU, nosaukuma vai zīmola",
+    search: "Meklēt pēc nosaukuma, zīmola, SKU, krāsas vai izmēra",
     addProduct: "Pievienot preci",
+    addProductTitle: "Jauna prece",
+    saveProduct: "Saglabāt preci",
+    cancel: "Atcelt",
+    close: "Aizvērt",
     editProduct: "Preces rediģēšana",
-    selectedProduct: "Izvēlētā pozīcija",
     saveHint: "Izmaiņas šajā demo administrācijā tiek piemērotas uzreiz.",
-    newProduct: "Jauna prece",
     product: "Prece",
     name: "Nosaukums",
     description: "Apraksts",
@@ -119,15 +136,22 @@ const copy = {
     sku: "SKU",
     color: "Krāsa",
     size: "Izmērs",
-    variant: "Variants",
+    variant: "Variācija",
+    variants: "Variācijas",
+    addVariation: "Pievienot variāciju",
+    removeVariation: "Dzēst variāciju",
     retailPrice: "B2C cena",
     b2bPrice: "B2B cena",
+    price: "Cena",
     stock: "Atlikums",
     status: "Statuss",
     active: "aktīvs",
     hidden: "slēpts",
     edit: "Rediģēt",
+    delete: "Dzēst",
+    deleteConfirm: "Dzēst preci",
     noDescription: "Apraksts nav aizpildīts",
+    noVariant: "bez variācijas",
     type: "Tips",
     company: "Uzņēmums",
     confirmed: "apstiprināts",
@@ -161,12 +185,14 @@ const copy = {
     categories: "Categories",
     products: "Products",
     orders: "Orders",
-    search: "Search by SKU, name or brand",
+    search: "Search by name, brand, SKU, color or size",
     addProduct: "Add product",
+    addProductTitle: "New product",
+    saveProduct: "Save product",
+    cancel: "Cancel",
+    close: "Close",
     editProduct: "Edit product",
-    selectedProduct: "Selected item",
     saveHint: "Changes are applied immediately in this demo admin.",
-    newProduct: "New product",
     product: "Product",
     name: "Name",
     description: "Description",
@@ -175,15 +201,22 @@ const copy = {
     sku: "SKU",
     color: "Color",
     size: "Size",
-    variant: "Variant",
+    variant: "Variation",
+    variants: "Variations",
+    addVariation: "Add variation",
+    removeVariation: "Remove variation",
     retailPrice: "B2C price",
     b2bPrice: "B2B price",
+    price: "Price",
     stock: "Stock",
     status: "Status",
     active: "active",
     hidden: "hidden",
     edit: "Edit",
+    delete: "Delete",
+    deleteConfirm: "Delete product",
     noDescription: "Description is empty",
+    noVariant: "no variation",
     type: "Type",
     company: "Company",
     confirmed: "confirmed",
@@ -205,6 +238,8 @@ const copy = {
     },
   },
 } as const;
+
+type CopyText = (typeof copy)[keyof typeof copy];
 
 const initialOrders: OrderRow[] = [
   {
@@ -230,35 +265,12 @@ const initialOrders: OrderRow[] = [
   },
 ];
 
-function productRows() {
-  return products.flatMap((product) =>
-    product.variations.map((variation) => ({
-      id: variation.id,
-      sku: variation.sku,
-      name: product.name,
-      brand: product.brand,
-      category: product.category,
-      description: product.description,
-      color: variation.color ?? "",
-      size: variation.size ?? "",
-      b2c: variation.b2c,
-      b2b: variation.b2b,
-      stock: variation.stock.physical,
-      active: true,
-    })),
-  );
-}
-
-function createProductRow(name: string): ProductRow {
-  const stamp = Date.now().toString().slice(-6);
+function createVariation(index = 1): AdminVariation {
+  const stamp = `${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
 
   return {
-    id: `admin-${stamp}`,
-    sku: `NEW-${stamp}`,
-    name,
-    brand: "Karatekas",
-    category: categories[0] ?? "Accessories",
-    description: "",
+    id: `var-${stamp}`,
+    sku: `SKU-${stamp}-${index}`,
     color: "",
     size: "",
     b2c: 0,
@@ -268,35 +280,292 @@ function createProductRow(name: string): ProductRow {
   };
 }
 
+function createProduct(name = ""): AdminProduct {
+  const stamp = `${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
+
+  return {
+    id: `admin-product-${stamp}`,
+    name,
+    brand: "Karatekas",
+    category: categories[0] ?? "Accessories",
+    description: "",
+    active: true,
+    variations: [createVariation()],
+  };
+}
+
+function productRows(): AdminProduct[] {
+  return products.map((product) => ({
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    category: product.category,
+    description: product.description,
+    active: true,
+    variations: product.variations.map((variation) => ({
+      id: variation.id,
+      sku: variation.sku,
+      color: variation.color ?? "",
+      size: variation.size ?? "",
+      b2c: variation.b2c,
+      b2b: variation.b2b,
+      stock: variation.stock.physical,
+      active: true,
+    })),
+  }));
+}
+
+function patchVariation(
+  product: AdminProduct,
+  variationId: string,
+  patch: Partial<AdminVariation>,
+) {
+  return {
+    ...product,
+    variations: product.variations.map((variation) =>
+      variation.id === variationId ? { ...variation, ...patch } : variation,
+    ),
+  };
+}
+
+function addVariation(product: AdminProduct) {
+  return {
+    ...product,
+    variations: [...product.variations, createVariation(product.variations.length + 1)],
+  };
+}
+
+function removeVariation(product: AdminProduct, variationId: string) {
+  if (product.variations.length <= 1) {
+    return product;
+  }
+
+  return {
+    ...product,
+    variations: product.variations.filter((variation) => variation.id !== variationId),
+  };
+}
+
+function productStock(product: AdminProduct) {
+  if (!product.active) {
+    return 0;
+  }
+
+  return product.variations.reduce(
+    (sum, variation) => sum + (variation.active ? Math.max(0, variation.stock) : 0),
+    0,
+  );
+}
+
+function productPriceRange(
+  product: AdminProduct,
+  key: "b2c" | "b2b",
+  language: Parameters<typeof money>[1],
+) {
+  const prices = product.variations.map((variation) => variation[key]);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+
+  return min === max ? money(min, language) : `${money(min, language)} - ${money(max, language)}`;
+}
+
+function variationSummary(product: AdminProduct, fallback: string) {
+  const labels = product.variations
+    .map((variation) => [variation.color, variation.size].filter(Boolean).join(" / "))
+    .filter(Boolean);
+
+  return labels.slice(0, 3).join(", ") || fallback;
+}
+
+function ProductForm({
+  product,
+  c,
+  language,
+  onProductChange,
+  onVariationChange,
+  onAddVariation,
+  onRemoveVariation,
+  footer,
+}: {
+  product: AdminProduct;
+  c: CopyText;
+  language: Parameters<typeof money>[1];
+  onProductChange: (patch: Partial<AdminProduct>) => void;
+  onVariationChange: (variationId: string, patch: Partial<AdminVariation>) => void;
+  onAddVariation: () => void;
+  onRemoveVariation: (variationId: string) => void;
+  footer: ReactNode;
+}) {
+  return (
+    <div className="admin-inline-editor">
+      <div className="admin-form-grid">
+        <label>
+          {c.name}
+          <input
+            value={product.name}
+            onChange={(event) => onProductChange({ name: event.target.value })}
+          />
+        </label>
+        <label>
+          {c.brand}
+          <input
+            value={product.brand}
+            onChange={(event) => onProductChange({ brand: event.target.value })}
+          />
+        </label>
+        <label>
+          {c.category}
+          <select
+            value={product.category}
+            onChange={(event) => onProductChange({ category: event.target.value })}
+          >
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {categoryLabel(category, language)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <label className="admin-full-field">
+        {c.description}
+        <textarea
+          value={product.description}
+          onChange={(event) => onProductChange({ description: event.target.value })}
+        />
+      </label>
+
+      <label className="switch-row">
+        <input
+          checked={product.active}
+          type="checkbox"
+          onChange={(event) => onProductChange({ active: event.target.checked })}
+        />
+        {product.active ? c.active : c.hidden}
+      </label>
+
+      <div className="variation-editor">
+        <div className="variation-editor-head">
+          <h4>{c.variants}</h4>
+          <button className="table-action" onClick={onAddVariation} type="button">
+            {c.addVariation}
+          </button>
+        </div>
+
+        {product.variations.map((variation) => (
+          <div className="variation-editor-row" key={variation.id}>
+            <label>
+              {c.sku}
+              <input
+                value={variation.sku}
+                onChange={(event) => onVariationChange(variation.id, { sku: event.target.value })}
+              />
+            </label>
+            <label>
+              {c.color}
+              <input
+                value={variation.color}
+                onChange={(event) => onVariationChange(variation.id, { color: event.target.value })}
+              />
+            </label>
+            <label>
+              {c.size}
+              <input
+                value={variation.size}
+                onChange={(event) => onVariationChange(variation.id, { size: event.target.value })}
+              />
+            </label>
+            <label>
+              {c.retailPrice}
+              <input
+                min={0}
+                type="number"
+                value={variation.b2c}
+                onChange={(event) => onVariationChange(variation.id, { b2c: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              {c.b2bPrice}
+              <input
+                min={0}
+                type="number"
+                value={variation.b2b}
+                onChange={(event) => onVariationChange(variation.id, { b2b: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              {c.stock}
+              <input
+                min={0}
+                type="number"
+                value={variation.stock}
+                onChange={(event) => onVariationChange(variation.id, { stock: Number(event.target.value) })}
+              />
+            </label>
+            <label className="switch-row">
+              <input
+                checked={variation.active}
+                type="checkbox"
+                onChange={(event) => onVariationChange(variation.id, { active: event.target.checked })}
+              />
+              {variation.active ? c.active : c.hidden}
+            </label>
+            <button
+              className="table-action danger"
+              disabled={product.variations.length <= 1}
+              onClick={() => onRemoveVariation(variation.id)}
+              type="button"
+            >
+              {c.removeVariation}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="admin-form-actions">{footer}</div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { session, allUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language];
   const [tab, setTab] = useState<"products" | "clients" | "orders">("products");
-  const [rows, setRows] = useState<ProductRow[]>(() => productRows());
-  const [selectedId, setSelectedId] = useState(products[0]?.variations[0]?.id ?? "");
+  const [adminProducts, setAdminProducts] = useState<AdminProduct[]>(() => productRows());
+  const [editProductId, setEditProductId] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [draftProduct, setDraftProduct] = useState<AdminProduct>(() => createProduct());
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
   const [query, setQuery] = useState("");
-  const selectedRow = rows.find((row) => row.id === selectedId) ?? rows[0];
-  const availableTotal = rows.reduce(
-    (sum, row) => sum + (row.active ? Math.max(0, row.stock) : 0),
+  const availableTotal = adminProducts.reduce(
+    (sum, product) => sum + productStock(product),
     0,
   );
 
-  const filteredRows = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
 
     if (!normalized) {
-      return rows;
+      return adminProducts;
     }
 
-    return rows.filter((row) =>
-      [row.sku, row.name, row.brand, row.category, row.color, row.size]
+    return adminProducts.filter((product) =>
+      [
+        product.name,
+        product.brand,
+        product.category,
+        product.description,
+        product.variations.map((variation) =>
+          [variation.sku, variation.color, variation.size].join(" "),
+        ).join(" "),
+      ]
         .join(" ")
         .toLowerCase()
         .includes(normalized),
     );
-  }, [query, rows]);
+  }, [adminProducts, query]);
 
   if (session?.role !== "admin") {
     return (
@@ -311,25 +580,54 @@ export default function AdminPage() {
     );
   }
 
-  function updateProduct(id: string, patch: Partial<ProductRow>) {
-    setRows((items) =>
-      items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+  function updateProduct(productId: string, patch: Partial<AdminProduct>) {
+    setAdminProducts((items) =>
+      items.map((product) =>
+        product.id === productId ? { ...product, ...patch } : product,
+      ),
     );
   }
 
-  function updateSelected(patch: Partial<ProductRow>) {
-    if (!selectedRow) {
+  function updateProductVariation(
+    productId: string,
+    variationId: string,
+    patch: Partial<AdminVariation>,
+  ) {
+    setAdminProducts((items) =>
+      items.map((product) =>
+        product.id === productId ? patchVariation(product, variationId, patch) : product,
+      ),
+    );
+  }
+
+  function deleteProduct(product: AdminProduct) {
+    if (!window.confirm(`${c.deleteConfirm}: ${product.name}?`)) {
       return;
     }
 
-    updateProduct(selectedRow.id, patch);
+    setAdminProducts((items) => items.filter((item) => item.id !== product.id));
+
+    if (editProductId === product.id) {
+      setEditProductId(null);
+    }
   }
 
-  function addProduct() {
-    const row = createProductRow(c.newProduct);
-    setRows((items) => [row, ...items]);
-    setSelectedId(row.id);
+  function openAddForm() {
+    setDraftProduct(createProduct());
+    setShowAddForm(true);
+    setEditProductId(null);
     setTab("products");
+  }
+
+  function saveDraftProduct() {
+    const product = {
+      ...draftProduct,
+      name: draftProduct.name.trim() || c.addProductTitle,
+    };
+
+    setAdminProducts((items) => [product, ...items]);
+    setDraftProduct(createProduct());
+    setShowAddForm(false);
   }
 
   return (
@@ -343,7 +641,7 @@ export default function AdminPage() {
       <div className="admin-stats compact">
         <div>
           <span>{c.activeProducts}</span>
-          <strong>{rows.filter((row) => row.active).length}</strong>
+          <strong>{adminProducts.filter((product) => product.active).length}</strong>
         </div>
         <div>
           <span>{c.clients}</span>
@@ -386,7 +684,7 @@ export default function AdminPage() {
 
         {tab === "products" ? (
           <div className="admin-actions">
-            <button className="primary-link" onClick={addProduct} type="button">
+            <button className="primary-link" onClick={openAddForm} type="button">
               {c.addProduct}
             </button>
             <input
@@ -399,176 +697,153 @@ export default function AdminPage() {
         ) : null}
       </div>
 
-      {tab === "products" && selectedRow ? (
-        <>
-          <div className="admin-layout">
-            <div className="tool-panel admin-editor">
-              <h3>{c.editProduct}</h3>
-              <div className="admin-form-grid">
-                <label>
-                  {c.name}
-                  <input
-                    value={selectedRow.name}
-                    onChange={(event) => updateSelected({ name: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {c.brand}
-                  <input
-                    value={selectedRow.brand}
-                    onChange={(event) => updateSelected({ brand: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {c.category}
-                  <select
-                    value={selectedRow.category}
-                    onChange={(event) => updateSelected({ category: event.target.value })}
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {categoryLabel(category, language)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  {c.sku}
-                  <input
-                    value={selectedRow.sku}
-                    onChange={(event) => updateSelected({ sku: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {c.color}
-                  <input
-                    value={selectedRow.color}
-                    onChange={(event) => updateSelected({ color: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {c.size}
-                  <input
-                    value={selectedRow.size}
-                    onChange={(event) => updateSelected({ size: event.target.value })}
-                  />
-                </label>
-                <label>
-                  {c.retailPrice}
-                  <input
-                    min={0}
-                    type="number"
-                    value={selectedRow.b2c}
-                    onChange={(event) => updateSelected({ b2c: Number(event.target.value) })}
-                  />
-                </label>
-                <label>
-                  {c.b2bPrice}
-                  <input
-                    min={0}
-                    type="number"
-                    value={selectedRow.b2b}
-                    onChange={(event) => updateSelected({ b2b: Number(event.target.value) })}
-                  />
-                </label>
-                <label>
-                  {c.stock}
-                  <input
-                    min={0}
-                    type="number"
-                    value={selectedRow.stock}
-                    onChange={(event) => updateSelected({ stock: Number(event.target.value) })}
-                  />
-                </label>
-              </div>
-              <label>
-                {c.description}
-                <textarea
-                  value={selectedRow.description}
-                  onChange={(event) => updateSelected({ description: event.target.value })}
-                />
-              </label>
-              <label className="switch-row">
-                <input
-                  checked={selectedRow.active}
-                  type="checkbox"
-                  onChange={(event) => updateSelected({ active: event.target.checked })}
-                />
-                {selectedRow.active ? c.active : c.hidden}
-              </label>
-              <p>{c.saveHint}</p>
-            </div>
+      {tab === "products" && showAddForm ? (
+        <div className="tool-panel admin-editor">
+          <h3>{c.addProductTitle}</h3>
+          <ProductForm
+            product={draftProduct}
+            c={c}
+            language={language}
+            onProductChange={(patch) =>
+              setDraftProduct((product) => ({ ...product, ...patch }))
+            }
+            onVariationChange={(variationId, patch) =>
+              setDraftProduct((product) => patchVariation(product, variationId, patch))
+            }
+            onAddVariation={() => setDraftProduct((product) => addVariation(product))}
+            onRemoveVariation={(variationId) =>
+              setDraftProduct((product) => removeVariation(product, variationId))
+            }
+            footer={
+              <>
+                <button className="wide-button inline-button" onClick={saveDraftProduct} type="button">
+                  {c.saveProduct}
+                </button>
+                <button
+                  className="table-action"
+                  onClick={() => setShowAddForm(false)}
+                  type="button"
+                >
+                  {c.cancel}
+                </button>
+              </>
+            }
+          />
+        </div>
+      ) : null}
 
-            <div className="tool-panel">
-              <h3>{c.selectedProduct}</h3>
-              <div className="metric-row">
-                <span>{c.product}</span>
-                <strong>{selectedRow.name}</strong>
-              </div>
-              <div className="metric-row">
-                <span>{c.variant}</span>
-                <strong>{[selectedRow.color, selectedRow.size].filter(Boolean).join(" / ") || "-"}</strong>
-              </div>
-              <div className="metric-row">
-                <span>{c.retailPrice}</span>
-                <strong>{money(selectedRow.b2c, language)}</strong>
-              </div>
-              <div className="metric-row">
-                <span>{c.b2bPrice}</span>
-                <strong>{money(selectedRow.b2b, language)}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="table-wrap admin-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>{c.product}</th>
-                  <th>{c.category}</th>
-                  <th>{c.sku}</th>
-                  <th>{c.variant}</th>
-                  <th>B2C / B2B</th>
-                  <th>{c.stock}</th>
-                  <th>{c.status}</th>
-                  <th>{c.edit}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((row) => (
-                  <tr className={row.id === selectedRow.id ? "selected-row" : ""} key={row.id}>
+      {tab === "products" ? (
+        <div className="table-wrap admin-table">
+          <table>
+            <thead>
+              <tr>
+                <th>{c.product}</th>
+                <th>{c.category}</th>
+                <th>{c.variants}</th>
+                <th>{c.price}</th>
+                <th>{c.stock}</th>
+                <th>{c.status}</th>
+                <th>{c.edit}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map((product) => (
+                <Fragment key={product.id}>
+                  <tr className={editProductId === product.id ? "selected-row" : ""}>
                     <td>
-                      <strong>{row.name}</strong>
-                      <span>{row.description || c.noDescription}</span>
+                      <strong>{product.name}</strong>
+                      <span>
+                        {product.brand} · {product.description || c.noDescription}
+                      </span>
                     </td>
-                    <td>{categoryLabel(row.category, language)}</td>
-                    <td>{row.sku}</td>
-                    <td>{[row.color, row.size].filter(Boolean).join(" / ") || "-"}</td>
+                    <td>{categoryLabel(product.category, language)}</td>
                     <td>
-                      {money(row.b2c, language)}
-                      <span>{money(row.b2b, language)}</span>
+                      {product.variations.length}
+                      <span>{variationSummary(product, c.noVariant)}</span>
                     </td>
-                    <td>{row.stock}</td>
                     <td>
-                      <span className={row.active ? "status-pill ok" : "status-pill"}>
-                        {row.active ? c.active : c.hidden}
+                      {productPriceRange(product, "b2c", language)}
+                      <span>{productPriceRange(product, "b2b", language)}</span>
+                    </td>
+                    <td>{productStock(product)}</td>
+                    <td>
+                      <span className={product.active ? "status-pill ok" : "status-pill"}>
+                        {product.active ? c.active : c.hidden}
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="table-action"
-                        onClick={() => setSelectedId(row.id)}
-                        type="button"
-                      >
-                        {c.edit}
-                      </button>
+                      <div className="table-actions">
+                        <button
+                          className="table-action"
+                          onClick={() => {
+                            setEditProductId((current) =>
+                              current === product.id ? null : product.id,
+                            );
+                            setShowAddForm(false);
+                          }}
+                          type="button"
+                        >
+                          {editProductId === product.id ? c.close : c.edit}
+                        </button>
+                        <button
+                          className="table-action danger"
+                          onClick={() => deleteProduct(product)}
+                          type="button"
+                        >
+                          {c.delete}
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+
+                  {editProductId === product.id ? (
+                    <tr className="admin-editor-row">
+                      <td colSpan={7}>
+                        <ProductForm
+                          product={product}
+                          c={c}
+                          language={language}
+                          onProductChange={(patch) => updateProduct(product.id, patch)}
+                          onVariationChange={(variationId, patch) =>
+                            updateProductVariation(product.id, variationId, patch)
+                          }
+                          onAddVariation={() =>
+                            setAdminProducts((items) =>
+                              items.map((item) =>
+                                item.id === product.id ? addVariation(item) : item,
+                              ),
+                            )
+                          }
+                          onRemoveVariation={(variationId) =>
+                            setAdminProducts((items) =>
+                              items.map((item) =>
+                                item.id === product.id
+                                  ? removeVariation(item, variationId)
+                                  : item,
+                              ),
+                            )
+                          }
+                          footer={
+                            <>
+                              <span className="quiet">{c.saveHint}</span>
+                              <button
+                                className="table-action"
+                                onClick={() => setEditProductId(null)}
+                                type="button"
+                              >
+                                {c.close}
+                              </button>
+                            </>
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       {tab === "clients" ? (

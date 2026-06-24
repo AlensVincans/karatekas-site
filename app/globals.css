@@ -899,6 +899,15 @@ td span {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.admin-full-field {
+  display: grid;
+}
+
+.admin-inline-editor {
+  display: grid;
+  gap: 14px;
+}
+
 .admin-editor textarea {
   min-height: 92px;
 }
@@ -939,6 +948,24 @@ td span {
   background: #f5faf8;
 }
 
+.admin-editor-row td {
+  background: #fbfdfc;
+  padding: 18px;
+}
+
+.table-actions,
+.admin-form-actions,
+.variation-editor-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-form-actions {
+  justify-content: space-between;
+}
+
 .table-action {
   background: var(--teal-soft);
   border-radius: 6px;
@@ -947,6 +974,37 @@ td span {
   font-weight: 850;
   min-height: 32px;
   padding: 0 10px;
+}
+
+.table-action.danger {
+  background: #f7e5e7;
+  color: var(--rose);
+}
+
+.variation-editor {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.variation-editor-head {
+  justify-content: space-between;
+}
+
+.variation-editor-head h4 {
+  margin: 0;
+}
+
+.variation-editor-row {
+  align-items: end;
+  background: #f5f7f4;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(6, minmax(92px, 1fr)) auto auto;
+  padding: 12px;
 }
 
 .tool-panel {
@@ -1053,7 +1111,8 @@ td span {
   .admin-stats,
   .admin-toolbar,
   .admin-actions,
-  .admin-form-grid {
+  .admin-form-grid,
+  .variation-editor-row {
     grid-template-columns: 1fr;
   }
 
