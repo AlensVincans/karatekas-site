@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useLanguage } from "../components/language";
 import { ProductCard } from "../components/product-card";
+import { PromoCarousel } from "../components/promo-carousel";
+import { useDemoSession } from "../components/session";
 import { categoryLabel } from "../lib/i18n";
 import { available, categories, products, warehouseTotals } from "../lib/store-data";
 
 export default function Home() {
+  const { role } = useDemoSession();
   const { language, t } = useLanguage();
   const totals = warehouseTotals();
   const featured = categories
@@ -49,10 +52,7 @@ export default function Home() {
       </section>
 
       <section className="quick-commerce">
-        <div className="promo-banner">
-          <strong>{t.clubSeason}</strong>
-          <span>{t.clubSeasonText}</span>
-        </div>
+        <PromoCarousel />
         <div className="category-rail">
           {categories.map((category) => (
             <Link key={category} href={`/catalog?category=${encodeURIComponent(category)}`}>
@@ -69,7 +69,7 @@ export default function Home() {
         </div>
         <div className="product-grid">
           {featured.map((product) => (
-            <ProductCard key={product.id} product={product} role="user" />
+            <ProductCard key={product.id} product={product} role={role} />
           ))}
         </div>
       </section>

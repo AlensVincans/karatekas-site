@@ -9,6 +9,7 @@ import {
   type UserRole,
 } from "../lib/store-data";
 import { categoryLabel, money, productDescription } from "../lib/i18n";
+import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { VariationPicker } from "./variation-picker";
 
@@ -28,11 +29,17 @@ function readCart() {
 
 export function ProductCard({ product, role }: { product: Product; role: UserRole }) {
   const { language, t } = useLanguage();
+  const promoPrices = usePromoPrices();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [added, setAdded] = useState(false);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
-  const price = pricedVariation(product, variation, role);
+  const price = applyPromoPrice(
+    pricedVariation(product, variation, role),
+    variation.id,
+    role,
+    promoPrices,
+  );
   const availability = available(variation.stock);
   const photo = product.images?.[0];
   const photoStyle = photo
@@ -82,9 +89,13 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
         </div>
         <div className="product-bottom">
           <div className="price-stack">
-            {price.isB2B ? <span className="old-price">{money(price.retail, language)}</span> : null}
+            {price.compareAt ? (
+              <span className="old-price">{money(price.compareAt, language)}</span>
+            ) : null}
             <strong>{money(price.final, language)}</strong>
-            {price.discount ? (
+            {price.hasPromo ? (
+              <span className="discount-label">Promo</span>
+            ) : price.discount ? (
               <span className="discount-label">
                 {price.discount.type === "percent"
                   ? `-${price.discount.value}%`

@@ -5,6 +5,14 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
+import {
+  readPromoBanners,
+  readPromoPrices,
+  type PromoBanner,
+  type PromoPriceMap,
+  writePromoBanners,
+  writePromoPrices,
+} from "../../lib/promotions";
 import { categories, products } from "../../lib/store-data";
 
 type AdminVariation = {
@@ -14,6 +22,8 @@ type AdminVariation = {
   size: string;
   b2c: number;
   b2b: number;
+  discountB2c: string;
+  discountB2b: string;
   stock: number;
   active: boolean;
 };
@@ -55,6 +65,7 @@ const copy = {
     categories: "Категории",
     products: "Товары",
     orders: "Заказы",
+    promotions: "Акции",
     search: "Поиск по названию, бренду, SKU, цвету или размеру",
     addProduct: "Добавить товар",
     addProductTitle: "Новый товар",
@@ -77,6 +88,8 @@ const copy = {
     removeVariation: "Удалить вариацию",
     retailPrice: "B2C цена",
     b2bPrice: "B2B цена",
+    discountB2c: "Скидочная B2C",
+    discountB2b: "Скидочная B2B",
     price: "Цена",
     stock: "Остаток",
     status: "Статус",
@@ -85,6 +98,7 @@ const copy = {
     edit: "Редактировать",
     delete: "Удалить",
     deleteConfirm: "Удалить товар",
+    deleteBannerConfirm: "Удалить баннер",
     noDescription: "Описание не заполнено",
     noVariant: "без вариации",
     type: "Тип",
@@ -94,6 +108,15 @@ const copy = {
     order: "Заказ",
     sum: "Сумма",
     payment: "Оплата",
+    banners: "Баннеры",
+    addBanner: "Добавить баннер",
+    bannerTitle: "Заголовок",
+    bannerText: "Текст",
+    bannerButton: "Кнопка",
+    bannerHref: "Ссылка",
+    bannerBackground: "Фон",
+    activeBanner: "активен",
+    noBanners: "Акций пока нет. Добавьте активный баннер, чтобы он появился на главной.",
     payments: {
       invoice15: "счёт, 15 дней",
       card: "карта",
@@ -120,6 +143,7 @@ const copy = {
     categories: "Kategorijas",
     products: "Preces",
     orders: "Pasūtījumi",
+    promotions: "Akcijas",
     search: "Meklēt pēc nosaukuma, zīmola, SKU, krāsas vai izmēra",
     addProduct: "Pievienot preci",
     addProductTitle: "Jauna prece",
@@ -142,6 +166,8 @@ const copy = {
     removeVariation: "Dzēst variāciju",
     retailPrice: "B2C cena",
     b2bPrice: "B2B cena",
+    discountB2c: "Akcijas B2C",
+    discountB2b: "Akcijas B2B",
     price: "Cena",
     stock: "Atlikums",
     status: "Statuss",
@@ -150,6 +176,7 @@ const copy = {
     edit: "Rediģēt",
     delete: "Dzēst",
     deleteConfirm: "Dzēst preci",
+    deleteBannerConfirm: "Dzēst baneri",
     noDescription: "Apraksts nav aizpildīts",
     noVariant: "bez variācijas",
     type: "Tips",
@@ -159,6 +186,15 @@ const copy = {
     order: "Pasūtījums",
     sum: "Summa",
     payment: "Apmaksa",
+    banners: "Baneri",
+    addBanner: "Pievienot baneri",
+    bannerTitle: "Virsraksts",
+    bannerText: "Teksts",
+    bannerButton: "Poga",
+    bannerHref: "Saite",
+    bannerBackground: "Fons",
+    activeBanner: "aktīvs",
+    noBanners: "Akciju vēl nav. Pievienojiet aktīvu baneri, lai tas parādītos sākumlapā.",
     payments: {
       invoice15: "rēķins, 15 dienas",
       card: "karte",
@@ -185,6 +221,7 @@ const copy = {
     categories: "Categories",
     products: "Products",
     orders: "Orders",
+    promotions: "Promotions",
     search: "Search by name, brand, SKU, color or size",
     addProduct: "Add product",
     addProductTitle: "New product",
@@ -207,6 +244,8 @@ const copy = {
     removeVariation: "Remove variation",
     retailPrice: "B2C price",
     b2bPrice: "B2B price",
+    discountB2c: "Promo B2C",
+    discountB2b: "Promo B2B",
     price: "Price",
     stock: "Stock",
     status: "Status",
@@ -215,6 +254,7 @@ const copy = {
     edit: "Edit",
     delete: "Delete",
     deleteConfirm: "Delete product",
+    deleteBannerConfirm: "Delete banner",
     noDescription: "Description is empty",
     noVariant: "no variation",
     type: "Type",
@@ -224,6 +264,15 @@ const copy = {
     order: "Order",
     sum: "Total",
     payment: "Payment",
+    banners: "Banners",
+    addBanner: "Add banner",
+    bannerTitle: "Title",
+    bannerText: "Text",
+    bannerButton: "Button",
+    bannerHref: "Link",
+    bannerBackground: "Background",
+    activeBanner: "active",
+    noBanners: "No promotions yet. Add an active banner to show it on the homepage.",
     payments: {
       invoice15: "invoice, 15 days",
       card: "card",
@@ -275,6 +324,8 @@ function createVariation(index = 1): AdminVariation {
     size: "",
     b2c: 0,
     b2b: 0,
+    discountB2c: "",
+    discountB2b: "",
     stock: 0,
     active: true,
   };
@@ -295,6 +346,8 @@ function createProduct(name = ""): AdminProduct {
 }
 
 function productRows(): AdminProduct[] {
+  const promoPrices = readPromoPrices();
+
   return products.map((product) => ({
     id: product.id,
     name: product.name,
@@ -309,10 +362,33 @@ function productRows(): AdminProduct[] {
       size: variation.size ?? "",
       b2c: variation.b2c,
       b2b: variation.b2b,
+      discountB2c: promoPrices[variation.id]?.b2c?.toString() ?? "",
+      discountB2b: promoPrices[variation.id]?.b2b?.toString() ?? "",
       stock: variation.stock.physical,
       active: true,
     })),
   }));
+}
+
+function parseOptionalPrice(value: string) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function promoPricesFromProducts(items: AdminProduct[]): PromoPriceMap {
+  return items.reduce<PromoPriceMap>((result, product) => {
+    product.variations.forEach((variation) => {
+      const b2c = parseOptionalPrice(variation.discountB2c);
+      const b2b = parseOptionalPrice(variation.discountB2b);
+
+      if (b2c || b2b) {
+        result[variation.id] = { b2c, b2b };
+      }
+    });
+
+    return result;
+  }, {});
 }
 
 function patchVariation(
@@ -495,6 +571,30 @@ function ProductForm({
               />
             </label>
             <label>
+              {c.discountB2c}
+              <input
+                min={0}
+                step="0.01"
+                type="number"
+                value={variation.discountB2c}
+                onChange={(event) =>
+                  onVariationChange(variation.id, { discountB2c: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              {c.discountB2b}
+              <input
+                min={0}
+                step="0.01"
+                type="number"
+                value={variation.discountB2b}
+                onChange={(event) =>
+                  onVariationChange(variation.id, { discountB2b: event.target.value })
+                }
+              />
+            </label>
+            <label>
               {c.stock}
               <input
                 min={0}
@@ -532,8 +632,9 @@ export default function AdminPage() {
   const { session, allUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language];
-  const [tab, setTab] = useState<"products" | "clients" | "orders">("products");
+  const [tab, setTab] = useState<"products" | "clients" | "orders" | "promotions">("products");
   const [adminProducts, setAdminProducts] = useState<AdminProduct[]>(() => productRows());
+  const [banners, setBanners] = useState<PromoBanner[]>(() => readPromoBanners());
   const [editProductId, setEditProductId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [draftProduct, setDraftProduct] = useState<AdminProduct>(() => createProduct());
@@ -580,8 +681,58 @@ export default function AdminPage() {
     );
   }
 
+  function setProductsWithPromos(updater: (items: AdminProduct[]) => AdminProduct[]) {
+    setAdminProducts((items) => {
+      const next = updater(items);
+
+      writePromoPrices(promoPricesFromProducts(next));
+
+      return next;
+    });
+  }
+
+  function setBannersAndSave(next: PromoBanner[]) {
+    setBanners(next);
+    writePromoBanners(next);
+  }
+
+  function createBanner(): PromoBanner {
+    const stamp = `${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    return {
+      id: `banner-${stamp}`,
+      title: c.promotions,
+      text: "",
+      buttonText: c.products,
+      href: "/catalog",
+      background: "linear-gradient(135deg, #102c2a, #007a75)",
+      active: true,
+    };
+  }
+
+  function addBanner() {
+    setBannersAndSave([createBanner(), ...banners]);
+    setTab("promotions");
+  }
+
+  function updateBanner(bannerId: string, patch: Partial<PromoBanner>) {
+    setBannersAndSave(
+      banners.map((banner) =>
+        banner.id === bannerId ? { ...banner, ...patch } : banner,
+      ),
+    );
+  }
+
+  function deleteBanner(banner: PromoBanner) {
+    if (!window.confirm(`${c.deleteBannerConfirm}: ${banner.title}?`)) {
+      return;
+    }
+
+    setBannersAndSave(banners.filter((item) => item.id !== banner.id));
+  }
+
   function updateProduct(productId: string, patch: Partial<AdminProduct>) {
-    setAdminProducts((items) =>
+    setProductsWithPromos((items) =>
       items.map((product) =>
         product.id === productId ? { ...product, ...patch } : product,
       ),
@@ -593,7 +744,7 @@ export default function AdminPage() {
     variationId: string,
     patch: Partial<AdminVariation>,
   ) {
-    setAdminProducts((items) =>
+    setProductsWithPromos((items) =>
       items.map((product) =>
         product.id === productId ? patchVariation(product, variationId, patch) : product,
       ),
@@ -605,7 +756,7 @@ export default function AdminPage() {
       return;
     }
 
-    setAdminProducts((items) => items.filter((item) => item.id !== product.id));
+    setProductsWithPromos((items) => items.filter((item) => item.id !== product.id));
 
     if (editProductId === product.id) {
       setEditProductId(null);
@@ -625,7 +776,7 @@ export default function AdminPage() {
       name: draftProduct.name.trim() || c.addProductTitle,
     };
 
-    setAdminProducts((items) => [product, ...items]);
+    setProductsWithPromos((items) => [product, ...items]);
     setDraftProduct(createProduct());
     setShowAddForm(false);
   }
@@ -679,6 +830,13 @@ export default function AdminPage() {
             type="button"
           >
             {c.orders}
+          </button>
+          <button
+            className={tab === "promotions" ? "active" : ""}
+            onClick={() => setTab("promotions")}
+            type="button"
+          >
+            {c.promotions}
           </button>
         </div>
 
@@ -808,14 +966,14 @@ export default function AdminPage() {
                             updateProductVariation(product.id, variationId, patch)
                           }
                           onAddVariation={() =>
-                            setAdminProducts((items) =>
+                            setProductsWithPromos((items) =>
                               items.map((item) =>
                                 item.id === product.id ? addVariation(item) : item,
                               ),
                             )
                           }
                           onRemoveVariation={(variationId) =>
-                            setAdminProducts((items) =>
+                            setProductsWithPromos((items) =>
                               items.map((item) =>
                                 item.id === product.id
                                   ? removeVariation(item, variationId)
@@ -843,6 +1001,90 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {tab === "promotions" ? (
+        <div className="tool-panel admin-editor">
+          <div className="variation-editor-head">
+            <h3>{c.banners}</h3>
+            <button className="primary-link" onClick={addBanner} type="button">
+              {c.addBanner}
+            </button>
+          </div>
+
+          {banners.length ? (
+            <div className="banner-list">
+              {banners.map((banner) => (
+                <div className="banner-editor-row" key={banner.id}>
+                  <label>
+                    {c.bannerTitle}
+                    <input
+                      value={banner.title}
+                      onChange={(event) =>
+                        updateBanner(banner.id, { title: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.bannerText}
+                    <textarea
+                      value={banner.text}
+                      onChange={(event) =>
+                        updateBanner(banner.id, { text: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.bannerButton}
+                    <input
+                      value={banner.buttonText}
+                      onChange={(event) =>
+                        updateBanner(banner.id, { buttonText: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.bannerHref}
+                    <input
+                      value={banner.href}
+                      onChange={(event) =>
+                        updateBanner(banner.id, { href: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.bannerBackground}
+                    <input
+                      value={banner.background}
+                      onChange={(event) =>
+                        updateBanner(banner.id, { background: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="switch-row">
+                    <input
+                      checked={banner.active}
+                      type="checkbox"
+                      onChange={(event) =>
+                        updateBanner(banner.id, { active: event.target.checked })
+                      }
+                    />
+                    {c.activeBanner}
+                  </label>
+                  <button
+                    className="table-action danger"
+                    onClick={() => deleteBanner(banner)}
+                    type="button"
+                  >
+                    {c.delete}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">{c.noBanners}</p>
+          )}
         </div>
       ) : null}
 

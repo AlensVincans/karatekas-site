@@ -7,6 +7,7 @@ import {
   pricedVariation,
   type PaymentMethod,
 } from "../lib/store-data";
+import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
 import { money } from "../lib/i18n";
 import { useLanguage } from "./language";
 import { useDemoSession } from "./session";
@@ -133,6 +134,7 @@ const copy = {
 export function CartCheckout() {
   const { session, role } = useDemoSession();
   const { language } = useLanguage();
+  const promoPrices = usePromoPrices();
   const c = copy[language];
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
   const [payment, setPayment] = useState<PaymentMethod>("card");
@@ -150,7 +152,12 @@ export function CartCheckout() {
             return null;
           }
 
-          const price = pricedVariation(found.product, found.variation, role);
+          const price = applyPromoPrice(
+            pricedVariation(found.product, found.variation, role),
+            found.variation.id,
+            role,
+            promoPrices,
+          );
           return {
             ...line,
             ...found,
@@ -159,7 +166,7 @@ export function CartCheckout() {
           };
         })
         .filter(Boolean),
-    [cart, role],
+    [cart, promoPrices, role],
   );
 
   const deliveryOption =

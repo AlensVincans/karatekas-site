@@ -9,6 +9,7 @@ import {
   products,
   type Product,
 } from "../lib/store-data";
+import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
 import { useDemoSession } from "./session";
@@ -43,11 +44,17 @@ function variationTitle(
 export function ProductDetail({ product }: { product: Product }) {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
+  const promoPrices = usePromoPrices();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [added, setAdded] = useState(false);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
-  const activePrice = pricedVariation(product, variation, role);
+  const activePrice = applyPromoPrice(
+    pricedVariation(product, variation, role),
+    variation.id,
+    role,
+    promoPrices,
+  );
   const availability = available(variation.stock);
   const photo = product.images?.[0];
   const photoStyle = photo
@@ -96,8 +103,8 @@ export function ProductDetail({ product }: { product: Product }) {
             </small>
           </div>
           <div className="detail-price-line">
-            {activePrice.isB2B ? (
-              <span className="old-price">{money(activePrice.retail, language)}</span>
+            {activePrice.compareAt ? (
+              <span className="old-price">{money(activePrice.compareAt, language)}</span>
             ) : null}
             <strong>{money(activePrice.final, language)}</strong>
           </div>
