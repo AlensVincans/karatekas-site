@@ -9,6 +9,7 @@ import {
   products,
   type Product,
 } from "../lib/store-data";
+import { productImages, useProductImages } from "../lib/product-media";
 import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
@@ -45,7 +46,9 @@ export function ProductDetail({ product }: { product: Product }) {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
   const promoPrices = usePromoPrices();
+  const productImageMap = useProductImages();
   const [variationId, setVariationId] = useState(product.variations[0].id);
+  const [photoIndex, setPhotoIndex] = useState(0);
   const [added, setAdded] = useState(false);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
@@ -56,7 +59,8 @@ export function ProductDetail({ product }: { product: Product }) {
     promoPrices,
   );
   const availability = available(variation.stock);
-  const photo = product.images?.[0];
+  const images = productImages(product, productImageMap);
+  const photo = images[photoIndex] ?? images[0];
   const photoStyle = photo
     ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
     : ({
@@ -83,10 +87,25 @@ export function ProductDetail({ product }: { product: Product }) {
   return (
     <section className="section-shell">
       <div className="product-detail">
-        <div
-          className={photo ? "product-photo detail-photo real-photo" : "product-photo detail-photo"}
-          style={photoStyle}
-        />
+        <div className="product-gallery">
+          <div
+            className={photo ? "product-photo detail-photo real-photo" : "product-photo detail-photo"}
+            style={photoStyle}
+          />
+          {images.length > 1 ? (
+            <div className="product-thumbs" aria-label="Product images">
+              {images.map((image, index) => (
+                <button
+                  className={image === photo ? "active" : ""}
+                  key={`${image}-${index}`}
+                  onClick={() => setPhotoIndex(index)}
+                  style={{ backgroundImage: `url("${image}")` }}
+                  type="button"
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
         <div className="detail-copy">
           <span className="eyebrow">{product.brand}</span>
           <h1>{product.name}</h1>

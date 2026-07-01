@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { categories, products } from "../lib/store-data";
+import { categories, pricedVariation, products, type Product, type UserRole } from "../lib/store-data";
 import { categoryLabel, productDescription } from "../lib/i18n";
+import { applyPromoPrice, usePromoPrices, type PromoPriceMap } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
 import { useDemoSession } from "./session";
@@ -15,6 +16,7 @@ function readCatalogParams(brands: string[]) {
       query: "",
       category: allValue,
       brand: allValue,
+      promoOnly: false,
     };
   }
 
@@ -26,17 +28,37 @@ function readCatalogParams(brands: string[]) {
     query: params.get("q") ?? "",
     category: category && categories.some((item) => item === category) ? category : allValue,
     brand: brand && brands.some((item) => item === brand) ? brand : allValue,
+    promoOnly: params.get("promo") === "1",
   };
+}
+
+function hasDiscountedVariation(
+  product: Product,
+  role: UserRole,
+  promoPrices: PromoPriceMap,
+) {
+  return product.variations.some((variation) => {
+    const price = applyPromoPrice(
+      pricedVariation(product, variation, role),
+      variation.id,
+      role,
+      promoPrices,
+    );
+
+    return Boolean(price.discount || price.hasPromo);
+  });
 }
 
 export function CatalogBrowser() {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
+  const promoPrices = usePromoPrices();
   const brands = Array.from(new Set(products.map((product) => product.brand)));
   const initialFilters = readCatalogParams(brands);
   const [query, setQuery] = useState(initialFilters.query);
   const [category, setCategory] = useState(initialFilters.category);
   const [brand, setBrand] = useState(initialFilters.brand);
+  const [promoOnly, setPromoOnly] = useState(initialFilters.promoOnly);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -53,12 +75,16 @@ export function CatalogBrowser() {
       params.set("brand", brand);
     }
 
+    if (promoOnly) {
+      params.set("promo", "1");
+    }
+
     const nextUrl = params.toString()
       ? `${window.location.pathname}?${params.toString()}`
       : window.location.pathname;
 
     window.history.replaceState(window.history.state, "", nextUrl);
-  }, [brand, category, query]);
+  }, [brand, category, promoOnly, query]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -66,6 +92,8 @@ export function CatalogBrowser() {
     return products.filter((product) => {
       const categoryMatch = category === allValue || product.category === category;
       const brandMatch = brand === allValue || product.brand === brand;
+      const promoMatch =
+        !promoOnly || hasDiscountedVariation(product, role, promoPrices);
       const textMatch =
         !normalizedQuery ||
         [
@@ -80,9 +108,9 @@ export function CatalogBrowser() {
           .toLowerCase()
           .includes(normalizedQuery);
 
-      return categoryMatch && brandMatch && textMatch;
+      return categoryMatch && brandMatch && promoMatch && textMatch;
     });
-  }, [brand, category, language, query]);
+  }, [brand, category, language, promoOnly, promoPrices, query, role]);
 
   return (
     <div className="page-grid">
@@ -117,6 +145,14 @@ export function CatalogBrowser() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="check-row compact-check">
+          <input
+            checked={promoOnly}
+            type="checkbox"
+            onChange={(event) => setPromoOnly(event.target.checked)}
+          />
+          {t.discountedOnly}
         </label>
         <div className="account-note">
           {role === "b2b" || role === "admin"

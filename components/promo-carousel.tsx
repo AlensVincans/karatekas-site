@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type CSSProperties } from "react";
-import { useActivePromoBanners } from "../lib/promotions";
+import { useState } from "react";
+import { promoBannerHref, useActivePromoBanners } from "../lib/promotions";
 
 export function PromoCarousel() {
   const banners = useActivePromoBanners();
@@ -23,20 +23,20 @@ export function PromoCarousel() {
   }
 
   return (
-    <div
-      className={hasMany ? "promo-carousel" : "promo-carousel single"}
-      style={
-        {
-          "--promo-bg": banner.background || "linear-gradient(135deg, #102c2a, #007a75)",
-        } as CSSProperties
-      }
-    >
-      <div>
+    <div className={hasMany ? "promo-carousel" : "promo-carousel single"}>
+      <div className="promo-carousel-media">
+        {banner.image ? (
+          <div className="promo-carousel-image" style={{ backgroundImage: `url("${banner.image}")` }} />
+        ) : (
+          <span>Sale</span>
+        )}
+      </div>
+      <div className="promo-carousel-copy">
         <strong>{banner.title}</strong>
         <span>{banner.text}</span>
       </div>
       <div className="promo-carousel-actions">
-        {banner.href ? <Link href={banner.href}>{banner.buttonText || "Open"}</Link> : null}
+        <Link href={promoBannerHref(banner)}>{banner.buttonText || "Open"}</Link>
         {hasMany ? (
           <>
             <button onClick={previous} type="button" aria-label="Previous banner">

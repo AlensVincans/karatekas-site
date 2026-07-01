@@ -1,13 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useState, type FormEvent } from "react";
 import { LanguageSelect, useLanguage } from "./language";
 import { useDemoSession } from "./session";
 
 export function StoreHeader() {
   const { session, logout } = useDemoSession();
   const { t } = useLanguage();
+  const [query, setQuery] = useState("");
   const isAdmin = session?.role === "admin";
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const normalized = query.trim();
+    window.location.href = normalized
+      ? `/catalog?q=${encodeURIComponent(normalized)}`
+      : "/catalog";
+  }
 
   return (
     <header className="topbar">
@@ -25,6 +36,16 @@ export function StoreHeader() {
           <Link href="/cart">{t.navCart}</Link>
           {isAdmin ? <Link href="/admin">{t.navAdmin}</Link> : null}
         </nav>
+
+        <form className="site-search" onSubmit={submitSearch}>
+          <input
+            aria-label={t.search}
+            placeholder={t.searchPlaceholder}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <button type="submit">{t.search}</button>
+        </form>
 
         <div className="user-nav">
           <LanguageSelect />

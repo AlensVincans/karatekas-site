@@ -6,6 +6,13 @@ import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
 import {
+  productImages,
+  readProductImages,
+  type ProductImageMap,
+  writeProductImages,
+} from "../../lib/product-media";
+import {
+  type PromoTargetType,
   readPromoBanners,
   readPromoPrices,
   type PromoBanner,
@@ -34,6 +41,7 @@ type AdminProduct = {
   brand: string;
   category: string;
   description: string;
+  images: string[];
   active: boolean;
   variations: AdminVariation[];
 };
@@ -77,6 +85,12 @@ const copy = {
     product: "Товар",
     name: "Название",
     description: "Описание",
+    images: "Картинки",
+    addImages: "Добавить картинки",
+    imageUrl: "URL картинки",
+    addImageUrl: "Добавить URL",
+    removeImage: "Удалить картинку",
+    noImages: "Картинки не добавлены",
     brand: "Бренд",
     category: "Категория",
     sku: "SKU",
@@ -113,8 +127,12 @@ const copy = {
     bannerTitle: "Заголовок",
     bannerText: "Текст",
     bannerButton: "Кнопка",
-    bannerHref: "Ссылка",
-    bannerBackground: "Фон",
+    bannerImage: "Картинка акции",
+    removeBannerImage: "Убрать картинку",
+    bannerTarget: "Куда ведёт кнопка",
+    targetDiscounts: "Скидочные товары",
+    targetBrand: "Бренд",
+    targetCategory: "Категория",
     activeBanner: "активен",
     noBanners: "Акций пока нет. Добавьте активный баннер, чтобы он появился на главной.",
     payments: {
@@ -155,6 +173,12 @@ const copy = {
     product: "Prece",
     name: "Nosaukums",
     description: "Apraksts",
+    images: "Attēli",
+    addImages: "Pievienot attēlus",
+    imageUrl: "Attēla URL",
+    addImageUrl: "Pievienot URL",
+    removeImage: "Dzēst attēlu",
+    noImages: "Attēli nav pievienoti",
     brand: "Zīmols",
     category: "Kategorija",
     sku: "SKU",
@@ -191,8 +215,12 @@ const copy = {
     bannerTitle: "Virsraksts",
     bannerText: "Teksts",
     bannerButton: "Poga",
-    bannerHref: "Saite",
-    bannerBackground: "Fons",
+    bannerImage: "Akcijas attēls",
+    removeBannerImage: "Noņemt attēlu",
+    bannerTarget: "Pogas mērķis",
+    targetDiscounts: "Akcijas preces",
+    targetBrand: "Zīmols",
+    targetCategory: "Kategorija",
     activeBanner: "aktīvs",
     noBanners: "Akciju vēl nav. Pievienojiet aktīvu baneri, lai tas parādītos sākumlapā.",
     payments: {
@@ -233,6 +261,12 @@ const copy = {
     product: "Product",
     name: "Name",
     description: "Description",
+    images: "Images",
+    addImages: "Add images",
+    imageUrl: "Image URL",
+    addImageUrl: "Add URL",
+    removeImage: "Remove image",
+    noImages: "No images added",
     brand: "Brand",
     category: "Category",
     sku: "SKU",
@@ -269,8 +303,12 @@ const copy = {
     bannerTitle: "Title",
     bannerText: "Text",
     bannerButton: "Button",
-    bannerHref: "Link",
-    bannerBackground: "Background",
+    bannerImage: "Promotion image",
+    removeBannerImage: "Remove image",
+    bannerTarget: "Button target",
+    targetDiscounts: "Discounted products",
+    targetBrand: "Brand",
+    targetCategory: "Category",
     activeBanner: "active",
     noBanners: "No promotions yet. Add an active banner to show it on the homepage.",
     payments: {
@@ -340,6 +378,7 @@ function createProduct(name = ""): AdminProduct {
     brand: "Karatekas",
     category: categories[0] ?? "Accessories",
     description: "",
+    images: [],
     active: true,
     variations: [createVariation()],
   };
@@ -347,6 +386,7 @@ function createProduct(name = ""): AdminProduct {
 
 function productRows(): AdminProduct[] {
   const promoPrices = readPromoPrices();
+  const imageMap = readProductImages();
 
   return products.map((product) => ({
     id: product.id,
@@ -354,6 +394,7 @@ function productRows(): AdminProduct[] {
     brand: product.brand,
     category: product.category,
     description: product.description,
+    images: productImages(product, imageMap),
     active: true,
     variations: product.variations.map((variation) => ({
       id: variation.id,
@@ -389,6 +430,37 @@ function promoPricesFromProducts(items: AdminProduct[]): PromoPriceMap {
 
     return result;
   }, {});
+}
+
+function productImageMapFromProducts(items: AdminProduct[]): ProductImageMap {
+  return items.reduce<ProductImageMap>((result, product) => {
+    const images = product.images.map((image) => image.trim()).filter(Boolean);
+
+    if (images.length) {
+      result[product.id] = images;
+    }
+
+    return result;
+  }, {});
+}
+
+function readImageFiles(files: FileList | null) {
+  if (!files?.length) {
+    return Promise.resolve<string[]>([]);
+  }
+
+  return Promise.all(
+    Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        }),
+    ),
+  );
 }
 
 function patchVariation(
@@ -472,6 +544,31 @@ function ProductForm({
   onRemoveVariation: (variationId: string) => void;
   footer: ReactNode;
 }) {
+  const [imageUrl, setImageUrl] = useState("");
+
+  async function addImageFiles(files: FileList | null) {
+    const nextImages = (await readImageFiles(files)).filter(Boolean);
+
+    if (nextImages.length) {
+      onProductChange({ images: [...product.images, ...nextImages] });
+    }
+  }
+
+  function addImageUrl() {
+    const nextUrl = imageUrl.trim();
+
+    if (!nextUrl) {
+      return;
+    }
+
+    onProductChange({ images: [...product.images, nextUrl] });
+    setImageUrl("");
+  }
+
+  function removeImage(index: number) {
+    onProductChange({ images: product.images.filter((_, imageIndex) => imageIndex !== index) });
+  }
+
   return (
     <div className="admin-inline-editor">
       <div className="admin-form-grid">
@@ -511,6 +608,56 @@ function ProductForm({
           onChange={(event) => onProductChange({ description: event.target.value })}
         />
       </label>
+
+      <div className="image-editor">
+        <div className="variation-editor-head">
+          <h4>{c.images}</h4>
+          <label className="file-action">
+            {c.addImages}
+            <input
+              accept="image/*"
+              multiple
+              type="file"
+              onChange={async (event) => {
+                await addImageFiles(event.currentTarget.files);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
+        <div className="image-url-row">
+          <input
+            placeholder={c.imageUrl}
+            value={imageUrl}
+            onChange={(event) => setImageUrl(event.target.value)}
+          />
+          <button className="table-action" onClick={addImageUrl} type="button">
+            {c.addImageUrl}
+          </button>
+        </div>
+        {product.images.length ? (
+          <div className="image-thumb-grid">
+            {product.images.map((image, index) => (
+              <div className="image-thumb-item" key={`${image}-${index}`}>
+                <div
+                  className="image-thumb-preview"
+                  style={{ backgroundImage: `url("${image}")` }}
+                />
+                <button
+                  aria-label={c.removeImage}
+                  className="table-action danger"
+                  onClick={() => removeImage(index)}
+                  type="button"
+                >
+                  {c.delete}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-state">{c.noImages}</p>
+        )}
+      </div>
 
       <label className="switch-row">
         <input
@@ -667,6 +814,11 @@ export default function AdminPage() {
         .includes(normalized),
     );
   }, [adminProducts, query]);
+  const brandOptions = useMemo(
+    () =>
+      Array.from(new Set(adminProducts.map((product) => product.brand).filter(Boolean))).sort(),
+    [adminProducts],
+  );
 
   if (session?.role !== "admin") {
     return (
@@ -686,6 +838,7 @@ export default function AdminPage() {
       const next = updater(items);
 
       writePromoPrices(promoPricesFromProducts(next));
+      writeProductImages(productImageMapFromProducts(next));
 
       return next;
     });
@@ -696,6 +849,18 @@ export default function AdminPage() {
     writePromoBanners(next);
   }
 
+  function initialTargetValue(targetType: PromoTargetType) {
+    if (targetType === "brand") {
+      return brandOptions[0] ?? "";
+    }
+
+    if (targetType === "category") {
+      return categories[0] ?? "";
+    }
+
+    return "";
+  }
+
   function createBanner(): PromoBanner {
     const stamp = `${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -704,8 +869,9 @@ export default function AdminPage() {
       title: c.promotions,
       text: "",
       buttonText: c.products,
-      href: "/catalog",
-      background: "linear-gradient(135deg, #102c2a, #007a75)",
+      image: "",
+      targetType: "discounts",
+      targetValue: "",
       active: true,
     };
   }
@@ -721,6 +887,21 @@ export default function AdminPage() {
         banner.id === bannerId ? { ...banner, ...patch } : banner,
       ),
     );
+  }
+
+  function updateBannerTarget(bannerId: string, targetType: PromoTargetType) {
+    updateBanner(bannerId, {
+      targetType,
+      targetValue: initialTargetValue(targetType),
+    });
+  }
+
+  async function updateBannerImage(bannerId: string, files: FileList | null) {
+    const [image] = await readImageFiles(files);
+
+    if (image) {
+      updateBanner(bannerId, { image });
+    }
   }
 
   function deleteBanner(banner: PromoBanner) {
@@ -1045,23 +1226,87 @@ export default function AdminPage() {
                     />
                   </label>
                   <label>
-                    {c.bannerHref}
-                    <input
-                      value={banner.href}
+                    {c.bannerTarget}
+                    <select
+                      value={banner.targetType ?? "discounts"}
                       onChange={(event) =>
-                        updateBanner(banner.id, { href: event.target.value })
+                        updateBannerTarget(banner.id, event.target.value as PromoTargetType)
+                      }
+                    >
+                      <option value="discounts">{c.targetDiscounts}</option>
+                      <option value="brand">{c.targetBrand}</option>
+                      <option value="category">{c.targetCategory}</option>
+                    </select>
+                  </label>
+                  {banner.targetType === "brand" ? (
+                    <label>
+                      {c.brand}
+                      <select
+                        value={banner.targetValue ?? ""}
+                        onChange={(event) =>
+                          updateBanner(banner.id, { targetValue: event.target.value })
+                        }
+                      >
+                        {brandOptions.map((brand) => (
+                          <option key={brand} value={brand}>
+                            {brand}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  {banner.targetType === "category" ? (
+                    <label>
+                      {c.category}
+                      <select
+                        value={banner.targetValue ?? ""}
+                        onChange={(event) =>
+                          updateBanner(banner.id, { targetValue: event.target.value })
+                        }
+                      >
+                        {categories.map((category) => (
+                          <option key={category} value={category}>
+                            {categoryLabel(category, language)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <div className="banner-image-editor">
+                    <label className="file-action">
+                      {c.bannerImage}
+                      <input
+                        accept="image/*"
+                        type="file"
+                        onChange={async (event) => {
+                          await updateBannerImage(banner.id, event.currentTarget.files);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                    <input
+                      placeholder={c.imageUrl}
+                      value={banner.image ?? ""}
+                      onChange={(event) =>
+                        updateBanner(banner.id, { image: event.target.value })
                       }
                     />
-                  </label>
-                  <label>
-                    {c.bannerBackground}
-                    <input
-                      value={banner.background}
-                      onChange={(event) =>
-                        updateBanner(banner.id, { background: event.target.value })
-                      }
-                    />
-                  </label>
+                    {banner.image ? (
+                      <div className="banner-image-preview">
+                        <div
+                          className="banner-preview-image"
+                          style={{ backgroundImage: `url("${banner.image}")` }}
+                        />
+                        <button
+                          className="table-action danger"
+                          onClick={() => updateBanner(banner.id, { image: "" })}
+                          type="button"
+                        >
+                          {c.removeBannerImage}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                   <label className="switch-row">
                     <input
                       checked={banner.active}

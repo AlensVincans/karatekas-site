@@ -9,6 +9,7 @@ import {
   type UserRole,
 } from "../lib/store-data";
 import { categoryLabel, money, productDescription } from "../lib/i18n";
+import { productImages, useProductImages } from "../lib/product-media";
 import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { VariationPicker } from "./variation-picker";
@@ -30,6 +31,7 @@ function readCart() {
 export function ProductCard({ product, role }: { product: Product; role: UserRole }) {
   const { language, t } = useLanguage();
   const promoPrices = usePromoPrices();
+  const productImageMap = useProductImages();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [added, setAdded] = useState(false);
   const variation =
@@ -41,7 +43,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
     promoPrices,
   );
   const availability = available(variation.stock);
-  const photo = product.images?.[0];
+  const photo = productImages(product, productImageMap)[0];
   const photoStyle = photo
     ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
     : ({

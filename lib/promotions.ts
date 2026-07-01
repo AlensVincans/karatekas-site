@@ -10,13 +10,17 @@ export type PromoPrice = {
 
 export type PromoPriceMap = Record<string, PromoPrice>;
 
+export type PromoTargetType = "discounts" | "brand" | "category";
+
 export type PromoBanner = {
   id: string;
   title: string;
   text: string;
   buttonText: string;
-  href: string;
-  background: string;
+  href?: string;
+  image: string;
+  targetType?: PromoTargetType;
+  targetValue?: string;
   active: boolean;
 };
 
@@ -108,6 +112,22 @@ export function useActivePromoBanners() {
   const banners = usePromoBanners();
 
   return useMemo(() => banners.filter((banner) => banner.active), [banners]);
+}
+
+export function promoBannerHref(banner: PromoBanner) {
+  if (banner.targetType === "brand" && banner.targetValue) {
+    return `/catalog?brand=${encodeURIComponent(banner.targetValue)}`;
+  }
+
+  if (banner.targetType === "category" && banner.targetValue) {
+    return `/catalog?category=${encodeURIComponent(banner.targetValue)}`;
+  }
+
+  if (banner.targetType === "discounts") {
+    return "/catalog?promo=1";
+  }
+
+  return banner.href || "/catalog";
 }
 
 function promoValue(value: number | undefined) {
