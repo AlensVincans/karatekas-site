@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { useState } from "react";
 import { categoryLabel, colorLabel, money, productDescription } from "../lib/i18n";
 import {
@@ -60,13 +60,46 @@ export function ProductDetail({ product }: { product: Product }) {
   );
   const availability = available(variation.stock);
   const images = productImages(product, productImageMap);
-  const photo = images[photoIndex] ?? images[0];
+  const activePhotoIndex = images[photoIndex] ? photoIndex : 0;
+  const photo = images[activePhotoIndex];
+  const canSwitchPhotos = images.length > 1;
   const photoStyle = photo
     ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
     : ({
         "--sheet-x": product.sheetX,
         "--sheet-y": product.sheetY,
       } as CSSProperties);
+
+  function switchPhoto(direction: 1 | -1) {
+    if (!canSwitchPhotos) {
+      return;
+    }
+
+    setPhotoIndex((current) => {
+      const safeCurrent = images[current] ? current : 0;
+
+      return (safeCurrent + direction + images.length) % images.length;
+    });
+  }
+
+  function clickMainPhoto(event: MouseEvent<HTMLButtonElement>) {
+    const box = event.currentTarget.getBoundingClientRect();
+    const direction = event.clientX - box.left < box.width / 2 ? -1 : 1;
+
+    switchPhoto(direction);
+  }
+
+  function keyMainPhoto(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      switchPhoto(-1);
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      switchPhoto(1);
+    }
+  }
 
   function addToCart() {
     const cart = readCart();
@@ -88,11 +121,31 @@ export function ProductDetail({ product }: { product: Product }) {
     <section className="section-shell">
       <div className="product-detail">
         <div className="product-gallery">
-          <div
-            className={photo ? "product-photo detail-photo real-photo" : "product-photo detail-photo"}
+          <button
+            aria-label={t.imageGallery}
+            className={
+              photo
+                ? "product-photo detail-photo real-photo detail-photo-button"
+                : "product-photo detail-photo detail-photo-button"
+            }
+            onClick={clickMainPhoto}
+            onKeyDown={keyMainPhoto}
             style={photoStyle}
-          />
-          {images.length > 1 ? (
+            type="button"
+          >
+            {canSwitchPhotos ? (
+              <>
+                <span className="gallery-zone left">{"<"}</span>
+                <span className="gallery-zone right">{">"}</span>
+              </>
+            ) : null}
+          </button>
+          {canSwitchPhotos ? (
+            <div className="gallery-count">
+              {activePhotoIndex + 1} / {images.length}
+            </div>
+          ) : null}
+          {canSwitchPhotos ? (
             <div className="product-thumbs" aria-label="Product images">
               {images.map((image, index) => (
                 <button

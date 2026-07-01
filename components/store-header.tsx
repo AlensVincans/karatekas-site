@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { LanguageSelect, useLanguage } from "./language";
+import { ProductSearchSuggestions } from "./product-search-suggestions";
 import { useDemoSession } from "./session";
 
 export function StoreHeader() {
@@ -38,12 +39,15 @@ export function StoreHeader() {
         </nav>
 
         <form className="site-search" onSubmit={submitSearch}>
-          <input
-            aria-label={t.search}
-            placeholder={t.searchPlaceholder}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <div className="search-field">
+            <input
+              aria-label={t.search}
+              placeholder={t.searchPlaceholder}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <ProductSearchSuggestions query={query} onPick={() => setQuery("")} />
+          </div>
           <button type="submit">{t.search}</button>
         </form>
 

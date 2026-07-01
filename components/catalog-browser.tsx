@@ -6,6 +6,7 @@ import { categoryLabel, productDescription } from "../lib/i18n";
 import { applyPromoPrice, usePromoPrices, type PromoPriceMap } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
+import { ProductSearchSuggestions } from "./product-search-suggestions";
 import { useDemoSession } from "./session";
 
 const allValue = "__all";
@@ -116,14 +117,17 @@ export function CatalogBrowser() {
     <div className="page-grid">
       <aside className="filters-panel">
         <h2>{t.filters}</h2>
-        <label>
-          {t.search}
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t.searchPlaceholder}
-          />
-        </label>
+        <div className="search-field">
+          <label>
+            {t.search}
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t.searchPlaceholder}
+            />
+          </label>
+          <ProductSearchSuggestions query={query} />
+        </div>
         <label>
           {t.category}
           <select value={category} onChange={(event) => setCategory(event.target.value)}>
