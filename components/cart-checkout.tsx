@@ -26,6 +26,10 @@ function readCart() {
   }
 }
 
+function isPresent<T>(value: T | null | undefined): value is T {
+  return value != null;
+}
+
 const copy = {
   ru: {
     title: "Корзина и оплата",
@@ -43,7 +47,9 @@ const copy = {
     needLogin: "Сначала войдите или зарегистрируйтесь.",
     cartEmpty: "Корзина пуста.",
     b2bOnly: "Оплата по счёту и отсрочка доступны только B2B.",
-    cardStatus: "Платёж отправлен в demo acquiring: Visa/Mastercard, 3D Secure, Apple Pay/Google Pay.",
+    cardStatus: "Переходим к оплате Montonio: Visa/Mastercard, 3D Secure, Apple Pay/Google Pay.",
+    redirecting: "Открываем Montonio...",
+    paymentError: "Не удалось открыть оплату Montonio. Попробуйте ещё раз.",
     deferStatus: "Заказ создан: B2B отсрочка 15 дней, счёт INV-2026-00044.",
     invoiceStatus: "Заказ создан: счёт INV-2026-00044 отправлен на email.",
     regions: {
@@ -77,7 +83,9 @@ const copy = {
     needLogin: "Vispirms ieejiet vai reģistrējieties.",
     cartEmpty: "Grozs ir tukšs.",
     b2bOnly: "Rēķins un atliktais maksājums pieejams tikai B2B.",
-    cardStatus: "Maksājums nosūtīts demo acquiring: Visa/Mastercard, 3D Secure, Apple Pay/Google Pay.",
+    cardStatus: "Pārejam uz Montonio apmaksu: Visa/Mastercard, 3D Secure, Apple Pay/Google Pay.",
+    redirecting: "Atveram Montonio...",
+    paymentError: "Neizdevās atvērt Montonio maksājumu. Mēģiniet vēlreiz.",
     deferStatus: "Pasūtījums izveidots: B2B atliktais maksājums 15 dienas, rēķins INV-2026-00044.",
     invoiceStatus: "Pasūtījums izveidots: rēķins INV-2026-00044 nosūtīts uz email.",
     regions: {
@@ -111,7 +119,9 @@ const copy = {
     needLogin: "Please sign in or register first.",
     cartEmpty: "The cart is empty.",
     b2bOnly: "Invoice and deferred payment are available only for B2B.",
-    cardStatus: "Payment sent to demo acquiring: Visa/Mastercard, 3D Secure, Apple Pay/Google Pay.",
+    cardStatus: "Redirecting to Montonio: Visa/Mastercard, 3D Secure, Apple Pay/Google Pay.",
+    redirecting: "Opening Montonio...",
+    paymentError: "Could not open Montonio payment. Please try again.",
     deferStatus: "Order created: B2B deferred payment for 15 days, invoice INV-2026-00044.",
     invoiceStatus: "Order created: invoice INV-2026-00044 sent by email.",
     regions: {
@@ -141,6 +151,7 @@ export function CartCheckout() {
   const [delivery, setDelivery] = useState(deliveryOptions[0].id);
   const [noVat, setNoVat] = useState(false);
   const [status, setStatus] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const lines = useMemo(
     () =>
@@ -165,7 +176,7 @@ export function CartCheckout() {
             total: price.final * line.qty,
           };
         })
-        .filter(Boolean),
+        .filter(isPresent),
     [cart, promoPrices, role],
   );
 
@@ -188,7 +199,7 @@ export function CartCheckout() {
     window.localStorage.setItem("bc_cart", JSON.stringify(next));
   }
 
-  function submitOrder() {
+  async function submitOrder() {
     if (!session) {
       setStatus(c.needLogin);
       return;
@@ -204,13 +215,65 @@ export function CartCheckout() {
       return;
     }
 
-    setStatus(
-      payment === "card"
-        ? c.cardStatus
-        : payment === "defer15"
-          ? c.deferStatus
-          : c.invoiceStatus,
-    );
+    if (payment !== "card") {
+      setStatus(payment === "defer15" ? c.deferStatus : c.invoiceStatus);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus(c.cardStatus);
+
+    try {
+      const response = await fetch("/api/montonio/order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customer: {
+            name: session.name,
+            email: session.email,
+            company: session.company,
+            role: session.role,
+          },
+          delivery: {
+            id: deliveryOption.id,
+            name: deliveryOption.name,
+            price: deliveryOption.price,
+          },
+          language,
+          lines: lines.map((line) => ({
+            productId: line.product.id,
+            variationId: line.variation.id,
+            productName: line.product.name,
+            variationName: line.variation.name,
+            sku: line.variation.sku,
+            quantity: line.qty,
+            unitPrice: line.price.final,
+          })),
+          noVat,
+          totals: {
+            subtotal,
+            vat,
+            total,
+          },
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        paymentUrl?: string;
+      };
+
+      if (!response.ok || !data.paymentUrl) {
+        throw new Error(data.error || c.paymentError);
+      }
+
+      setStatus(c.redirecting);
+      window.location.assign(data.paymentUrl);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : c.paymentError);
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -301,8 +364,13 @@ export function CartCheckout() {
           <span>{c.total}</span>
           <strong>{money(total, language)}</strong>
         </div>
-        <button className="wide-button" onClick={submitOrder} type="button">
-          {c.placeOrder}
+        <button
+          className="wide-button"
+          disabled={isSubmitting}
+          onClick={submitOrder}
+          type="button"
+        >
+          {isSubmitting ? c.redirecting : c.placeOrder}
         </button>
         {status ? <p className="status-box">{status}</p> : null}
       </aside>
