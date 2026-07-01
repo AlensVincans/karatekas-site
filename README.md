@@ -12,6 +12,7 @@ Multi-page ecommerce MVP for karate equipment with B2C, B2B and admin roles.
 - B2B pricing with crossed retail price, active club price, invoice payment and 15-day deferred payment.
 - Cart and checkout with PVN toggle, card payment surface, invoice payment, delivery options and order status.
 - Montonio card checkout route for Visa/Mastercard, 3D Secure, Apple Pay and Google Pay redirect payments.
+- Montonio Shipping checkout step with delivery method selection, pickup points, courier address, shipment creation and label references after paid webhooks.
 - Lean admin panel for editing product prices/stock/status, viewing clients and managing orders.
 - Warehouse values for physical stock, reserved stock, available stock, lots, purchase price, delivery, customs, PVN, FX, cost and margin.
 - SQLite seed databases:
@@ -73,13 +74,21 @@ Set these environment variables in hosting:
 ```bash
 MONTONIO_ACCESS_KEY=...
 MONTONIO_SECRET_KEY=...
-MONTONIO_ENV=production
+MONTONIO_ENV=sandbox
 MONTONIO_SITE_URL=https://your-domain.example
 ```
 
-Use `MONTONIO_ENV=sandbox` for the sandbox API. Optional store address
-defaults are `MONTONIO_COUNTRY`, `MONTONIO_POSTAL_CODE`,
-`MONTONIO_ADDRESS_LINE1`, `MONTONIO_LOCALITY` and `MONTONIO_REGION`.
+The app defaults to sandbox unless `MONTONIO_ENV=production` is set. Optional
+payment and shipping API overrides are `MONTONIO_API_BASE_URL` and
+`MONTONIO_SHIPPING_API_BASE_URL`. Optional store/sender address defaults are
+`MONTONIO_COUNTRY`, `MONTONIO_POSTAL_CODE`, `MONTONIO_ADDRESS_LINE1`,
+`MONTONIO_LOCALITY`, `MONTONIO_REGION`, `MONTONIO_SHIPPER_NAME`,
+`MONTONIO_SHIPPER_COMPANY`, `MONTONIO_SHIPPER_PHONE_COUNTRY_CODE`,
+`MONTONIO_SHIPPER_PHONE_NUMBER` and `MONTONIO_SHIPPER_EMAIL`.
+
+Orders are stored in `data/orders.json` by default. For production on
+DigitalOcean, set `MONTONIO_ORDERS_FILE` to a writable path or replace this
+store with SQLite/PostgreSQL persistence.
 
 ## Production integrations still need real credentials
 

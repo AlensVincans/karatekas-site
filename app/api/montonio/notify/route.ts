@@ -1,12 +1,24 @@
 import { verifyMontonioJwt } from "../../../../lib/montonio";
+import {
+  createLabelForShipment,
+  createShipmentForOrder,
+} from "../../../../lib/montonio-shipping";
+import {
+  getOrderByMerchantReference,
+  updateOrder,
+} from "../../../../lib/orders";
 
 type MontonioReturnPayload = {
   merchantReference?: string;
+  uuid?: string;
+  orderUuid?: string;
   paymentStatus?: string;
   payment_status?: string;
 };
 
 const montonioEnv = process.env;
+
+export const runtime = "nodejs";
 
 function tokenFromObject(payload: unknown) {
   if (!payload || typeof payload !== "object") {
@@ -60,11 +72,66 @@ export async function POST(request: Request) {
 
   try {
     const payload = await verifyMontonioJwt<MontonioReturnPayload>(token, secretKey);
+    const paymentStatus = payload.paymentStatus ?? payload.payment_status ?? null;
+    const paid = paymentStatus?.toLowerCase() === "paid";
+    let shipment: unknown = null;
+    let label: unknown = null;
+
+    if (payload.merchantReference) {
+      const order = await getOrderByMerchantReference(payload.merchantReference);
+
+      if (order) {
+        const updated = await updateOrder(order.id, {
+          paymentStatus: paid ? "paid" : order.paymentStatus,
+          montonioOrderUuid: payload.uuid || payload.orderUuid || order.montonioOrderUuid,
+        });
+
+        if (
+          paid &&
+          updated &&
+          updated.shippingStatus !== "label_created" &&
+          !updated.labelUrl
+        ) {
+          try {
+            const shipmentPatch = updated.shipmentId
+              ? { shipmentId: updated.shipmentId }
+              : await createShipmentForOrder(updated);
+            const withShipment = await updateOrder(updated.id, {
+              ...shipmentPatch,
+              shippingStatus: "shipment_created",
+              shippingError: undefined,
+            });
+
+            shipment = shipmentPatch;
+
+            if (withShipment?.shipmentId) {
+              const labelPatch = await createLabelForShipment(withShipment.shipmentId);
+
+              label = labelPatch;
+              await updateOrder(withShipment.id, {
+                ...labelPatch,
+                shippingError: undefined,
+              });
+            }
+          } catch (error) {
+            await updateOrder(updated.id, {
+              shippingStatus: "failed",
+              shippingError:
+                error instanceof Error
+                  ? error.message
+                  : "Could not create Montonio shipment.",
+            });
+          }
+        }
+      }
+    }
 
     return Response.json({
       ok: true,
       merchantReference: payload.merchantReference,
-      paymentStatus: payload.paymentStatus ?? payload.payment_status ?? null,
+      paymentStatus,
+      shipment,
+      label,
     });
   } catch {
     return Response.json(

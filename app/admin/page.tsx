@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
@@ -55,6 +55,34 @@ type OrderRow = {
   total: number;
   payment: OrderPayment;
   status: OrderStatus;
+  paymentStatus?: string;
+  shippingMethodName?: string;
+  shippingStatus?: string;
+  trackingNumber?: string;
+  trackingLink?: string;
+  labelUrl?: string;
+  labelFileId?: string;
+};
+
+type ApiOrder = {
+  id: string;
+  customer?: {
+    name?: string;
+    company?: string;
+    email?: string;
+  };
+  totals?: {
+    total?: number;
+  };
+  paymentMethod?: "card" | "invoice" | "defer15";
+  paymentStatus?: string;
+  shippingMethodName?: string;
+  pickupPointName?: string;
+  shippingStatus?: string;
+  trackingNumber?: string;
+  trackingLink?: string;
+  labelUrl?: string;
+  labelFileId?: string;
 };
 
 const orderStatuses: OrderStatus[] = ["reserved", "paid", "packing", "sent", "closed"];
@@ -122,6 +150,9 @@ const copy = {
     order: "Заказ",
     sum: "Сумма",
     payment: "Оплата",
+    shipping: "Доставка",
+    tracking: "Трекинг",
+    label: "Label",
     banners: "Баннеры",
     addBanner: "Добавить баннер",
     bannerTitle: "Заголовок",
@@ -210,6 +241,9 @@ const copy = {
     order: "Pasūtījums",
     sum: "Summa",
     payment: "Apmaksa",
+    shipping: "Piegāde",
+    tracking: "Tracking",
+    label: "Label",
     banners: "Baneri",
     addBanner: "Pievienot baneri",
     bannerTitle: "Virsraksts",
@@ -298,6 +332,9 @@ const copy = {
     order: "Order",
     sum: "Total",
     payment: "Payment",
+    shipping: "Delivery",
+    tracking: "Tracking",
+    label: "Label",
     banners: "Banners",
     addBanner: "Add banner",
     bannerTitle: "Title",
@@ -335,6 +372,8 @@ const initialOrders: OrderRow[] = [
     total: 684,
     payment: "invoice15",
     status: "reserved",
+    shippingMethodName: "Omniva parcel machine",
+    shippingStatus: "pending",
   },
   {
     id: "ORD-2026-042",
@@ -342,6 +381,10 @@ const initialOrders: OrderRow[] = [
     total: 157.3,
     payment: "card",
     status: "paid",
+    shippingMethodName: "DPD parcel machine",
+    shippingStatus: "label_created",
+    trackingNumber: "SANDBOX-042",
+    labelFileId: "demo-label-042",
   },
   {
     id: "ORD-2026-043",
@@ -349,8 +392,55 @@ const initialOrders: OrderRow[] = [
     total: 1240,
     payment: "invoice",
     status: "packing",
+    shippingMethodName: "Courier delivery",
+    shippingStatus: "ready_to_ship",
   },
 ];
+
+function statusFromApiOrder(order: ApiOrder): OrderStatus {
+  if (order.shippingStatus === "label_created" || order.trackingNumber) {
+    return "sent";
+  }
+
+  if (order.paymentStatus === "paid") {
+    return "paid";
+  }
+
+  return "reserved";
+}
+
+function paymentFromApiOrder(order: ApiOrder): OrderPayment {
+  if (order.paymentMethod === "defer15") {
+    return "invoice15";
+  }
+
+  if (order.paymentMethod === "card") {
+    return "card";
+  }
+
+  return "invoice";
+}
+
+function mapApiOrder(order: ApiOrder): OrderRow {
+  return {
+    id: order.id,
+    client:
+      order.customer?.company ||
+      order.customer?.name ||
+      order.customer?.email ||
+      "Customer",
+    total: order.totals?.total ?? 0,
+    payment: paymentFromApiOrder(order),
+    status: statusFromApiOrder(order),
+    paymentStatus: order.paymentStatus,
+    shippingMethodName: order.pickupPointName || order.shippingMethodName,
+    shippingStatus: order.shippingStatus,
+    trackingNumber: order.trackingNumber,
+    trackingLink: order.trackingLink,
+    labelUrl: order.labelUrl,
+    labelFileId: order.labelFileId,
+  };
+}
 
 function createVariation(index = 1): AdminVariation {
   const stamp = `${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -791,6 +881,23 @@ export default function AdminPage() {
     (sum, product) => sum + productStock(product),
     0,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/orders")
+      .then((response) => response.json())
+      .then((data: { orders?: ApiOrder[] }) => {
+        if (!cancelled && data.orders?.length) {
+          setOrders(data.orders.map(mapApiOrder));
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -1373,6 +1480,9 @@ export default function AdminPage() {
                 <th>{c.clients}</th>
                 <th>{c.sum}</th>
                 <th>{c.payment}</th>
+                <th>{c.shipping}</th>
+                <th>{c.tracking}</th>
+                <th>{c.label}</th>
                 <th>{c.status}</th>
               </tr>
             </thead>
@@ -1383,6 +1493,28 @@ export default function AdminPage() {
                   <td>{order.client}</td>
                   <td>{money(order.total, language)}</td>
                   <td>{c.payments[order.payment]}</td>
+                  <td>
+                    {order.shippingMethodName ?? "-"}
+                    <span>{order.shippingStatus ?? "-"}</span>
+                  </td>
+                  <td>
+                    {order.trackingLink ? (
+                      <a href={order.trackingLink} rel="noreferrer" target="_blank">
+                        {order.trackingNumber ?? order.trackingLink}
+                      </a>
+                    ) : (
+                      order.trackingNumber ?? "-"
+                    )}
+                  </td>
+                  <td>
+                    {order.labelUrl ? (
+                      <a href={order.labelUrl} rel="noreferrer" target="_blank">
+                        PDF
+                      </a>
+                    ) : (
+                      order.labelFileId ?? "-"
+                    )}
+                  </td>
                   <td>
                     <select
                       value={order.status}

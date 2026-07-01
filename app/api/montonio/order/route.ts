@@ -1,6 +1,9 @@
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
+import { createOrder, updateOrder, type OrderShippingType } from "../../../../lib/orders";
 
 type CheckoutLine = {
+  productId?: string;
+  variationId?: string;
   productName?: string;
   variationName?: string;
   sku?: string;
@@ -13,9 +16,33 @@ type CheckoutPayload = {
     name?: string;
     email?: string;
     company?: string;
+    role?: string;
   };
   delivery?: {
     name?: string;
+    price?: number;
+  };
+  shipping?: {
+    carrier?: string;
+    carrierCode?: string;
+    method?: string;
+    methodName?: string;
+    type?: "pickupPoint" | "courier";
+    shippingType?: OrderShippingType;
+    pickupPointId?: string;
+    pickupPointName?: string;
+    address?: {
+      name?: string;
+      companyName?: string;
+      streetAddress?: string;
+      locality?: string;
+      region?: string;
+      postalCode?: string;
+      country?: string;
+      phoneCountryCode?: string;
+      phoneNumber?: string;
+      email?: string;
+    };
     price?: number;
   };
   language?: "ru" | "lv" | "en";
@@ -31,6 +58,8 @@ const defaultCountry = "LV";
 const defaultPostalCode = "LV-1001";
 const productionApiBase = "https://stargate.montonio.com/api";
 const sandboxApiBase = "https://sandbox-stargate.montonio.com/api";
+
+export const runtime = "nodejs";
 
 function cleanText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -78,7 +107,9 @@ function apiBaseUrl() {
     return montonioEnv.MONTONIO_API_BASE_URL.trim().replace(/\/+$/g, "");
   }
 
-  return montonioEnv.MONTONIO_ENV === "sandbox" ? sandboxApiBase : productionApiBase;
+  return montonioEnv.MONTONIO_ENV?.trim().toLowerCase() === "production"
+    ? productionApiBase
+    : sandboxApiBase;
 }
 
 function buildLineItems(payload: CheckoutPayload) {
@@ -107,13 +138,13 @@ function buildLineItems(payload: CheckoutPayload) {
   const subtotal = roundMoney(
     productLines.reduce((sum, line) => sum + line.finalPrice * line.quantity, 0),
   );
-  const deliveryPrice = positiveMoney(payload.delivery?.price);
+  const deliveryPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
   const vat = payload.noVat ? 0 : positiveMoney(payload.totals?.vat);
   const lineItems = [...productLines];
 
   if (deliveryPrice > 0) {
     lineItems.push({
-      name: cleanText(payload.delivery?.name, "Delivery"),
+      name: cleanText(payload.shipping?.methodName ?? payload.delivery?.name, "Delivery"),
       quantity: 1,
       finalPrice: deliveryPrice,
     });
@@ -131,6 +162,35 @@ function buildLineItems(payload: CheckoutPayload) {
     lineItems,
     grandTotal: roundMoney(subtotal + deliveryPrice + vat),
   };
+}
+
+function checkoutLines(payload: CheckoutPayload) {
+  return (payload.lines ?? []).map((line) => {
+    const quantity =
+      typeof line.quantity === "number" && Number.isFinite(line.quantity)
+        ? Math.max(1, Math.min(99, Math.floor(line.quantity)))
+        : 1;
+    const unitPrice = positiveMoney(line.unitPrice);
+
+    return {
+      productId: line.productId,
+      variationId: line.variationId,
+      productName: cleanText(line.productName, "Karate product"),
+      variationName: line.variationName,
+      sku: line.sku,
+      quantity,
+      unitPrice,
+      total: roundMoney(quantity * unitPrice),
+    };
+  });
+}
+
+function shippingType(payload: CheckoutPayload): OrderShippingType {
+  if (payload.shipping?.shippingType) {
+    return payload.shipping.shippingType;
+  }
+
+  return payload.shipping?.type === "courier" ? "courier" : "parcel_machine";
 }
 
 export async function POST(request: Request) {
@@ -169,6 +229,47 @@ export async function POST(request: Request) {
   const country = cleanText(montonioEnv.MONTONIO_COUNTRY, defaultCountry);
   const postalCode = cleanText(montonioEnv.MONTONIO_POSTAL_CODE, defaultPostalCode);
   const now = Math.floor(Date.now() / 1000);
+  const orderLines = checkoutLines(payload);
+  const subtotal = roundMoney(orderLines.reduce((sum, line) => sum + line.total, 0));
+  const shippingPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
+  const vat = payload.noVat ? 0 : positiveMoney(payload.totals?.vat);
+  const localOrder = await createOrder({
+    merchantReference: reference,
+    paymentMethod: "card",
+    noVat: Boolean(payload.noVat),
+    language: localeFor(payload.language),
+    customer: {
+      name,
+      email,
+      company: payload.customer?.company,
+      role: payload.customer?.role,
+    },
+    lines: orderLines,
+    totals: {
+      subtotal,
+      vat,
+      shipping: shippingPrice,
+      total: grandTotal,
+      currency: "EUR",
+    },
+    shippingCarrier: cleanText(
+      payload.shipping?.carrierCode || payload.shipping?.carrier,
+      "omniva",
+    ),
+    shippingMethod: cleanText(
+      payload.shipping?.pickupPointId || payload.shipping?.method,
+      "omniva-parcel-machine",
+    ),
+    shippingMethodName: cleanText(
+      payload.shipping?.pickupPointName || payload.shipping?.methodName,
+      "Omniva parcel machine",
+    ),
+    shippingType: shippingType(payload),
+    pickupPointId: payload.shipping?.pickupPointId,
+    pickupPointName: payload.shipping?.pickupPointName,
+    shippingAddress: payload.shipping?.address,
+    shippingPrice,
+  });
 
   const order = {
     accessKey,
@@ -228,6 +329,8 @@ export async function POST(request: Request) {
   };
 
   if (!response.ok || !result.paymentUrl) {
+    await updateOrder(localOrder.id, { paymentStatus: "failed" });
+
     return Response.json(
       {
         error:
@@ -239,7 +342,13 @@ export async function POST(request: Request) {
     );
   }
 
+  await updateOrder(localOrder.id, {
+    montonioOrderUuid: result.uuid,
+    paymentUrl: result.paymentUrl,
+  });
+
   return Response.json({
+    orderId: localOrder.id,
     merchantReference: reference,
     orderUuid: result.uuid,
     paymentUrl: result.paymentUrl,
