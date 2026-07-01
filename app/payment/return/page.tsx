@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { env } from "cloudflare:workers";
 import { verifyMontonioJwt } from "../../../lib/montonio";
 
-type RuntimeEnv = Record<string, string | undefined>;
 type MontonioReturnPayload = {
   currency?: string;
   grandTotal?: number | string;
@@ -11,7 +9,7 @@ type MontonioReturnPayload = {
   payment_status?: string;
 };
 
-const montonioEnv = env as unknown as RuntimeEnv;
+const montonioEnv = process.env;
 
 async function readPayment(token?: string) {
   const secretKey = montonioEnv.MONTONIO_SECRET_KEY?.trim();

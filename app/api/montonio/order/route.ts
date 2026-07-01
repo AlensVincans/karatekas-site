@@ -1,4 +1,3 @@
-import { env } from "cloudflare:workers";
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
 
 type CheckoutLine = {
@@ -27,9 +26,7 @@ type CheckoutPayload = {
   };
 };
 
-type RuntimeEnv = Record<string, string | undefined>;
-
-const montonioEnv = env as unknown as RuntimeEnv;
+const montonioEnv = process.env;
 const defaultCountry = "LV";
 const defaultPostalCode = "LV-1001";
 const productionApiBase = "https://stargate.montonio.com/api";

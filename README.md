@@ -45,6 +45,20 @@ npm run dev
 The scripts automatically use the bundled Codex Node runtime when the system
 Node.js version is older than the vinext requirement.
 
+## DigitalOcean
+
+Use Node.js `22.13.0` or newer.
+
+```bash
+npm install
+npm run build
+npm run start
+```
+
+For DigitalOcean App Platform, use `npm run build` as the build command and
+`npm run start` as the run command. Set the Montonio variables from the section
+below in the app platform dashboard, not in the repository.
+
 ## Validate
 
 ```bash
@@ -74,6 +88,6 @@ Unisend, Latvijas Pasts, email delivery and captcha providers. Live processing
 requires provider contracts, API keys, webhook handlers and persistent storage.
 
 The checked-in SQLite files are real local databases for schema and seed data.
-Cloudflare Worker deployments cannot write to local `.sqlite` files at runtime;
-for production persistence, move these schemas to Cloudflare D1 or a backend
-service with SQLite/PostgreSQL.
+For production persistence on DigitalOcean, move these schemas to a backend
+service with SQLite/PostgreSQL and set the Montonio environment variables in
+the app platform dashboard.

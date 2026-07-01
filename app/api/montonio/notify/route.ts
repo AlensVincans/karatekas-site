@@ -1,14 +1,12 @@
-import { env } from "cloudflare:workers";
 import { verifyMontonioJwt } from "../../../../lib/montonio";
 
-type RuntimeEnv = Record<string, string | undefined>;
 type MontonioReturnPayload = {
   merchantReference?: string;
   paymentStatus?: string;
   payment_status?: string;
 };
 
-const montonioEnv = env as unknown as RuntimeEnv;
+const montonioEnv = process.env;
 
 function tokenFromObject(payload: unknown) {
   if (!payload || typeof payload !== "object") {
