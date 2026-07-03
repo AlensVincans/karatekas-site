@@ -51,7 +51,7 @@ const copy = {
 export default function RegisterPage() {
   const { register } = useDemoSession();
   const { language } = useLanguage();
-  const c = copy[language];
+  const c = copy[language as keyof typeof copy] ?? copy.en;
   const [role, setRole] = useState<Extract<UserRole, "user" | "b2b">>("user");
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({

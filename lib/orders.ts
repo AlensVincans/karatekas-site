@@ -1,12 +1,14 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { decrementInventory } from "./inventory";
 import { roundMoney } from "./montonio";
 
 export type OrderPaymentMethod = "card" | "invoice" | "defer15";
 export type OrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled";
 export type OrderShippingStatus =
   | "pending"
+  | "ready_for_pickup"
   | "ready_to_ship"
   | "shipment_created"
   | "label_created"
@@ -15,7 +17,8 @@ export type OrderShippingType =
   | "parcel_machine"
   | "parcel_shop"
   | "post_office"
-  | "courier";
+  | "courier"
+  | "self_pickup";
 
 export type OrderLine = {
   productId?: string;
@@ -61,10 +64,13 @@ export type StoreOrder = {
   merchantReference: string;
   montonioOrderUuid?: string;
   paymentUrl?: string;
+  invoiceNumber?: string;
+  invoiceIssuedAt?: string;
+  invoiceDueAt?: string;
   paymentMethod: OrderPaymentMethod;
   paymentStatus: OrderPaymentStatus;
   noVat: boolean;
-  language?: "ru" | "lv" | "en";
+  language?: "ru" | "lv" | "en" | "et" | "lt";
   customer: OrderCustomer;
   lines: OrderLine[];
   totals: OrderTotals;
@@ -85,6 +91,7 @@ export type StoreOrder = {
   labelStatus?: string;
   shippingStatus: OrderShippingStatus;
   shippingError?: string;
+  stockAdjusted?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -96,8 +103,12 @@ type OrderStore = {
 export type CreateOrderInput = Omit<
   StoreOrder,
   | "id"
+  | "invoiceNumber"
+  | "invoiceIssuedAt"
+  | "invoiceDueAt"
   | "paymentStatus"
   | "shippingStatus"
+  | "stockAdjusted"
   | "createdAt"
   | "updatedAt"
 >;
@@ -115,6 +126,29 @@ function emptyStore(): OrderStore {
 
 function orderId() {
   return `ORD-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function nextInvoiceNumber(orders: StoreOrder[], issuedAt: Date) {
+  const year = issuedAt.getFullYear();
+  const prefix = `KG-${year}-`;
+  const next = orders.reduce((max, order) => {
+    if (!order.invoiceNumber?.startsWith(prefix)) {
+      return max;
+    }
+
+    const parsed = Number(order.invoiceNumber.slice(prefix.length));
+    return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
+  }, 0) + 1;
+
+  return `${prefix}${String(next).padStart(5, "0")}`;
+}
+
+function invoiceDueAt(input: CreateOrderInput, issuedAt: Date) {
+  const days = input.paymentMethod === "defer15" ? 15 : 0;
+  const due = new Date(issuedAt);
+
+  due.setDate(due.getDate() + days);
+  return due.toISOString();
 }
 
 async function readStore(): Promise<OrderStore> {
@@ -162,12 +196,17 @@ export async function getOrderByMerchantReference(merchantReference: string) {
 
 export async function createOrder(input: CreateOrderInput) {
   const store = await readStore();
-  const now = new Date().toISOString();
+  const issuedAt = new Date();
+  const now = issuedAt.toISOString();
+  const stockAdjusted = await decrementInventory(input.lines);
   const order: StoreOrder = {
     ...input,
     id: orderId(),
+    invoiceNumber: nextInvoiceNumber(store.orders, issuedAt),
+    invoiceIssuedAt: now,
+    invoiceDueAt: invoiceDueAt(input, issuedAt),
     paymentStatus: "pending",
-    shippingStatus: "pending",
+    shippingStatus: input.shippingType === "self_pickup" ? "ready_for_pickup" : "pending",
     shippingPrice: roundMoney(input.shippingPrice),
     totals: {
       ...input.totals,
@@ -176,6 +215,7 @@ export async function createOrder(input: CreateOrderInput) {
       shipping: roundMoney(input.totals.shipping),
       total: roundMoney(input.totals.total),
     },
+    stockAdjusted,
     createdAt: now,
     updatedAt: now,
   };

@@ -12,13 +12,20 @@ import {
   writeProductImages,
 } from "../../lib/product-media";
 import {
+  type ClientInventoryItem,
+  useInventoryLevels,
+} from "../../lib/inventory-client";
+import {
   type PromoTargetType,
+  type PromoRule,
   readPromoBanners,
   readPromoPrices,
+  readPromoRules,
   type PromoBanner,
   type PromoPriceMap,
   writePromoBanners,
   writePromoPrices,
+  writePromoRules,
 } from "../../lib/promotions";
 import { categories, products } from "../../lib/store-data";
 
@@ -52,37 +59,60 @@ type OrderStatus = "reserved" | "paid" | "packing" | "sent" | "closed";
 type OrderRow = {
   id: string;
   client: string;
+  email?: string;
+  invoiceNumber?: string;
+  invoiceIssuedAt?: string;
   total: number;
+  subtotal?: number;
+  vat?: number;
+  shippingPrice?: number;
   payment: OrderPayment;
   status: OrderStatus;
   paymentStatus?: string;
   shippingMethodName?: string;
+  pickupPointName?: string;
+  shippingAddress?: Record<string, string | undefined>;
   shippingStatus?: string;
   trackingNumber?: string;
   trackingLink?: string;
   labelUrl?: string;
   labelFileId?: string;
+  lines?: Array<{
+    productName: string;
+    variationName?: string;
+    sku?: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
 };
 
 type ApiOrder = {
   id: string;
+  invoiceNumber?: string;
+  invoiceIssuedAt?: string;
   customer?: {
     name?: string;
     company?: string;
     email?: string;
   };
   totals?: {
+    subtotal?: number;
+    vat?: number;
+    shipping?: number;
     total?: number;
   };
   paymentMethod?: "card" | "invoice" | "defer15";
   paymentStatus?: string;
   shippingMethodName?: string;
   pickupPointName?: string;
+  shippingAddress?: Record<string, string | undefined>;
   shippingStatus?: string;
   trackingNumber?: string;
   trackingLink?: string;
   labelUrl?: string;
   labelFileId?: string;
+  lines?: OrderRow["lines"];
 };
 
 const orderStatuses: OrderStatus[] = ["reserved", "paid", "packing", "sent", "closed"];
@@ -102,6 +132,22 @@ const copy = {
     products: "Товары",
     orders: "Заказы",
     promotions: "Акции",
+    stockTab: "Склад",
+    details: "Детали",
+    invoiceNumber: "Счёт",
+    invoicePdf: "PDF счёта",
+    discountRules: "Скидки %",
+    addDiscountRule: "Добавить скидку",
+    discountScope: "Область",
+    discountPercent: "Скидка %",
+    audience: "Кому",
+    productScope: "Товар",
+    brandScope: "Бренд",
+    bothAudience: "B2C и B2B",
+    b2cAudience: "B2C",
+    b2bAudience: "B2B",
+    physicalStock: "Физический остаток",
+    availableStock: "Доступно",
     search: "Поиск по названию, бренду, SKU, цвету или размеру",
     addProduct: "Добавить товар",
     addProductTitle: "Новый товар",
@@ -193,6 +239,22 @@ const copy = {
     products: "Preces",
     orders: "Pasūtījumi",
     promotions: "Akcijas",
+    stockTab: "Noliktava",
+    details: "Detaļas",
+    invoiceNumber: "Rēķins",
+    invoicePdf: "Rēķina PDF",
+    discountRules: "Atlaides %",
+    addDiscountRule: "Pievienot atlaidi",
+    discountScope: "Līmenis",
+    discountPercent: "Atlaide %",
+    audience: "Kam",
+    productScope: "Prece",
+    brandScope: "Zīmols",
+    bothAudience: "B2C un B2B",
+    b2cAudience: "B2C",
+    b2bAudience: "B2B",
+    physicalStock: "Fiziskais atlikums",
+    availableStock: "Pieejams",
     search: "Meklēt pēc nosaukuma, zīmola, SKU, krāsas vai izmēra",
     addProduct: "Pievienot preci",
     addProductTitle: "Jauna prece",
@@ -284,6 +346,22 @@ const copy = {
     products: "Products",
     orders: "Orders",
     promotions: "Promotions",
+    stockTab: "Stock",
+    details: "Details",
+    invoiceNumber: "Invoice",
+    invoicePdf: "Invoice PDF",
+    discountRules: "Discounts %",
+    addDiscountRule: "Add discount",
+    discountScope: "Scope",
+    discountPercent: "Discount %",
+    audience: "Audience",
+    productScope: "Product",
+    brandScope: "Brand",
+    bothAudience: "B2C and B2B",
+    b2cAudience: "B2C",
+    b2bAudience: "B2B",
+    physicalStock: "Physical stock",
+    availableStock: "Available",
     search: "Search by name, brand, SKU, color or size",
     addProduct: "Add product",
     addProductTitle: "New product",
@@ -424,21 +502,30 @@ function paymentFromApiOrder(order: ApiOrder): OrderPayment {
 function mapApiOrder(order: ApiOrder): OrderRow {
   return {
     id: order.id,
+    invoiceNumber: order.invoiceNumber,
+    invoiceIssuedAt: order.invoiceIssuedAt,
     client:
       order.customer?.company ||
       order.customer?.name ||
       order.customer?.email ||
       "Customer",
+    email: order.customer?.email,
     total: order.totals?.total ?? 0,
+    subtotal: order.totals?.subtotal,
+    vat: order.totals?.vat,
+    shippingPrice: order.totals?.shipping,
     payment: paymentFromApiOrder(order),
     status: statusFromApiOrder(order),
     paymentStatus: order.paymentStatus,
     shippingMethodName: order.pickupPointName || order.shippingMethodName,
+    pickupPointName: order.pickupPointName,
+    shippingAddress: order.shippingAddress,
     shippingStatus: order.shippingStatus,
     trackingNumber: order.trackingNumber,
     trackingLink: order.trackingLink,
     labelUrl: order.labelUrl,
     labelFileId: order.labelFileId,
+    lines: order.lines,
   };
 }
 
@@ -868,19 +955,27 @@ function ProductForm({
 export default function AdminPage() {
   const { session, allUsers } = useDemoSession();
   const { language } = useLanguage();
-  const c = copy[language];
-  const [tab, setTab] = useState<"products" | "clients" | "orders" | "promotions">("products");
+  const c = copy[language as keyof typeof copy] ?? copy.en;
+  const {
+    items: inventoryItems,
+    levels: inventoryLevels,
+    setLevels: setInventoryLevels,
+  } = useInventoryLevels();
+  const [tab, setTab] = useState<
+    "products" | "clients" | "orders" | "promotions" | "stock"
+  >("products");
   const [adminProducts, setAdminProducts] = useState<AdminProduct[]>(() => productRows());
   const [banners, setBanners] = useState<PromoBanner[]>(() => readPromoBanners());
+  const [promoRules, setPromoRules] = useState<PromoRule[]>(() => readPromoRules());
   const [editProductId, setEditProductId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [draftProduct, setDraftProduct] = useState<AdminProduct>(() => createProduct());
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const availableTotal = adminProducts.reduce(
-    (sum, product) => sum + productStock(product),
-    0,
-  );
+  const availableTotal = inventoryItems.length
+    ? inventoryItems.reduce((sum, item) => sum + item.available, 0)
+    : adminProducts.reduce((sum, product) => sum + productStock(product), 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -926,6 +1021,17 @@ export default function AdminPage() {
       Array.from(new Set(adminProducts.map((product) => product.brand).filter(Boolean))).sort(),
     [adminProducts],
   );
+  const stockGroups = useMemo(() => {
+    const groups = inventoryItems.reduce<Record<string, ClientInventoryItem[]>>(
+      (result, item) => {
+        result[item.brand] = [...(result[item.brand] ?? []), item];
+        return result;
+      },
+      {},
+    );
+
+    return Object.entries(groups).sort(([left], [right]) => left.localeCompare(right));
+  }, [inventoryItems]);
 
   if (session?.role !== "admin") {
     return (
@@ -954,6 +1060,60 @@ export default function AdminPage() {
   function setBannersAndSave(next: PromoBanner[]) {
     setBanners(next);
     writePromoBanners(next);
+  }
+
+  function setPromoRulesAndSave(next: PromoRule[]) {
+    setPromoRules(next);
+    writePromoRules(next);
+  }
+
+  function createPromoRule(): PromoRule {
+    const stamp = `${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    return {
+      id: `promo-rule-${stamp}`,
+      scope: "brand",
+      target: brandOptions[0] ?? "",
+      percent: 10,
+      audience: "both",
+      active: true,
+    };
+  }
+
+  function updatePromoRule(ruleId: string, patch: Partial<PromoRule>) {
+    setPromoRulesAndSave(
+      promoRules.map((rule) => (rule.id === ruleId ? { ...rule, ...patch } : rule)),
+    );
+  }
+
+  async function updateStockLevel(item: ClientInventoryItem, physical: number) {
+    const nextPhysical = Math.max(0, Math.floor(physical || 0));
+    const nextItem = {
+      ...item,
+      physical: nextPhysical,
+      available: Math.max(0, nextPhysical - item.reserved),
+    };
+
+    setInventoryLevels({
+      ...inventoryLevels,
+      [item.variationId]: nextItem,
+    });
+
+    const response = await fetch("/api/inventory", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        variationId: item.variationId,
+        physical: nextPhysical,
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      levels?: Record<string, ClientInventoryItem>;
+    };
+
+    if (data.levels) {
+      setInventoryLevels(data.levels);
+    }
   }
 
   function initialTargetValue(targetType: PromoTargetType) {
@@ -1118,6 +1278,13 @@ export default function AdminPage() {
             type="button"
           >
             {c.orders}
+          </button>
+          <button
+            className={tab === "stock" ? "active" : ""}
+            onClick={() => setTab("stock")}
+            type="button"
+          >
+            {c.stockTab}
           </button>
           <button
             className={tab === "promotions" ? "active" : ""}
@@ -1295,6 +1462,114 @@ export default function AdminPage() {
       {tab === "promotions" ? (
         <div className="tool-panel admin-editor">
           <div className="variation-editor-head">
+            <h3>{c.discountRules}</h3>
+            <button
+              className="primary-link"
+              onClick={() => setPromoRulesAndSave([...promoRules, createPromoRule()])}
+              type="button"
+            >
+              {c.addDiscountRule}
+            </button>
+          </div>
+
+          {promoRules.length ? (
+            <div className="promo-rule-list">
+              {promoRules.map((rule) => (
+                <div className="promo-rule-row" key={rule.id}>
+                  <label>
+                    {c.discountScope}
+                    <select
+                      value={rule.scope}
+                      onChange={(event) => {
+                        const scope = event.target.value as PromoRule["scope"];
+                        updatePromoRule(rule.id, {
+                          scope,
+                          target:
+                            scope === "brand"
+                              ? brandOptions[0] ?? ""
+                              : adminProducts[0]?.id ?? "",
+                        });
+                      }}
+                    >
+                      <option value="brand">{c.brandScope}</option>
+                      <option value="product">{c.productScope}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {rule.scope === "brand" ? c.brand : c.product}
+                    <select
+                      value={rule.target}
+                      onChange={(event) =>
+                        updatePromoRule(rule.id, { target: event.target.value })
+                      }
+                    >
+                      {rule.scope === "brand"
+                        ? brandOptions.map((brand) => (
+                            <option key={brand} value={brand}>
+                              {brand}
+                            </option>
+                          ))
+                        : adminProducts.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                            </option>
+                          ))}
+                    </select>
+                  </label>
+                  <label>
+                    {c.discountPercent}
+                    <input
+                      min={1}
+                      max={100}
+                      type="number"
+                      value={rule.percent}
+                      onChange={(event) =>
+                        updatePromoRule(rule.id, {
+                          percent: Math.max(1, Math.min(100, Number(event.target.value) || 1)),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.audience}
+                    <select
+                      value={rule.audience}
+                      onChange={(event) =>
+                        updatePromoRule(rule.id, {
+                          audience: event.target.value as PromoRule["audience"],
+                        })
+                      }
+                    >
+                      <option value="both">{c.bothAudience}</option>
+                      <option value="user">{c.b2cAudience}</option>
+                      <option value="b2b">{c.b2bAudience}</option>
+                    </select>
+                  </label>
+                  <label className="switch-row">
+                    <input
+                      checked={rule.active}
+                      type="checkbox"
+                      onChange={(event) =>
+                        updatePromoRule(rule.id, { active: event.target.checked })
+                      }
+                    />
+                    {rule.active ? c.active : c.hidden}
+                  </label>
+                  <button
+                    className="table-action danger"
+                    onClick={() =>
+                      setPromoRulesAndSave(promoRules.filter((item) => item.id !== rule.id))
+                    }
+                    type="button"
+                  >
+                    {c.delete}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="variation-editor-head">
             <h3>{c.banners}</h3>
             <button className="primary-link" onClick={addBanner} type="button">
               {c.addBanner}
@@ -1471,12 +1746,64 @@ export default function AdminPage() {
         </div>
       ) : null}
 
+      {tab === "stock" ? (
+        <div className="stock-admin-list">
+          {stockGroups.map(([brand, items]) => (
+            <div className="tool-panel stock-brand-panel" key={brand}>
+              <h3>{brand}</h3>
+              <div className="table-wrap admin-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{c.product}</th>
+                      <th>{c.sku}</th>
+                      <th>{c.color}</th>
+                      <th>{c.size}</th>
+                      <th>{c.physicalStock}</th>
+                      <th>{c.availableStock}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item.variationId}>
+                        <td>
+                          <strong>{item.productName}</strong>
+                          <span>{categoryLabel(item.category, language)}</span>
+                        </td>
+                        <td>{item.sku}</td>
+                        <td>{item.color || "-"}</td>
+                        <td>{item.size || "-"}</td>
+                        <td>
+                          <input
+                            min={0}
+                            type="number"
+                            value={item.physical}
+                            onChange={(event) =>
+                              void updateStockLevel(item, Number(event.target.value))
+                            }
+                          />
+                        </td>
+                        <td>
+                          <strong>{item.available}</strong>
+                          <span>{item.reserved} {c.statuses.reserved}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {tab === "orders" ? (
         <div className="table-wrap admin-table">
           <table>
             <thead>
               <tr>
                 <th>{c.order}</th>
+                <th>{c.invoiceNumber}</th>
                 <th>{c.clients}</th>
                 <th>{c.sum}</th>
                 <th>{c.payment}</th>
@@ -1484,58 +1811,152 @@ export default function AdminPage() {
                 <th>{c.tracking}</th>
                 <th>{c.label}</th>
                 <th>{c.status}</th>
+                <th>{c.details}</th>
               </tr>
             </thead>
             <tbody>
               {orders.map((order) => (
-                <tr key={order.id}>
-                  <td>{order.id}</td>
-                  <td>{order.client}</td>
-                  <td>{money(order.total, language)}</td>
-                  <td>{c.payments[order.payment]}</td>
-                  <td>
-                    {order.shippingMethodName ?? "-"}
-                    <span>{order.shippingStatus ?? "-"}</span>
-                  </td>
-                  <td>
-                    {order.trackingLink ? (
-                      <a href={order.trackingLink} rel="noreferrer" target="_blank">
-                        {order.trackingNumber ?? order.trackingLink}
-                      </a>
-                    ) : (
-                      order.trackingNumber ?? "-"
-                    )}
-                  </td>
-                  <td>
-                    {order.labelUrl ? (
-                      <a href={order.labelUrl} rel="noreferrer" target="_blank">
-                        PDF
-                      </a>
-                    ) : (
-                      order.labelFileId ?? "-"
-                    )}
-                  </td>
-                  <td>
-                    <select
-                      value={order.status}
-                      onChange={(event) =>
-                        setOrders((items) =>
-                          items.map((item) =>
-                            item.id === order.id
-                              ? { ...item, status: event.target.value as OrderStatus }
-                              : item,
-                          ),
-                        )
-                      }
-                    >
-                      {orderStatuses.map((status) => (
-                        <option key={status} value={status}>
-                          {c.statuses[status]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
+                <Fragment key={order.id}>
+                  <tr>
+                    <td>{order.id}</td>
+                    <td>
+                      {order.invoiceNumber ?? "-"}
+                      <span>
+                        <a
+                          href={`/api/orders/${order.id}/invoice`}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {c.invoicePdf}
+                        </a>
+                      </span>
+                    </td>
+                    <td>
+                      {order.client}
+                      <span>{order.email ?? "-"}</span>
+                    </td>
+                    <td>{money(order.total, language)}</td>
+                    <td>{c.payments[order.payment]}</td>
+                    <td>
+                      {order.shippingMethodName ?? "-"}
+                      <span>{order.shippingStatus ?? "-"}</span>
+                    </td>
+                    <td>
+                      {order.trackingLink ? (
+                        <a href={order.trackingLink} rel="noreferrer" target="_blank">
+                          {order.trackingNumber ?? order.trackingLink}
+                        </a>
+                      ) : (
+                        order.trackingNumber ?? "-"
+                      )}
+                    </td>
+                    <td>
+                      {order.labelUrl ? (
+                        <a href={order.labelUrl} rel="noreferrer" target="_blank">
+                          PDF
+                        </a>
+                      ) : (
+                        order.labelFileId ?? "-"
+                      )}
+                    </td>
+                    <td>
+                      <select
+                        value={order.status}
+                        onChange={(event) =>
+                          setOrders((items) =>
+                            items.map((item) =>
+                              item.id === order.id
+                                ? { ...item, status: event.target.value as OrderStatus }
+                                : item,
+                            ),
+                          )
+                        }
+                      >
+                        {orderStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {c.statuses[status]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <button
+                        className="table-action"
+                        onClick={() =>
+                          setExpandedOrderId((current) =>
+                            current === order.id ? null : order.id,
+                          )
+                        }
+                        type="button"
+                      >
+                        {expandedOrderId === order.id ? c.close : c.details}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedOrderId === order.id ? (
+                    <tr className="order-details-row">
+                      <td colSpan={10}>
+                        <div className="order-details-grid">
+                          <div>
+                            <h4>{c.products}</h4>
+                            <div className="order-line-list">
+                              {(order.lines ?? []).map((line, index) => (
+                                <div className="order-line-item" key={`${order.id}-${index}`}>
+                                  <strong>{line.productName}</strong>
+                                  <span>
+                                    {[line.variationName, line.sku]
+                                      .filter(Boolean)
+                                      .join(" - ") || c.noVariant}
+                                  </span>
+                                  <span>
+                                    {line.quantity} x {money(line.unitPrice, language)} ={" "}
+                                    {money(line.total, language)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <h4>{c.shipping}</h4>
+                            <p className="empty-state">
+                              {order.shippingMethodName ?? "-"}
+                              {order.pickupPointName ? ` / ${order.pickupPointName}` : ""}
+                            </p>
+                            <p className="empty-state">
+                              {[
+                                order.shippingAddress?.streetAddress,
+                                order.shippingAddress?.locality,
+                                order.shippingAddress?.postalCode,
+                                order.shippingAddress?.country,
+                              ]
+                                .filter(Boolean)
+                                .join(", ") || "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <h4>{c.sum}</h4>
+                            <div className="metric-row">
+                              <span>Subtotal</span>
+                              <strong>{money(order.subtotal ?? 0, language)}</strong>
+                            </div>
+                            <div className="metric-row">
+                              <span>PVN</span>
+                              <strong>{money(order.vat ?? 0, language)}</strong>
+                            </div>
+                            <div className="metric-row">
+                              <span>{c.shipping}</span>
+                              <strong>{money(order.shippingPrice ?? 0, language)}</strong>
+                            </div>
+                            <div className="metric-row">
+                              <span>{c.sum}</span>
+                              <strong>{money(order.total, language)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

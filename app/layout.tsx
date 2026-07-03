@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { StoreFooter } from "../components/store-footer";
 import { StoreHeader } from "../components/store-header";
 import "./globals.css";
 
@@ -19,9 +20,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body>
+      <body suppressHydrationWarning>
         <StoreHeader />
         <main>{children}</main>
+        <StoreFooter />
       </body>
     </html>
   );

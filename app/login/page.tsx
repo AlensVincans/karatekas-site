@@ -49,7 +49,7 @@ export default function LoginPage() {
   const { login, session } = useDemoSession();
   const router = useRouter();
   const { language } = useLanguage();
-  const c = copy[language];
+  const c = copy[language as keyof typeof copy] ?? copy.en;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");

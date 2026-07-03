@@ -27,7 +27,7 @@ type CheckoutPayload = {
     carrierCode?: string;
     method?: string;
     methodName?: string;
-    type?: "pickupPoint" | "courier";
+    type?: "pickupPoint" | "courier" | "selfPickup";
     shippingType?: OrderShippingType;
     pickupPointId?: string;
     pickupPointName?: string;
@@ -45,7 +45,7 @@ type CheckoutPayload = {
     };
     price?: number;
   };
-  language?: "ru" | "lv" | "en";
+  language?: "ru" | "lv" | "en" | "et" | "lt";
   lines?: CheckoutLine[];
   noVat?: boolean;
   totals?: {
@@ -76,7 +76,13 @@ function orderReference() {
 }
 
 function localeFor(language: CheckoutPayload["language"]) {
-  if (language === "lv" || language === "ru" || language === "en") {
+  if (
+    language === "lv" ||
+    language === "ru" ||
+    language === "en" ||
+    language === "et" ||
+    language === "lt"
+  ) {
     return language;
   }
 
@@ -188,6 +194,10 @@ function checkoutLines(payload: CheckoutPayload) {
 function shippingType(payload: CheckoutPayload): OrderShippingType {
   if (payload.shipping?.shippingType) {
     return payload.shipping.shippingType;
+  }
+
+  if (payload.shipping?.type === "selfPickup") {
+    return "self_pickup";
   }
 
   return payload.shipping?.type === "courier" ? "courier" : "parcel_machine";

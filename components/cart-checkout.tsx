@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   findVariation,
   pricedVariation,
   type PaymentMethod,
 } from "../lib/store-data";
-import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
+import { availableStock, useInventoryLevels } from "../lib/inventory-client";
+import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
 import { money } from "../lib/i18n";
+import { productImages, useProductImages } from "../lib/product-media";
 import { useLanguage } from "./language";
 import { useDemoSession } from "./session";
 
@@ -17,7 +19,13 @@ type CartLine = {
   qty: number;
 };
 
-type ShippingType = "parcel_machine" | "parcel_shop" | "post_office" | "courier";
+type ShippingType =
+  | "parcel_machine"
+  | "parcel_shop"
+  | "post_office"
+  | "courier"
+  | "self_pickup";
+type DeliveryCountry = "LV" | "LT" | "EE";
 
 type ShippingMethodOption = {
   id: string;
@@ -25,7 +33,7 @@ type ShippingMethodOption = {
   carrierCode: string;
   carrierName: string;
   name: string;
-  type: "pickupPoint" | "courier";
+  type: "pickupPoint" | "courier" | "selfPickup";
   shippingType: ShippingType;
   subtype?: string;
   serviceId?: string;
@@ -56,6 +64,19 @@ type ShippingAddress = {
 };
 
 const fallbackShippingMethods: ShippingMethodOption[] = [
+  {
+    id: "self-pickup-riga",
+    carrier: "self",
+    carrierCode: "self",
+    carrierName: "Karatekas",
+    name: "Pick up from store",
+    type: "selfPickup",
+    shippingType: "self_pickup",
+    subtype: "selfPickup",
+    price: 0,
+    currency: "EUR",
+    available: true,
+  },
   {
     id: "omniva-parcel-machine",
     carrier: "omniva",
@@ -123,6 +144,18 @@ const fallbackShippingMethods: ShippingMethodOption[] = [
   },
 ];
 
+const deliveryCountries: Array<{
+  code: DeliveryCountry;
+  name: string;
+  phoneCode: string;
+  locality: string;
+  region: string;
+}> = [
+  { code: "LV", name: "Latvia", phoneCode: "371", locality: "Riga", region: "Riga" },
+  { code: "LT", name: "Lithuania", phoneCode: "370", locality: "Vilnius", region: "Vilnius" },
+  { code: "EE", name: "Estonia", phoneCode: "372", locality: "Tallinn", region: "Harju" },
+];
+
 const copy = {
   ru: {
     title: "Корзина и оплата",
@@ -147,6 +180,7 @@ const copy = {
     defer15: "15 дней",
     noVat: "Счёт без PVN",
     goods: "Товары",
+    inStock: "в наличии",
     total: "Итого",
     placeOrder: "Оформить заказ",
     needLogin: "Сначала войдите или зарегистрируйтесь.",
@@ -184,6 +218,7 @@ const copy = {
     defer15: "15 dienas",
     noVat: "Rēķins bez PVN",
     goods: "Preces",
+    inStock: "noliktavā",
     total: "Kopā",
     placeOrder: "Noformēt pasūtījumu",
     needLogin: "Vispirms ieejiet vai reģistrējieties.",
@@ -221,6 +256,7 @@ const copy = {
     defer15: "15 days",
     noVat: "Invoice without VAT",
     goods: "Products",
+    inStock: "in stock",
     total: "Total",
     placeOrder: "Place order",
     needLogin: "Please sign in or register first.",
@@ -253,7 +289,15 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
-function methodDetails(method: ShippingMethodOption, language: "ru" | "lv" | "en") {
+function methodDetails(method: ShippingMethodOption, language: Parameters<typeof money>[1]) {
+  if (method.shippingType === "self_pickup") {
+    return language === "ru"
+      ? "самовывоз"
+      : language === "lv"
+        ? "saņemšana uz vietas"
+        : "self pickup";
+  }
+
   const typeLabel =
     method.shippingType === "courier"
       ? language === "en"
@@ -270,8 +314,12 @@ export function CartCheckout() {
   const { session, role } = useDemoSession();
   const { language } = useLanguage();
   const promoPrices = usePromoPrices();
-  const c = copy[language];
+  const promoRules = usePromoRules();
+  const { levels } = useInventoryLevels();
+  const productImageMap = useProductImages();
+  const c = copy[language as keyof typeof copy] ?? copy.en;
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
+  const [shippingCountry, setShippingCountry] = useState<DeliveryCountry>("LV");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
     fallbackShippingMethods,
   );
@@ -297,7 +345,7 @@ export function CartCheckout() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/shipping/montonio/methods?country=LV")
+    fetch(`/api/shipping/montonio/methods?country=${shippingCountry}`)
       .then((response) => response.json())
       .then((data: { methods?: ShippingMethodOption[] }) => {
         if (cancelled || !data.methods?.length) {
@@ -311,14 +359,18 @@ export function CartCheckout() {
         }
 
         setShippingMethods(activeMethods);
-        setShippingId(activeMethods[0].id);
+        setShippingId((current) =>
+          activeMethods.some((method) => method.id === current)
+            ? current
+            : activeMethods[0].id,
+        );
       })
       .catch(() => undefined);
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [shippingCountry]);
 
   const selectedShippingMethod =
     shippingMethods.find((method) => method.id === shippingId) ??
@@ -326,20 +378,23 @@ export function CartCheckout() {
     fallbackShippingMethods[0];
 
   useEffect(() => {
-    if (!selectedShippingMethod || selectedShippingMethod.type === "courier") {
-      setPickupPoints([]);
-      setPickupPointId("");
-      return;
+    if (!selectedShippingMethod || selectedShippingMethod.type !== "pickupPoint") {
+      const timeout = window.setTimeout(() => {
+        setPickupPoints([]);
+        setPickupPointId("");
+      }, 0);
+
+      return () => window.clearTimeout(timeout);
     }
 
     let cancelled = false;
     const params = new URLSearchParams({
       carrier: selectedShippingMethod.carrierCode,
-      country: "LV",
+      country: shippingCountry,
       type: selectedShippingMethod.subtype || "parcelMachine",
     });
 
-    setPickupLoading(true);
+    const loadingTimeout = window.setTimeout(() => setPickupLoading(true), 0);
     fetch(`/api/shipping/montonio/pickup-points?${params.toString()}`)
       .then((response) => response.json())
       .then((data: { pickupPoints?: PickupPoint[] }) => {
@@ -366,8 +421,12 @@ export function CartCheckout() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimeout);
     };
-  }, [selectedShippingMethod?.carrierCode, selectedShippingMethod?.id, selectedShippingMethod?.subtype, selectedShippingMethod?.type]);
+  }, [
+    selectedShippingMethod,
+    shippingCountry,
+  ]);
 
   const lines = useMemo(
     () =>
@@ -384,16 +443,19 @@ export function CartCheckout() {
             found.variation.id,
             role,
             promoPrices,
+            promoRules,
+            { productId: found.product.id, brand: found.product.brand },
           );
           return {
             ...line,
             ...found,
             price,
+            availability: availableStock(found.variation, levels),
             total: price.final * line.qty,
           };
         })
         .filter(isPresent),
-    [cart, promoPrices, role],
+    [cart, levels, promoPrices, promoRules, role],
   );
 
   const filteredPickupPoints = useMemo(() => {
@@ -437,6 +499,21 @@ export function CartCheckout() {
 
   function updateAddress(patch: Partial<ShippingAddress>) {
     setShippingAddress((address) => ({ ...address, ...patch }));
+  }
+
+  function updateShippingCountry(country: DeliveryCountry) {
+    const details = deliveryCountries.find((item) => item.code === country);
+
+    setShippingCountry(country);
+    setPickupQuery("");
+    setPickupPointId("");
+    setShippingAddress((address) => ({
+      ...address,
+      country,
+      locality: details?.locality ?? address.locality,
+      region: details?.region ?? address.region,
+      phoneCountryCode: details?.phoneCode ?? address.phoneCountryCode,
+    }));
   }
 
   function validateShipping() {
@@ -608,37 +685,80 @@ export function CartCheckout() {
   }
 
   return (
-    <div className="checkout-page">
-      <section className="checkout-list">
-        <h1>{c.title}</h1>
+    <div className="checkout-page checkout-page-v3">
+      <section className="checkout-list checkout-list-v3">
+        <div className="checkout-heading-v3">
+          <span className="kicker-v3">{c.goods}</span>
+          <h1>{c.title}</h1>
+          <p>{lines.length} item groups ready for delivery selection.</p>
+        </div>
         {lines.length ? (
-          lines.map((line) => (
-            <div className="cart-line" key={line.variation.id}>
-              <div>
-                <strong>{line.product.name}</strong>
-                <span>
-                  {line.variation.name} - {line.variation.sku}
-                </span>
-              </div>
-              <input
-                min={0}
-                onChange={(event) => updateQty(line.variation.id, Number(event.target.value))}
-                type="number"
-                value={line.qty}
-              />
-              <strong>{money(line.total, language)}</strong>
-            </div>
-          ))
+          <div className="cart-item-list-v3">
+            {lines.map((line) => {
+              const [photo] = productImages(line.product, productImageMap);
+              const photoStyle = photo
+                ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
+                : ({
+                    "--sheet-x": line.product.sheetX,
+                    "--sheet-y": line.product.sheetY,
+                  } as CSSProperties);
+
+              return (
+                <div className="cart-line cart-item-v3" key={line.variation.id}>
+                  <span
+                    className={photo ? "cart-item-photo-v3 real-photo" : "cart-item-photo-v3"}
+                    style={photoStyle}
+                  />
+                  <div className="cart-item-copy-v3">
+                    <strong>{line.product.name}</strong>
+                    <span>{line.variation.name} / {line.variation.sku}</span>
+                    <small>{line.availability} {c.inStock}</small>
+                  </div>
+                  <label className="cart-qty-v3">
+                    Qty
+                    <input
+                      min={0}
+                      onChange={(event) => updateQty(line.variation.id, Number(event.target.value))}
+                      type="number"
+                      value={line.qty}
+                    />
+                  </label>
+                  <strong className="cart-line-total-v3">{money(line.total, language)}</strong>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <p className="empty-state">{c.empty}</p>
+          <p className="empty-state checkout-empty-v3">{c.empty}</p>
         )}
       </section>
 
-      <aside className="checkout-panel">
-        <h2>{c.checkout}</h2>
+      <aside className="checkout-panel checkout-panel-v3">
+        <div className="checkout-summary-head-v3">
+          <span className="kicker-v3">{c.checkout}</span>
+          <h2>{money(total, language)}</h2>
+        </div>
 
-        <div className="checkout-block">
-          <h3>{c.shipping}</h3>
+        <div className="checkout-step-v3 checkout-block">
+          <div className="checkout-step-title-v3">
+            <span>01</span>
+            <h3>{c.shipping}</h3>
+          </div>
+          <label>
+            {c.country}
+            <select
+              value={shippingCountry}
+              onChange={(event) =>
+                updateShippingCountry(event.target.value as DeliveryCountry)
+              }
+            >
+              {deliveryCountries.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="shipping-options">
             {shippingMethods.map((method) => (
               <button
@@ -649,7 +769,7 @@ export function CartCheckout() {
               >
                 <strong>{method.name}</strong>
                 <span>
-                  {methodDetails(method, language)} - {money(method.price, language)}
+                  {methodDetails(method, language)} / {money(method.price, language)}
                 </span>
               </button>
             ))}
@@ -660,7 +780,10 @@ export function CartCheckout() {
               <input
                 placeholder={c.pickupSearch}
                 value={pickupQuery}
-                onChange={(event) => setPickupQuery(event.target.value)}
+                onChange={(event) => {
+                  setPickupQuery(event.target.value);
+                  setPickupPointId("");
+                }}
               />
               <select
                 value={pickupPointId}
@@ -676,7 +799,7 @@ export function CartCheckout() {
                 ))}
               </select>
               {pickupLoading ? <span className="quiet">{c.pickupLoading}</span> : null}
-              {!pickupLoading && !pickupPoints.length ? (
+              {!pickupLoading && !filteredPickupPoints.length ? (
                 <span className="quiet">{c.noPickupPoints}</span>
               ) : null}
             </div>
@@ -734,8 +857,11 @@ export function CartCheckout() {
           ) : null}
         </div>
 
-        <div className="checkout-block">
-          <h3>{c.payment}</h3>
+        <div className="checkout-step-v3 checkout-block">
+          <div className="checkout-step-title-v3">
+            <span>02</span>
+            <h3>{c.payment}</h3>
+          </div>
           <div className="segmented-control">
             <button
               className={payment === "card" ? "active" : ""}
@@ -770,12 +896,12 @@ export function CartCheckout() {
           </div>
         </div>
 
-        <label className="check-row">
+        <label className="check-row vat-row-v3">
           <input checked={noVat} onChange={(event) => setNoVat(event.target.checked)} type="checkbox" />
           {c.noVat}
         </label>
 
-        <div className="totals">
+        <div className="totals totals-v3">
           <span>{c.goods}</span>
           <strong>{money(subtotal, language)}</strong>
           <span>PVN</span>
@@ -787,7 +913,7 @@ export function CartCheckout() {
         </div>
 
         <button
-          className="wide-button"
+          className="button-v3 primary checkout-submit-v3 wide-button"
           disabled={isSubmitting}
           onClick={submitOrder}
           type="button"

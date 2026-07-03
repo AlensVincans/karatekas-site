@@ -45,7 +45,7 @@ const copy = {
 export default function B2BPage() {
   const { session } = useDemoSession();
   const { language } = useLanguage();
-  const c = copy[language];
+  const c = copy[language as keyof typeof copy] ?? copy.en;
   const allowed = session?.role === "b2b" || session?.role === "admin";
 
   if (!allowed) {

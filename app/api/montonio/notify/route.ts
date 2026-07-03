@@ -92,6 +92,20 @@ export async function POST(request: Request) {
           updated.shippingStatus !== "label_created" &&
           !updated.labelUrl
         ) {
+          if (updated.shippingType === "self_pickup") {
+            await updateOrder(updated.id, {
+              shippingStatus: "ready_for_pickup",
+              shippingError: undefined,
+            });
+            return Response.json({
+              ok: true,
+              merchantReference: payload.merchantReference,
+              paymentStatus,
+              shipment: "self_pickup",
+              label,
+            });
+          }
+
           try {
             const shipmentPatch = updated.shipmentId
               ? { shipmentId: updated.shipmentId }

@@ -1,4 +1,7 @@
-import { getPickupPoints } from "../../../../../lib/montonio-shipping";
+import {
+  getPickupPoints,
+  isShippingConfigured,
+} from "../../../../../lib/montonio-shipping";
 
 export const runtime = "nodejs";
 
@@ -12,6 +15,7 @@ export async function GET(request: Request) {
   return Response.json({
     carrier,
     country,
+    configured: isShippingConfigured(),
     pickupPoints,
   });
 }

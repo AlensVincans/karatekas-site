@@ -7,7 +7,7 @@ export type ShippingMethodOption = {
   carrierCode: string;
   carrierName: string;
   name: string;
-  type: "pickupPoint" | "courier";
+  type: "pickupPoint" | "courier" | "selfPickup";
   shippingType: OrderShippingType;
   subtype?: string;
   serviceId?: string;
@@ -96,6 +96,20 @@ const carrierNames: Record<string, string> = {
 
 const fallbackMethods: ShippingMethodOption[] = [
   {
+    id: "self-pickup-riga",
+    carrier: "self",
+    carrierCode: "self",
+    carrierName: "Karatekas",
+    name: "Pick up from store",
+    type: "selfPickup",
+    shippingType: "self_pickup",
+    subtype: "selfPickup",
+    price: 0,
+    currency: "EUR",
+    available: true,
+    source: "fallback",
+  },
+  {
     id: "omniva-parcel-machine",
     carrier: "omniva",
     carrierCode: "omniva",
@@ -166,67 +180,6 @@ const fallbackMethods: ShippingMethodOption[] = [
     source: "fallback",
   },
 ];
-
-const fallbackPickupPoints: Record<string, PickupPoint[]> = {
-  omniva: [
-    {
-      id: "omniva-lv-riga-spice",
-      name: "Riga Spice parcel machine",
-      type: "parcelMachine",
-      streetAddress: "Jaunmoku iela 13",
-      locality: "Riga",
-      postalCode: "LV-1046",
-      carrierCode: "omniva",
-      countryCode: "LV",
-    },
-    {
-      id: "omniva-lv-riga-origo",
-      name: "Riga Origo parcel machine",
-      type: "parcelMachine",
-      streetAddress: "Stacijas laukums 2",
-      locality: "Riga",
-      postalCode: "LV-1050",
-      carrierCode: "omniva",
-      countryCode: "LV",
-    },
-  ],
-  dpd: [
-    {
-      id: "dpd-lv-riga-akropole",
-      name: "Riga Akropole parcel machine",
-      type: "parcelMachine",
-      streetAddress: "Maskavas iela 257",
-      locality: "Riga",
-      postalCode: "LV-1019",
-      carrierCode: "dpd",
-      countryCode: "LV",
-    },
-  ],
-  unisend: [
-    {
-      id: "unisend-lv-riga-domina",
-      name: "Riga Domina parcel machine",
-      type: "parcelMachine",
-      streetAddress: "Ieriku iela 3",
-      locality: "Riga",
-      postalCode: "LV-1084",
-      carrierCode: "unisend",
-      countryCode: "LV",
-    },
-  ],
-  latvijas_pasts: [
-    {
-      id: "latvijas-pasts-riga-50",
-      name: "Latvijas Pasts Riga 50",
-      type: "postOffice",
-      streetAddress: "Stacijas laukums 2",
-      locality: "Riga",
-      postalCode: "LV-1050",
-      carrierCode: "latvijas_pasts",
-      countryCode: "LV",
-    },
-  ],
-};
 
 function env() {
   return process.env;
@@ -341,6 +294,10 @@ function methodName(
     return "Courier delivery";
   }
 
+  if (shippingType === "self_pickup") {
+    return "Pick up from store";
+  }
+
   if (shippingType === "post_office") {
     return carrierName;
   }
@@ -438,13 +395,23 @@ export function fallbackShippingMethods() {
   return fallbackMethods;
 }
 
+function withSelfPickup(methods: ShippingMethodOption[]) {
+  const selfPickup = fallbackMethods.find((method) => method.shippingType === "self_pickup");
+
+  if (!selfPickup || methods.some((method) => method.shippingType === "self_pickup")) {
+    return methods;
+  }
+
+  return [selfPickup, ...methods];
+}
+
 export async function getShippingMethods(countryCode = defaultCountry) {
   try {
     const data =
       await shippingRequest<MontonioShippingMethodResponse>("/shipping-methods");
     const methods = normalizeMethods(data, countryCode);
 
-    return methods.length ? methods : fallbackShippingMethods();
+    return methods.length ? withSelfPickup(methods) : fallbackShippingMethods();
   } catch {
     return fallbackShippingMethods();
   }
@@ -484,11 +451,15 @@ export async function getPickupPoints(
         countryCode: data.countryCode || countryCode.toUpperCase(),
       }));
   } catch {
-    return fallbackPickupPoints[carrierCode] ?? [];
+    return [];
   }
 }
 
 async function resolveCourierServiceId(order: StoreOrder) {
+  if (order.shippingType === "self_pickup") {
+    throw new Error("Self pickup does not require a Montonio shipment.");
+  }
+
   if (order.shippingType !== "courier") {
     return order.pickupPointId || order.shippingMethod;
   }
@@ -556,6 +527,13 @@ function shipmentProducts(order: StoreOrder) {
 }
 
 export async function createShipmentForOrder(order: StoreOrder) {
+  if (order.shippingType === "self_pickup") {
+    return {
+      shippingStatus: "ready_for_pickup" as const,
+      labelStatus: "not_required",
+    };
+  }
+
   const shippingMethodId = await resolveCourierServiceId(order);
   const data = await shippingRequest<MontonioShipment>("/shipments", {
     method: "POST",

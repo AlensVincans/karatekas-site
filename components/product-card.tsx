@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import {
-  available,
   pricedVariation,
   type Product,
   type UserRole,
 } from "../lib/store-data";
 import { categoryLabel, money, productDescription } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
-import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
+import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
+import {
+  availableStock,
+  reservedStock,
+  useInventoryLevels,
+} from "../lib/inventory-client";
 import { useLanguage } from "./language";
 import { VariationPicker } from "./variation-picker";
 
@@ -31,6 +35,8 @@ function readCart() {
 export function ProductCard({ product, role }: { product: Product; role: UserRole }) {
   const { language, t } = useLanguage();
   const promoPrices = usePromoPrices();
+  const promoRules = usePromoRules();
+  const { levels } = useInventoryLevels();
   const productImageMap = useProductImages();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [added, setAdded] = useState(false);
@@ -41,9 +47,20 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
     variation.id,
     role,
     promoPrices,
+    promoRules,
+    { productId: product.id, brand: product.brand },
   );
-  const availability = available(variation.stock);
+  const availability = availableStock(variation, levels);
+  const reserved = reservedStock(variation, levels);
   const photo = productImages(product, productImageMap)[0];
+  const isDiscounted = Boolean(price.hasPromo || price.discount);
+  const badge = isDiscounted
+    ? "Sale"
+    : price.isB2B
+      ? "B2B"
+      : availability > 0
+        ? "In stock"
+        : "Order";
   const photoStyle = photo
     ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
     : ({
@@ -68,28 +85,53 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
   }
 
   return (
-    <article className="product-card">
-      <Link
-        className={photo ? "product-photo real-photo" : "product-photo"}
-        href={`/product/${product.id}`}
-        style={photoStyle}
-      />
-      <div className="product-body">
-        <div className="product-heading">
+    <article
+      className={
+        isDiscounted
+          ? "product-card product-card-sale product-card-v3"
+          : "product-card product-card-v3"
+      }
+    >
+      <div className="product-media-v3">
+        <Link
+          aria-label={product.name}
+          className={photo ? "product-photo real-photo" : "product-photo"}
+          href={`/product/${product.id}`}
+          style={photoStyle}
+        />
+        <div className="product-badges">
+          <span className={isDiscounted ? "product-badge sale" : "product-badge"}>
+            {badge}
+          </span>
+          {product.category === "WUKF" ? (
+            <span className="product-badge dark">WUKF</span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="product-content-v3">
+        <div className="product-taxonomy-v3">
           <span>{product.brand}</span>
-          <Link href={`/product/${product.id}`}>{product.name}</Link>
+          <small>{categoryLabel(product.category, language)}</small>
         </div>
-        <p>{productDescription(product, language)}</p>
-        <VariationPicker product={product} variationId={variation.id} onChange={setVariationId} />
-        <div className="product-meta">
+        <Link className="product-title-v3" href={`/product/${product.id}`}>
+          {product.name}
+        </Link>
+        <p className="product-excerpt-v3">{productDescription(product, language)}</p>
+
+        <div className="product-option-row-v3">
+          <VariationPicker product={product} variationId={variation.id} onChange={setVariationId} />
+        </div>
+
+        <div className="product-meta-v3">
           <span>SKU {variation.sku}</span>
-          <span>{categoryLabel(product.category, language)}</span>
+          <span>
+            <span className={availability > 20 ? "ok-dot" : "warn-dot"} />
+            {availability} {t.available}
+          </span>
         </div>
-        <div className="stock-line">
-          <span className={availability > 20 ? "ok-dot" : "warn-dot"} />
-          {availability} {t.available} · {variation.stock.reserved} {t.reserved}
-        </div>
-        <div className="product-bottom">
+
+        <div className="product-buy-row-v3">
           <div className="price-stack">
             {price.compareAt ? (
               <span className="old-price">{money(price.compareAt, language)}</span>
@@ -105,7 +147,15 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
               </span>
             ) : null}
           </div>
-          <button disabled={availability === 0} onClick={addToCart} type="button">
+          <small className="reserve-note-v3">
+            {reserved} {t.reserved}
+          </small>
+          <button
+            aria-label={`${t.addToCart}: ${product.name}`}
+            disabled={availability === 0}
+            onClick={addToCart}
+            type="button"
+          >
             {added ? t.added : t.addToCart}
           </button>
         </div>

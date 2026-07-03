@@ -4,13 +4,13 @@ import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { useState } from "react";
 import { categoryLabel, colorLabel, money, productDescription } from "../lib/i18n";
 import {
-  available,
   pricedVariation,
   products,
   type Product,
 } from "../lib/store-data";
 import { productImages, useProductImages } from "../lib/product-media";
-import { applyPromoPrice, usePromoPrices } from "../lib/promotions";
+import { availableStock, reservedStock, useInventoryLevels } from "../lib/inventory-client";
+import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
 import { useDemoSession } from "./session";
@@ -46,6 +46,8 @@ export function ProductDetail({ product }: { product: Product }) {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
   const promoPrices = usePromoPrices();
+  const promoRules = usePromoRules();
+  const { levels } = useInventoryLevels();
   const productImageMap = useProductImages();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -57,8 +59,11 @@ export function ProductDetail({ product }: { product: Product }) {
     variation.id,
     role,
     promoPrices,
+    promoRules,
+    { productId: product.id, brand: product.brand },
   );
-  const availability = available(variation.stock);
+  const availability = availableStock(variation, levels);
+  const reserved = reservedStock(variation, levels);
   const images = productImages(product, productImageMap);
   const activePhotoIndex = images[photoIndex] ? photoIndex : 0;
   const photo = images[activePhotoIndex];
@@ -118,35 +123,17 @@ export function ProductDetail({ product }: { product: Product }) {
   }
 
   return (
-    <section className="section-shell">
-      <div className="product-detail">
-        <div className="product-gallery">
-          <button
-            aria-label={t.imageGallery}
-            className={
-              photo
-                ? "product-photo detail-photo real-photo detail-photo-button"
-                : "product-photo detail-photo detail-photo-button"
-            }
-            onClick={clickMainPhoto}
-            onKeyDown={keyMainPhoto}
-            style={photoStyle}
-            type="button"
-          >
-            {canSwitchPhotos ? (
-              <>
-                <span className="gallery-zone left">{"<"}</span>
-                <span className="gallery-zone right">{">"}</span>
-              </>
-            ) : null}
-          </button>
+    <section className="pdp-page-v3">
+      <div className="pdp-breadcrumb-v3">
+        <span>{categoryLabel(product.category, language)}</span>
+        <span>{product.brand}</span>
+        <span>{variationTitle(variation, language)}</span>
+      </div>
+
+      <div className="pdp-layout-v3">
+        <div className="pdp-gallery-v3">
           {canSwitchPhotos ? (
-            <div className="gallery-count">
-              {activePhotoIndex + 1} / {images.length}
-            </div>
-          ) : null}
-          {canSwitchPhotos ? (
-            <div className="product-thumbs" aria-label="Product images">
+            <div className="pdp-thumb-rail-v3" aria-label="Product images">
               {images.map((image, index) => (
                 <button
                   className={image === photo ? "active" : ""}
@@ -158,55 +145,113 @@ export function ProductDetail({ product }: { product: Product }) {
               ))}
             </div>
           ) : null}
-        </div>
-        <div className="detail-copy">
-          <span className="eyebrow">{product.brand}</span>
-          <h1>{product.name}</h1>
-          <p>{productDescription(product, language)}</p>
-          <VariationPicker product={product} variationId={variation.id} onChange={setVariationId} />
-          <div className="detail-stock">
-            <span className={availability > 20 ? "ok-dot" : "warn-dot"} />
-            <div>
-              <span>{t.available}</span>
-              <strong>{availability}</strong>
-            </div>
-            <small>
-              {variation.stock.reserved} {t.reserved}
-            </small>
-          </div>
-          <div className="detail-price-line">
-            {activePrice.compareAt ? (
-              <span className="old-price">{money(activePrice.compareAt, language)}</span>
+
+          <button
+            aria-label={t.imageGallery}
+            className={
+              photo
+                ? "pdp-main-image-v3 product-photo real-photo"
+                : "pdp-main-image-v3 product-photo"
+            }
+            onClick={clickMainPhoto}
+            onKeyDown={keyMainPhoto}
+            style={photoStyle}
+            type="button"
+          >
+            {canSwitchPhotos ? (
+              <>
+                <span className="gallery-zone left">{"<"}</span>
+                <span className="gallery-zone right">{">"}</span>
+                <span className="pdp-image-count-v3">
+                  {activePhotoIndex + 1} / {images.length}
+                </span>
+              </>
             ) : null}
-            <strong>{money(activePrice.final, language)}</strong>
+          </button>
+        </div>
+
+        <aside className="pdp-buybox-v3">
+          <div className="pdp-title-block-v3">
+            <span className="kicker-v3">{product.brand}</span>
+            <h1>{product.name}</h1>
+            <p>{productDescription(product, language)}</p>
           </div>
-          <div className="spec-list">
-            <span>{categoryLabel(product.category, language)}</span>
+
+          <div className="pdp-price-stock-v3">
+            <div>
+              {activePrice.compareAt ? (
+                <span className="old-price">{money(activePrice.compareAt, language)}</span>
+              ) : null}
+              <strong>{money(activePrice.final, language)}</strong>
+            </div>
+            <span className={availability > 0 ? "stock-pill-v3 ok" : "stock-pill-v3"}>
+              {availability} {t.available}
+            </span>
+          </div>
+
+          <VariationPicker product={product} variationId={variation.id} onChange={setVariationId} />
+
+          <div className="pdp-sku-strip-v3">
             <span>SKU {variation.sku}</span>
+            <span>{reserved} {t.reserved}</span>
             <span>{variationTitle(variation, language)}</span>
           </div>
+
           <button
-            className="wide-button inline-button"
+            className="button-v3 primary pdp-add-button-v3"
             disabled={availability === 0}
             onClick={addToCart}
             type="button"
           >
-            {added ? t.added : `${t.addToCart} · ${money(activePrice.final, language)}`}
+            {added ? t.added : `${t.addToCart} - ${money(activePrice.final, language)}`}
           </button>
-        </div>
+
+          <div className="pdp-service-stack-v3">
+            <div>
+              <strong>Delivery</strong>
+              <span>Parcel machines, courier delivery or self pickup.</span>
+            </div>
+            <div>
+              <strong>Returns</strong>
+              <span>Unused gear can be exchanged if size or color is wrong.</span>
+            </div>
+            <div>
+              <strong>B2B</strong>
+              <span>Login to see crossed retail price and active club pricing.</span>
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <div className="section-heading">
-        <h2>{t.similarProducts}</h2>
-      </div>
-      <div className="product-grid">
-        {products
-          .filter((item) => item.category === product.category && item.id !== product.id)
-          .slice(0, 2)
-          .map((item) => (
-            <ProductCard key={item.id} product={item} role={role} />
+      <section className="pdp-info-v3">
+        <div>
+          <span className="kicker-v3">Product details</span>
+          <h2>Built for karate training and competition.</h2>
+        </div>
+        <p>{product.description || productDescription(product, language)}</p>
+        <div className="pdp-spec-grid-v3">
+          <span>{categoryLabel(product.category, language)}</span>
+          <span>{product.brand}</span>
+          {product.specs.slice(0, 4).map((spec) => (
+            <span key={spec}>{spec}</span>
           ))}
-      </div>
+        </div>
+      </section>
+
+      <section className="pdp-related-v3">
+        <div className="section-intro-v3">
+          <span className="kicker-v3">Complete the kit</span>
+          <h2>{t.similarProducts}</h2>
+        </div>
+        <div className="product-grid product-grid-v3 compact-grid-v3">
+          {products
+            .filter((item) => item.category === product.category && item.id !== product.id)
+            .slice(0, 3)
+            .map((item) => (
+              <ProductCard key={item.id} product={item} role={role} />
+            ))}
+        </div>
+      </section>
     </section>
   );
 }

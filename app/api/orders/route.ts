@@ -73,8 +73,16 @@ function normalizeOrderInput(payload: OrderRequest): CreateOrderInput {
   };
 }
 
-export async function GET() {
-  return Response.json({ orders: await listOrders() });
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const email = url.searchParams.get("email")?.trim().toLowerCase();
+  const orders = await listOrders();
+
+  return Response.json({
+    orders: email
+      ? orders.filter((order) => order.customer.email.toLowerCase() === email)
+      : orders,
+  });
 }
 
 export async function POST(request: Request) {

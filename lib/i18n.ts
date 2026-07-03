@@ -4,6 +4,8 @@ export const languages = [
   { code: "ru", label: "RU", name: "Русский" },
   { code: "lv", label: "LV", name: "Latviešu" },
   { code: "en", label: "EN", name: "English" },
+  { code: "et", label: "ET", name: "Eesti" },
+  { code: "lt", label: "LT", name: "Lietuvių" },
 ] as const;
 
 export type Language = (typeof languages)[number]["code"];
@@ -176,6 +178,116 @@ export const dictionary = {
     cost: "Cost",
     marginB2B: "B2B margin",
   },
+  et: {
+    brandSubline: "karate varustus",
+    navCatalog: "Kataloog",
+    navCart: "Ostukorv",
+    navB2B: "B2B hinnad",
+    navAdmin: "Admin",
+    login: "Logi sisse",
+    register: "Registreeru",
+    logout: "Logi välja",
+    client: "Klient",
+    heroEyebrow: "Karate · klubid · kiire tarne",
+    heroTitle: "Karate varustus sportlastele ja klubidele",
+    heroText:
+      "Gi, vööd, kaitsed, kindad ja treeningvarustus selgete B2C/B2B hindade, Balti tarne ning kaardi- või arvepõhise maksega.",
+    openCatalog: "Ava kataloog",
+    becomeClient: "Hakka kliendiks",
+    products: "toodet",
+    categories: "kategooriat",
+    inStockUnits: "ühikut laos",
+    clubSeason: "Klubihooaeg",
+    clubSeasonText:
+      "Kihon pakkumised, sparringukaitsed ja klubitellimused saalidele Lätis, Leedus ja Eestis.",
+    popular: "Populaarne",
+    popularTitle: "Treeningu põhivarustus laos",
+    payment: "Makse",
+    paymentText: "Kaardid, 3D Secure, Apple Pay, Google Pay ja klubidele arvega maksmine.",
+    b2bTerms: "B2B tingimused",
+    b2bTermsText: "Pärast sisselogimist näevad klubid jaehinda läbikriipsutatult ja aktiivset B2B hinda.",
+    delivery: "Tarne",
+    deliveryText: "Omniva, DPD, Unisend, Latvijas Pasts ja kuller üle Baltikumi.",
+    catalogTitle: "Gi, vööd, kaitsed ja karate treeningvarustus",
+    filters: "Filtrid",
+    search: "Otsi",
+    searchPlaceholder: "toode, bränd, kategooria",
+    category: "Kategooria",
+    brand: "Bränd",
+    discountedOnly: "Soodustusega tooted",
+    all: "Kõik",
+    b2bActive: "B2B hinnad on aktiivsed: jaehind on läbikriipsutatud.",
+    retailActive: "Tavaklient näeb jaehinda.",
+    available: "saadaval",
+    reserved: "reserveeritud",
+    addToCart: "Lisa korvi",
+    added: "Lisatud",
+    color: "Värv",
+    size: "Suurus",
+    option: "Valik",
+    buyInCatalog: "Osta kataloogist",
+    similarProducts: "Sarnased tooted",
+    imageGallery: "Toote pildid",
+    variation: "Variatsioon",
+    batch: "Partii",
+    cost: "Omahind",
+    marginB2B: "B2B marginaal",
+  },
+  lt: {
+    brandSubline: "karatė įranga",
+    navCatalog: "Katalogas",
+    navCart: "Krepšelis",
+    navB2B: "B2B kainos",
+    navAdmin: "Admin",
+    login: "Prisijungti",
+    register: "Registruotis",
+    logout: "Atsijungti",
+    client: "Klientas",
+    heroEyebrow: "Karatė · klubai · greitas pristatymas",
+    heroTitle: "Karatė įranga sportininkams ir klubams",
+    heroText:
+      "Kimono, diržai, apsaugos, pirštinės ir treniruočių įranga su aiškiomis B2C/B2B kainomis, pristatymu Baltijos šalyse ir apmokėjimu kortele arba pagal sąskaitą.",
+    openCatalog: "Atidaryti katalogą",
+    becomeClient: "Tapti klientu",
+    products: "prekių",
+    categories: "kategorijų",
+    inStockUnits: "vnt. sandėlyje",
+    clubSeason: "Klubų sezonas",
+    clubSeasonText:
+      "Kihon pasiūlymai, sparingo apsaugos ir klubų kimono užsakymai salėms Latvijoje, Lietuvoje ir Estijoje.",
+    popular: "Populiaru",
+    popularTitle: "Treniruočių prekės sandėlyje",
+    payment: "Apmokėjimas",
+    paymentText: "Kortelės, 3D Secure, Apple Pay, Google Pay ir apmokėjimas pagal sąskaitą klubams.",
+    b2bTerms: "B2B sąlygos",
+    b2bTermsText: "Prisijungę klubai mato perbrauktą mažmeninę kainą ir aktyvią B2B kainą.",
+    delivery: "Pristatymas",
+    deliveryText: "Omniva, DPD, Unisend, Latvijas Pasts ir kurjeris Baltijos šalyse.",
+    catalogTitle: "Kimono, diržai, apsaugos ir karatė treniruočių įranga",
+    filters: "Filtrai",
+    search: "Paieška",
+    searchPlaceholder: "prekė, prekės ženklas, kategorija",
+    category: "Kategorija",
+    brand: "Prekės ženklas",
+    discountedOnly: "Prekės su nuolaida",
+    all: "Visos",
+    b2bActive: "B2B kainos aktyvios: mažmeninė kaina rodoma perbraukta.",
+    retailActive: "Įprastas klientas mato mažmeninę kainą.",
+    available: "yra",
+    reserved: "rezervuota",
+    addToCart: "Į krepšelį",
+    added: "Pridėta",
+    color: "Spalva",
+    size: "Dydis",
+    option: "Variantas",
+    buyInCatalog: "Pirkti kataloge",
+    similarProducts: "Panašios prekės",
+    imageGallery: "Prekės nuotraukos",
+    variation: "Variacija",
+    batch: "Partija",
+    cost: "Savikaina",
+    marginB2B: "B2B marža",
+  },
 } as const;
 
 const categoryLabels: Record<Language, Record<string, string>> = {
@@ -208,6 +320,26 @@ const categoryLabels: Record<Language, Record<string, string>> = {
     Tatami: "Tatami",
     WUKF: "WUKF",
     Equipment: "Equipment",
+  },
+  et: {
+    Accessories: "Aksessuaarid",
+    Belts: "Vööd",
+    Kimono: "Gi",
+    "Protective Equipment": "Kaitsevarustus",
+    "Punching bags": "Poksikotid",
+    Tatami: "Tatami",
+    WUKF: "WUKF",
+    Equipment: "Varustus",
+  },
+  lt: {
+    Accessories: "Aksesuarai",
+    Belts: "Diržai",
+    Kimono: "Kimono",
+    "Protective Equipment": "Apsaugos",
+    "Punching bags": "Bokso maišai",
+    Tatami: "Tatami",
+    WUKF: "WUKF",
+    Equipment: "Įranga",
   },
 };
 
@@ -248,6 +380,30 @@ const colorLabels: Record<Language, Record<string, string>> = {
     Grey: "Grey",
     Skin: "Skin",
   },
+  et: {
+    White: "Valge",
+    Black: "Must",
+    Blue: "Sinine",
+    Red: "Punane",
+    Pink: "Roosa",
+    Green: "Roheline",
+    Yellow: "Kollane",
+    Orange: "Oranž",
+    Grey: "Hall",
+    Skin: "Nahavärv",
+  },
+  lt: {
+    White: "Balta",
+    Black: "Juoda",
+    Blue: "Mėlyna",
+    Red: "Raudona",
+    Pink: "Rožinė",
+    Green: "Žalia",
+    Yellow: "Geltona",
+    Orange: "Oranžinė",
+    Grey: "Pilka",
+    Skin: "Kūno spalva",
+  },
 };
 
 export const colorHex: Record<string, string> = {
@@ -285,11 +441,28 @@ export function productDescription(product: Product, language: Language) {
     return `${product.name} by ${product.brand}: ${category} for training, competition and club orders.`;
   }
 
+  if (language === "et") {
+    return `${product.name} ${product.brand}: ${category} treeninguteks, võistlusteks ja klubitellimusteks.`;
+  }
+
+  if (language === "lt") {
+    return `${product.name} ${product.brand}: ${category} treniruotėms, varžyboms ir klubų užsakymams.`;
+  }
+
   return `${product.name} ${product.brand}: ${category} для тренировок, соревнований и клубных закупок.`;
 }
 
 export function money(value: number, language: Language) {
-  const locale = language === "lv" ? "lv-LV" : language === "en" ? "en-GB" : "ru-RU";
+  const locale =
+    language === "lv"
+      ? "lv-LV"
+      : language === "en"
+        ? "en-GB"
+        : language === "et"
+          ? "et-EE"
+          : language === "lt"
+            ? "lt-LT"
+            : "ru-RU";
 
   return new Intl.NumberFormat(locale, {
     style: "currency",

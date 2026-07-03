@@ -31,6 +31,15 @@ export async function POST(request: Request) {
     return Response.json({ order, shipmentId: order.shipmentId });
   }
 
+  if (order.shippingType === "self_pickup") {
+    const updated = await updateOrder(order.id, {
+      shippingStatus: "ready_for_pickup",
+      shippingError: undefined,
+    });
+
+    return Response.json({ order: updated, shipment: "self_pickup" });
+  }
+
   try {
     const shipment = await createShipmentForOrder(order);
     const updated = await updateOrder(order.id, {

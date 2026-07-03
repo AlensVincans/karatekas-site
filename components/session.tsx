@@ -53,10 +53,8 @@ function notifySessionChange() {
 }
 
 export function useDemoSession() {
-  const [session, setSession] = useState<SessionUser | null>(() => readSession());
-  const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>(() =>
-    readStoredUsers(),
-  );
+  const [session, setSession] = useState<SessionUser | null>(null);
+  const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>([]);
 
   useEffect(() => {
     function syncFromStorage() {
@@ -64,6 +62,7 @@ export function useDemoSession() {
       setRegisteredUsers(readStoredUsers());
     }
 
+    syncFromStorage();
     window.addEventListener("storage", syncFromStorage);
     window.addEventListener(sessionChangeEvent, syncFromStorage);
 
