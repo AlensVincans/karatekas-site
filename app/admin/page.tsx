@@ -161,8 +161,6 @@ const copy = {
     description: "Описание",
     images: "Картинки",
     addImages: "Добавить картинки",
-    imageUrl: "URL картинки",
-    addImageUrl: "Добавить URL",
     removeImage: "Удалить картинку",
     noImages: "Картинки не добавлены",
     brand: "Бренд",
@@ -268,8 +266,6 @@ const copy = {
     description: "Apraksts",
     images: "Attēli",
     addImages: "Pievienot attēlus",
-    imageUrl: "Attēla URL",
-    addImageUrl: "Pievienot URL",
     removeImage: "Dzēst attēlu",
     noImages: "Attēli nav pievienoti",
     brand: "Zīmols",
@@ -375,8 +371,6 @@ const copy = {
     description: "Description",
     images: "Images",
     addImages: "Add images",
-    imageUrl: "Image URL",
-    addImageUrl: "Add URL",
     removeImage: "Remove image",
     noImages: "No images added",
     brand: "Brand",
@@ -721,25 +715,12 @@ function ProductForm({
   onRemoveVariation: (variationId: string) => void;
   footer: ReactNode;
 }) {
-  const [imageUrl, setImageUrl] = useState("");
-
   async function addImageFiles(files: FileList | null) {
     const nextImages = (await readImageFiles(files)).filter(Boolean);
 
     if (nextImages.length) {
       onProductChange({ images: [...product.images, ...nextImages] });
     }
-  }
-
-  function addImageUrl() {
-    const nextUrl = imageUrl.trim();
-
-    if (!nextUrl) {
-      return;
-    }
-
-    onProductChange({ images: [...product.images, nextUrl] });
-    setImageUrl("");
   }
 
   function removeImage(index: number) {
@@ -801,16 +782,6 @@ function ProductForm({
               }}
             />
           </label>
-        </div>
-        <div className="image-url-row">
-          <input
-            placeholder={c.imageUrl}
-            value={imageUrl}
-            onChange={(event) => setImageUrl(event.target.value)}
-          />
-          <button className="table-action" onClick={addImageUrl} type="button">
-            {c.addImageUrl}
-          </button>
         </div>
         {product.images.length ? (
           <div className="image-thumb-grid">
@@ -1666,13 +1637,6 @@ export default function AdminPage() {
                         }}
                       />
                     </label>
-                    <input
-                      placeholder={c.imageUrl}
-                      value={banner.image ?? ""}
-                      onChange={(event) =>
-                        updateBanner(banner.id, { image: event.target.value })
-                      }
-                    />
                     {banner.image ? (
                       <div className="banner-image-preview">
                         <div
@@ -1747,20 +1711,24 @@ export default function AdminPage() {
       ) : null}
 
       {tab === "stock" ? (
-        <div className="stock-admin-list">
+        <div className="stock-sheet-list">
           {stockGroups.map(([brand, items]) => (
-            <div className="tool-panel stock-brand-panel" key={brand}>
-              <h3>{brand}</h3>
-              <div className="table-wrap admin-table">
-                <table>
+            <section className="stock-sheet-brand" key={brand}>
+              <div className="stock-sheet-title">
+                <h3>{brand}</h3>
+                <span>
+                  {items.length} {c.variants} / {items.reduce((sum, item) => sum + item.available, 0)} {c.availableStock}
+                </span>
+              </div>
+              <div className="stock-sheet-wrap">
+                <table className="stock-sheet-table">
                   <thead>
                     <tr>
                       <th>{c.product}</th>
                       <th>{c.sku}</th>
                       <th>{c.color}</th>
                       <th>{c.size}</th>
-                      <th>{c.physicalStock}</th>
-                      <th>{c.availableStock}</th>
+                      <th>{c.stock}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1773,7 +1741,7 @@ export default function AdminPage() {
                         <td>{item.sku}</td>
                         <td>{item.color || "-"}</td>
                         <td>{item.size || "-"}</td>
-                        <td>
+                        <td className="stock-sheet-input-cell">
                           <input
                             min={0}
                             type="number"
@@ -1783,16 +1751,12 @@ export default function AdminPage() {
                             }
                           />
                         </td>
-                        <td>
-                          <strong>{item.available}</strong>
-                          <span>{item.reserved} {c.statuses.reserved}</span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
           ))}
         </div>
       ) : null}

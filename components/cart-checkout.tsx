@@ -9,7 +9,7 @@ import {
 } from "../lib/store-data";
 import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
-import { money } from "../lib/i18n";
+import type { Language } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
 import { useLanguage } from "./language";
 import { useDemoSession } from "./session";
@@ -376,6 +376,34 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
+function cartMoney(value: number, language: Language) {
+  const locale =
+    language === "lv"
+      ? "lv-LV"
+      : language === "en"
+        ? "en-GB"
+        : language === "et"
+          ? "et-EE"
+          : language === "lt"
+            ? "lt-LT"
+            : "ru-RU";
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+const totalsCopy = {
+  ru: { withoutVat: "Без PVN" },
+  lv: { withoutVat: "Bez PVN" },
+  en: { withoutVat: "Without VAT" },
+  et: { withoutVat: "Ilma PVN-ita" },
+  lt: { withoutVat: "Be PVM" },
+} as const;
+
 const deliveryLabels = {
   ru: {
     countries: { LV: "Латвия", LT: "Литва", EE: "Эстония" },
@@ -424,11 +452,11 @@ const deliveryLabels = {
   },
 } as const;
 
-function shippingLabels(language: Parameters<typeof money>[1]) {
+function shippingLabels(language: Language) {
   return deliveryLabels[language as keyof typeof deliveryLabels] ?? deliveryLabels.en;
 }
 
-function methodName(method: ShippingMethodOption, language: Parameters<typeof money>[1]) {
+function methodName(method: ShippingMethodOption, language: Language) {
   const labels = shippingLabels(language);
 
   if (method.shippingType === "self_pickup") {
@@ -446,7 +474,7 @@ function methodName(method: ShippingMethodOption, language: Parameters<typeof mo
   return `${method.carrierName} ${labels.parcelMachine}`;
 }
 
-function methodDetails(method: ShippingMethodOption, language: Parameters<typeof money>[1]) {
+function methodDetails(method: ShippingMethodOption, language: Language) {
   const labels = shippingLabels(language);
 
   if (method.shippingType === "self_pickup") {
@@ -464,9 +492,17 @@ function methodDetails(method: ShippingMethodOption, language: Parameters<typeof
 }
 
 function carrierIcon(method: ShippingMethodOption) {
-  const carrier = method.carrierCode.toLowerCase();
+  const carrierText = [
+    method.carrierCode,
+    method.carrier,
+    method.carrierName,
+    method.name,
+    method.shippingType,
+  ]
+    .join(" ")
+    .toLowerCase();
 
-  if (method.shippingType === "self_pickup" || carrier === "self") {
+  if (method.shippingType === "self_pickup" || carrierText.includes("self")) {
     return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.png" };
   }
 
@@ -474,23 +510,34 @@ function carrierIcon(method: ShippingMethodOption) {
     return { alt: "Courier", className: "courier", src: "/shipping-logos/courier.png" };
   }
 
-  if (carrier.includes("dpd")) {
+  if (carrierText.includes("dpd")) {
     return { alt: "DPD", className: "dpd", src: "/shipping-logos/dpd.png" };
   }
 
-  if (carrier.includes("smartposti") || carrier.includes("itella")) {
+  if (
+    carrierText.includes("smartposti") ||
+    carrierText.includes("smartpost") ||
+    carrierText.includes("smart_post") ||
+    carrierText.includes("itella")
+  ) {
     return { alt: "Smartposti", className: "smartposti", src: "/shipping-logos/smartposti.png" };
   }
 
-  if (carrier.includes("unisend")) {
+  if (carrierText.includes("unisend")) {
     return { alt: "Unisend", className: "unisend", src: "/shipping-logos/unisend.png" };
   }
 
-  if (carrier.includes("venipak")) {
+  if (carrierText.includes("venipak")) {
     return { alt: "Venipak", className: "venipak", src: "/shipping-logos/venipak.png" };
   }
 
-  if (carrier.includes("pasts") || carrier.includes("latvijas")) {
+  if (
+    carrierText.includes("pasts") ||
+    carrierText.includes("latvijas") ||
+    carrierText.includes("latvian") ||
+    carrierText.includes("latvia_post") ||
+    carrierText.includes("post_office")
+  ) {
     return { alt: "Latvijas Pasts", className: "pasts", src: "/shipping-logos/latvijas-pasts.png" };
   }
 
@@ -505,6 +552,7 @@ export function CartCheckout() {
   const { levels } = useInventoryLevels();
   const productImageMap = useProductImages();
   const c = copy[language as keyof typeof copy] ?? copy.en;
+  const totalsLabels = totalsCopy[language as keyof typeof totalsCopy] ?? totalsCopy.en;
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
   const [shippingCountry, setShippingCountry] = useState<DeliveryCountry>("LV");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
@@ -669,6 +717,7 @@ export function CartCheckout() {
   const subtotal = lines.reduce((sum, line) => sum + line.total, 0);
   const vat = noVat ? 0 : subtotal * 0.21;
   const shippingPrice = selectedShippingMethod?.price ?? 0;
+  const totalWithoutVat = subtotal + shippingPrice;
   const total = subtotal + vat + shippingPrice;
   const canUseB2B = role === "b2b" || role === "admin";
 
@@ -910,7 +959,7 @@ export function CartCheckout() {
                       value={line.qty}
                     />
                   </label>
-                  <strong className="cart-line-total-v3">{money(line.total, language)}</strong>
+                  <strong className="cart-line-total-v3">{cartMoney(line.total, language)}</strong>
                 </div>
               );
             })}
@@ -923,7 +972,7 @@ export function CartCheckout() {
       <aside className="checkout-panel checkout-panel-v3">
         <div className="checkout-summary-head-v3">
           <span className="kicker-v3">{c.checkout}</span>
-          <h2>{money(total, language)}</h2>
+          <h2>{cartMoney(total, language)}</h2>
         </div>
 
         <div className="checkout-step-v3 checkout-block">
@@ -970,7 +1019,7 @@ export function CartCheckout() {
                   <span className="shipping-option-copy">
                     <strong>{methodName(method, language)}</strong>
                     <span>
-                      {methodDetails(method, language)} / {money(method.price, language)}
+                      {methodDetails(method, language)} / {cartMoney(method.price, language)}
                     </span>
                   </span>
                 </button>
@@ -1106,13 +1155,15 @@ export function CartCheckout() {
 
         <div className="totals totals-v3">
           <span>{c.goods}</span>
-          <strong>{money(subtotal, language)}</strong>
+          <strong>{cartMoney(subtotal, language)}</strong>
           <span>PVN</span>
-          <strong>{money(vat, language)}</strong>
+          <strong>{cartMoney(vat, language)}</strong>
           <span>{c.shipping}</span>
-          <strong>{money(shippingPrice, language)}</strong>
+          <strong>{cartMoney(shippingPrice, language)}</strong>
+          <span>{totalsLabels.withoutVat}</span>
+          <strong>{cartMoney(totalWithoutVat, language)}</strong>
           <span>{c.total}</span>
-          <strong>{money(total, language)}</strong>
+          <strong>{cartMoney(total, language)}</strong>
         </div>
 
         <button

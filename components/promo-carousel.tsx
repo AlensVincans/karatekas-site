@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useActivePromoBanners } from "../lib/promotions";
+import { promoBannerHref, useActivePromoBanners } from "../lib/promotions";
 
 export function PromoCarousel() {
   const banners = useActivePromoBanners().filter((item) => item.image);
@@ -27,7 +27,7 @@ export function PromoCarousel() {
       <Link
         aria-label={banner.title || "Sale"}
         className="promo-image-banner"
-        href="/catalog?promo=1"
+        href={promoBannerHref(banner)}
         style={{ backgroundImage: `url("${banner.image}")` }}
       />
       <div className="promo-carousel-actions image-actions">

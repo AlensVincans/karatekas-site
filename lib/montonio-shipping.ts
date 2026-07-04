@@ -88,7 +88,12 @@ const defaultCountry = "LV";
 const carrierNames: Record<string, string> = {
   omniva: "Omniva",
   dpd: "DPD",
+  itella: "Smartposti",
+  smartpost: "Smartposti",
+  smartposti: "Smartposti",
   unisend: "Unisend",
+  latvia_post: "Latvijas Pasts",
+  latvian_post: "Latvijas Pasts",
   latvijas_pasts: "Latvijas Pasts",
   latvijaspasts: "Latvijas Pasts",
   pasts: "Latvijas Pasts",
@@ -192,8 +197,17 @@ function cleanText(value: unknown, fallback: string) {
 function normalizeCarrierCode(carrier: string) {
   const normalized = carrier.trim().toLowerCase().replace(/[-\s]+/g, "_");
 
-  if (normalized === "latvijas_pasts" || normalized === "latvijaspasts") {
+  if (
+    normalized === "latvijas_pasts" ||
+    normalized === "latvijaspasts" ||
+    normalized === "latvian_post" ||
+    normalized === "latvia_post"
+  ) {
     return "latvijas_pasts";
+  }
+
+  if (normalized === "smart_posti" || normalized === "smartposti" || normalized === "smartpost") {
+    return "smartposti";
   }
 
   return normalized;

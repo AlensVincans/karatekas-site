@@ -166,6 +166,9 @@ export function StoreHeader() {
             <Link href="/catalog" onClick={() => setMobileOpen(false)}>
               {t.navCatalog}
             </Link>
+            <Link href="/catalog?promo=1" onClick={() => setMobileOpen(false)}>
+              {t.discountedOnly}
+            </Link>
             <Link href="/cart" onClick={() => setMobileOpen(false)}>
               {t.navCart}
             </Link>

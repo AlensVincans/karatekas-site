@@ -1410,6 +1410,85 @@ td span {
   gap: 12px;
 }
 
+.stock-sheet-list {
+  display: grid;
+  gap: 16px;
+}
+
+.stock-sheet-brand {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.stock-sheet-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.stock-sheet-title h3 {
+  margin: 0;
+}
+
+.stock-sheet-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stock-sheet-wrap {
+  overflow-x: auto;
+}
+
+.stock-sheet-table {
+  border-collapse: collapse;
+  min-width: 720px;
+  width: 100%;
+}
+
+.stock-sheet-table th,
+.stock-sheet-table td {
+  border: 1px solid #d8d2ca;
+  padding: 7px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.stock-sheet-table th {
+  background: #f5f1eb;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.stock-sheet-table td {
+  background: #fff;
+  font-size: 13px;
+}
+
+.stock-sheet-table td span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+}
+
+.stock-sheet-input-cell {
+  width: 96px;
+}
+
+.stock-sheet-input-cell input {
+  border: 0;
+  border-radius: 0;
+  min-height: 30px;
+  padding: 4px 6px;
+  text-align: center;
+  width: 100%;
+}
+
 .promo-rule-row {
   align-items: end;
   background: #f9f6f2;
@@ -3824,6 +3903,43 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.catalog-pagination-v3 {
+  align-items: center;
+  background: var(--v3-paper);
+  border: 1px solid var(--v3-line);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.catalog-pagination-v3 span {
+  color: var(--v3-muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.catalog-pagination-v3 div {
+  display: flex;
+  gap: 8px;
+}
+
+.catalog-pagination-v3 button {
+  background: var(--v3-black);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 950;
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.catalog-pagination-v3 button:disabled {
+  background: #e5e0d9;
+  color: var(--v3-muted);
+}
+
 .pdp-page-v3 {
   display: grid;
   gap: 22px;
@@ -4174,6 +4290,7 @@ textarea {
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   max-width: 100%;
   width: 100%;
 }
@@ -4201,6 +4318,29 @@ textarea {
   display: grid;
   gap: 3px;
   min-width: 0;
+}
+
+.checkout-panel-v3,
+.checkout-step-v3,
+.pickup-selector,
+.courier-address,
+.address-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.checkout-panel-v3 input,
+.checkout-panel-v3 select,
+.checkout-panel-v3 textarea {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.pickup-selector select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shipping-option-copy strong,
@@ -4240,7 +4380,7 @@ textarea {
 }
 
 .carrier-icon.omniva {
-  background: #111;
+  background: #fff;
 }
 
 .carrier-icon.dpd,
@@ -4556,10 +4696,16 @@ textarea {
   }
 
   .catalog-toolbar-v3,
+  .catalog-pagination-v3,
   .pdp-price-stock-v3,
   .footer-cta-v3 {
     align-items: stretch;
     display: grid;
+  }
+
+  .catalog-pagination-v3 div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .catalog-toolbar-v3 label {

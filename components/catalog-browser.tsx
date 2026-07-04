@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { categories, pricedVariation, products, type Product, type UserRole } from "../lib/store-data";
 import { categoryLabel, productDescription } from "../lib/i18n";
 import {
@@ -17,6 +18,8 @@ import { useDemoSession } from "./session";
 
 const allValue = "__all";
 type SortMode = "featured" | "price-asc" | "price-desc" | "name";
+const defaultPageSize = 24;
+const pageSizeOptions = [12, 24, 48, 96] as const;
 
 const copy = {
   ru: {
@@ -86,25 +89,47 @@ const copy = {
   },
 } as const;
 
-function readCatalogParams(brands: string[]) {
-  if (typeof window === "undefined") {
-    return {
-      query: "",
-      category: allValue,
-      brand: allValue,
-      promoOnly: false,
-    };
-  }
+const paginationCopy = {
+  ru: { perPage: "На странице", page: "Страница", previous: "Назад", next: "Вперёд" },
+  lv: { perPage: "Lapā", page: "Lapa", previous: "Atpakaļ", next: "Tālāk" },
+  en: { perPage: "Per page", page: "Page", previous: "Previous", next: "Next" },
+  et: { perPage: "Lehel", page: "Leht", previous: "Tagasi", next: "Edasi" },
+  lt: { perPage: "Puslapyje", page: "Puslapis", previous: "Atgal", next: "Toliau" },
+} as const;
 
-  const params = new URLSearchParams(window.location.search);
+function defaultCatalogParams() {
+  return {
+    query: "",
+    category: allValue,
+    brand: allValue,
+    promoOnly: false,
+    sort: "featured" as SortMode,
+    page: 1,
+    pageSize: defaultPageSize,
+  };
+}
+
+function readCatalogParams(brands: string[], params: Pick<URLSearchParams, "get">) {
   const category = params.get("category");
   const brand = params.get("brand");
+  const sort = params.get("sort");
+  const normalizedSort: SortMode =
+    sort === "price-asc" || sort === "price-desc" || sort === "name" || sort === "featured"
+      ? sort
+      : "featured";
+  const page = Math.max(1, Number(params.get("page")) || 1);
+  const pageSize = Number(params.get("perPage"));
 
   return {
     query: params.get("q") ?? "",
     category: category && categories.some((item) => item === category) ? category : allValue,
     brand: brand && brands.some((item) => item === brand) ? brand : allValue,
     promoOnly: params.get("promo") === "1",
+    sort: normalizedSort,
+    page,
+    pageSize: pageSizeOptions.some((option) => option === pageSize)
+      ? pageSize
+      : defaultPageSize,
   };
 }
 
@@ -152,17 +177,50 @@ export function CatalogBrowser() {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
+  const p = paginationCopy[language as keyof typeof paginationCopy] ?? paginationCopy.en;
+  const searchParams = useSearchParams();
+  const searchParamString = searchParams.toString();
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
-  const brands = Array.from(new Set(products.map((product) => product.brand)));
-  const initialFilters = readCatalogParams(brands);
-  const [query, setQuery] = useState(initialFilters.query);
-  const [category, setCategory] = useState(initialFilters.category);
-  const [brand, setBrand] = useState(initialFilters.brand);
-  const [promoOnly, setPromoOnly] = useState(initialFilters.promoOnly);
-  const [sort, setSort] = useState<SortMode>("featured");
+  const brands = useMemo(
+    () => Array.from(new Set(products.map((product) => product.brand))),
+    [],
+  );
+  const [paramsReady, setParamsReady] = useState(false);
+  const [query, setQuery] = useState(defaultCatalogParams().query);
+  const [category, setCategory] = useState(defaultCatalogParams().category);
+  const [brand, setBrand] = useState(defaultCatalogParams().brand);
+  const [promoOnly, setPromoOnly] = useState(defaultCatalogParams().promoOnly);
+  const [sort, setSort] = useState<SortMode>(defaultCatalogParams().sort);
+  const [page, setPage] = useState(defaultCatalogParams().page);
+  const [pageSize, setPageSize] = useState(defaultCatalogParams().pageSize);
+  const syncingSearchRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const params = readCatalogParams(brands, new URLSearchParams(searchParamString));
+    syncingSearchRef.current = searchParamString;
+    const timer = window.setTimeout(() => {
+      setQuery(params.query);
+      setCategory(params.category);
+      setBrand(params.brand);
+      setPromoOnly(params.promoOnly);
+      setSort(params.sort);
+      setPage(params.page);
+      setPageSize(params.pageSize);
+      setParamsReady(true);
+      syncingSearchRef.current = null;
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [brands, searchParamString]);
+
+  useEffect(() => {
+    if (!paramsReady || syncingSearchRef.current != null) {
+      return;
+    }
+
     const params = new URLSearchParams();
 
     if (query.trim()) {
@@ -181,12 +239,24 @@ export function CatalogBrowser() {
       params.set("promo", "1");
     }
 
+    if (sort !== "featured") {
+      params.set("sort", sort);
+    }
+
+    if (page > 1) {
+      params.set("page", String(page));
+    }
+
+    if (pageSize !== defaultPageSize) {
+      params.set("perPage", String(pageSize));
+    }
+
     const nextUrl = params.toString()
       ? `${window.location.pathname}?${params.toString()}`
       : window.location.pathname;
 
     window.history.replaceState(window.history.state, "", nextUrl);
-  }, [brand, category, promoOnly, query]);
+  }, [brand, category, page, pageSize, paramsReady, promoOnly, query, sort]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -231,6 +301,10 @@ export function CatalogBrowser() {
 
     return next;
   }, [filteredProducts, promoPrices, promoRules, role, sort]);
+  const pageCount = Math.max(1, Math.ceil(visibleProducts.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const firstProductIndex = (safePage - 1) * pageSize;
+  const paginatedProducts = visibleProducts.slice(firstProductIndex, firstProductIndex + pageSize);
 
   return (
     <div className="catalog-workspace-v3">
@@ -245,7 +319,10 @@ export function CatalogBrowser() {
             {t.search}
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
               placeholder={t.searchPlaceholder}
             />
           </label>
@@ -253,7 +330,13 @@ export function CatalogBrowser() {
         </div>
         <label>
           {t.category}
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select
+            value={category}
+            onChange={(event) => {
+              setCategory(event.target.value);
+              setPage(1);
+            }}
+          >
             <option value={allValue}>{t.all}</option>
             {categories.map((item) => (
               <option key={item} value={item}>
@@ -264,7 +347,13 @@ export function CatalogBrowser() {
         </label>
         <label>
           {t.brand}
-          <select value={brand} onChange={(event) => setBrand(event.target.value)}>
+          <select
+            value={brand}
+            onChange={(event) => {
+              setBrand(event.target.value);
+              setPage(1);
+            }}
+          >
             <option value={allValue}>{t.all}</option>
             {brands.map((item) => (
               <option key={item} value={item}>
@@ -277,7 +366,10 @@ export function CatalogBrowser() {
           <input
             checked={promoOnly}
             type="checkbox"
-            onChange={(event) => setPromoOnly(event.target.checked)}
+            onChange={(event) => {
+              setPromoOnly(event.target.checked);
+              setPage(1);
+            }}
           />
             {t.discountedOnly}
         </label>
@@ -297,11 +389,33 @@ export function CatalogBrowser() {
           </div>
           <label>
             {c.sort}
-            <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}>
+            <select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as SortMode);
+                setPage(1);
+              }}
+            >
               <option value="featured">{c.featured}</option>
               <option value="price-asc">{c.priceAsc}</option>
               <option value="price-desc">{c.priceDesc}</option>
               <option value="name">{c.name}</option>
+            </select>
+          </label>
+          <label>
+            {p.perPage}
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setPage(1);
+              }}
+            >
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -309,7 +423,10 @@ export function CatalogBrowser() {
         <div className="catalog-chip-row-v3">
           <button
             className={category === allValue ? "active" : ""}
-            onClick={() => setCategory(allValue)}
+            onClick={() => {
+              setCategory(allValue);
+              setPage(1);
+            }}
             type="button"
           >
             {t.all}
@@ -318,7 +435,10 @@ export function CatalogBrowser() {
             <button
               className={category === item ? "active" : ""}
               key={item}
-              onClick={() => setCategory(item)}
+              onClick={() => {
+                setCategory(item);
+                setPage(1);
+              }}
               type="button"
             >
               {categoryLabel(item, language)}
@@ -327,11 +447,34 @@ export function CatalogBrowser() {
         </div>
 
         {visibleProducts.length ? (
-          <div className="product-grid product-grid-v3 catalog-grid-v3">
-            {visibleProducts.map((product) => (
-              <ProductCard key={product.id} product={product} role={role} />
-            ))}
-          </div>
+          <>
+            <div className="product-grid product-grid-v3 catalog-grid-v3">
+              {paginatedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} role={role} />
+              ))}
+            </div>
+            <div className="catalog-pagination-v3">
+              <span>
+                {p.page} {safePage} / {pageCount}
+              </span>
+              <div>
+                <button
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(Math.max(1, safePage - 1))}
+                  type="button"
+                >
+                  {p.previous}
+                </button>
+                <button
+                  disabled={safePage >= pageCount}
+                  onClick={() => setPage(Math.min(pageCount, safePage + 1))}
+                  type="button"
+                >
+                  {p.next}
+                </button>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="empty-state catalog-empty">
             <strong>{c.emptyTitle}</strong>
