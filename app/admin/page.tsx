@@ -1010,6 +1010,7 @@ export default function AdminPage() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeStockBrand, setActiveStockBrand] = useState("");
+  const [emailStatus, setEmailStatus] = useState("");
   const availableTotal = inventoryItems.length
     ? inventoryItems.reduce((sum, item) => sum + item.available, 0)
     : adminProducts.reduce((sum, product) => sum + productStock(product), 0);
@@ -1270,6 +1271,47 @@ export default function AdminPage() {
     setShowAddForm(false);
   }
 
+  async function sendAdminTestEmail() {
+    setEmailStatus("Sending test email...");
+
+    try {
+      const response = await fetch("/api/admin/test-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+
+      setEmailStatus(response.ok ? "Test email sent." : result.error || "Email failed.");
+    } catch {
+      setEmailStatus("Email failed.");
+    }
+  }
+
+  async function sendB2BReminderEmails() {
+    setEmailStatus("Sending B2B reminders...");
+
+    try {
+      const response = await fetch("/api/admin/email-reminders", {
+        method: "POST",
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        sent?: number;
+        error?: string;
+      };
+
+      setEmailStatus(
+        response.ok
+          ? `B2B reminders sent: ${result.sent ?? 0}.`
+          : result.error || "Reminders failed.",
+      );
+    } catch {
+      setEmailStatus("Reminders failed.");
+    }
+  }
+
   return (
     <section className="section-shell admin-page">
       <div className="section-heading admin-heading">
@@ -1349,6 +1391,20 @@ export default function AdminPage() {
             />
           </div>
         ) : null}
+
+        <div className="admin-email-actions">
+          <button className="table-action" onClick={() => void sendAdminTestEmail()} type="button">
+            SMTP test
+          </button>
+          <button
+            className="table-action"
+            onClick={() => void sendB2BReminderEmails()}
+            type="button"
+          >
+            B2B reminders
+          </button>
+          {emailStatus ? <span>{emailStatus}</span> : null}
+        </div>
       </div>
 
       {tab === "products" && showAddForm ? (
@@ -1773,7 +1829,6 @@ export default function AdminPage() {
               <thead>
                 <tr>
                   <th>{c.product}</th>
-                  <th>{c.sku}</th>
                   <th>{c.color}</th>
                   <th>{c.size}</th>
                   <th>{c.physicalStock}</th>
@@ -1787,7 +1842,6 @@ export default function AdminPage() {
                       <strong>{item.productName}</strong>
                       <span>{categoryLabel(item.category, language)}</span>
                     </td>
-                    <td>{item.sku}</td>
                     <td>{item.color || "-"}</td>
                     <td>{item.size || "-"}</td>
                     <td className="stock-compact-input">

@@ -77,6 +77,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
     <section className="auth-page">
@@ -105,15 +106,19 @@ export default function LoginPage() {
         </label>
         <button
           className="wide-button"
-          onClick={() => {
-            const result = login(email, password);
+          disabled={isSubmitting}
+          onClick={async () => {
+            setIsSubmitting(true);
+            const result = await login(email, password);
+            setIsSubmitting(false);
+
             if (result.ok) {
               setMessage(c.success);
               router.push("/");
               return;
             }
 
-            setMessage(c.failed);
+            setMessage(result.message || c.failed);
           }}
           type="button"
         >

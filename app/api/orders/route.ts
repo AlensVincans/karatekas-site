@@ -1,4 +1,5 @@
 import { createOrder, listOrders, type CreateOrderInput } from "../../../lib/orders";
+import { sendOrderEmails } from "../../../lib/email";
 import { roundMoney } from "../../../lib/montonio";
 
 export const runtime = "nodejs";
@@ -101,6 +102,14 @@ export async function POST(request: Request) {
   }
 
   const order = await createOrder(input);
+  let emailSent = true;
 
-  return Response.json({ order });
+  try {
+    await sendOrderEmails(order);
+  } catch (error) {
+    emailSent = false;
+    console.error("Order email sending failed", error);
+  }
+
+  return Response.json({ order, emailSent });
 }

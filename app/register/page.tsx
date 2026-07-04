@@ -10,69 +10,98 @@ const copy = {
   ru: {
     eyebrow: "Регистрация",
     title: "Создать аккаунт",
-    regular: "Обычный",
-    name: "Имя",
+    regular: "Обычный клиент",
+    firstName: "Имя",
+    lastName: "Фамилия",
     password: "Пароль",
+    confirmPassword: "Подтверждение пароля",
     company: "Компания",
-    optIn: "Double opt-in email подтверждение",
     submit: "Зарегистрироваться",
-    success: "Регистрация выполнена. Email подтверждён.",
-    exists: "Пользователь с таким email уже есть.",
+    submitting: "Отправляем письмо...",
+    success: "Регистрация создана. Проверьте почту и подтвердите аккаунт по ссылке.",
+    required: "Заполните имя, фамилию, email и пароль.",
+    passwordPolicy: "Пароль должен быть минимум 8 символов и содержать 1 заглавную букву.",
+    mismatch: "Пароли не совпадают.",
+    emailNote: "После регистрации мы отправим письмо для подтверждения аккаунта.",
     haveAccount: "Уже есть аккаунт? Войти",
   },
   lv: {
     eyebrow: "Reģistrācija",
     title: "Izveidot kontu",
-    regular: "Privāts",
-    name: "Vārds",
+    regular: "Privāts klients",
+    firstName: "Vārds",
+    lastName: "Uzvārds",
     password: "Parole",
+    confirmPassword: "Apstipriniet paroli",
     company: "Uzņēmums",
-    optIn: "Double opt-in email apstiprinājums",
     submit: "Reģistrēties",
-    success: "Reģistrācija pabeigta. Email apstiprināts.",
-    exists: "Lietotājs ar šādu email jau eksistē.",
+    submitting: "Sūtām e-pastu...",
+    success: "Reģistrācija izveidota. Lūdzu apstipriniet kontu e-pastā.",
+    required: "Aizpildiet vārdu, uzvārdu, e-pastu un paroli.",
+    passwordPolicy: "Parolei jābūt vismaz 8 simboliem un 1 lielajam burtam.",
+    mismatch: "Paroles nesakrīt.",
+    emailNote: "Pēc reģistrācijas nosūtīsim konta apstiprinājuma e-pastu.",
     haveAccount: "Konts jau ir? Ieiet",
   },
   en: {
     eyebrow: "Registration",
     title: "Create account",
-    regular: "Retail",
-    name: "Name",
+    regular: "Retail customer",
+    firstName: "First name",
+    lastName: "Last name",
     password: "Password",
+    confirmPassword: "Confirm password",
     company: "Company",
-    optIn: "Double opt-in email confirmation",
     submit: "Register",
-    success: "Registration complete. Email confirmed.",
-    exists: "A user with this email already exists.",
+    submitting: "Sending email...",
+    success: "Registration created. Check your email and confirm the account.",
+    required: "Fill first name, last name, email and password.",
+    passwordPolicy: "Password must be at least 8 characters and contain 1 uppercase letter.",
+    mismatch: "Passwords do not match.",
+    emailNote: "After registration we will send an account confirmation email.",
     haveAccount: "Already have an account? Login",
   },
   et: {
     eyebrow: "Registreerimine",
     title: "Loo konto",
     regular: "Tavaklient",
-    name: "Nimi",
+    firstName: "Eesnimi",
+    lastName: "Perekonnanimi",
     password: "Parool",
+    confirmPassword: "Kinnita parool",
     company: "Ettevõte",
-    optIn: "Double opt-in emaili kinnitus",
     submit: "Registreeru",
-    success: "Registreerimine lõpetatud. Email on kinnitatud.",
-    exists: "Selle emailiga kasutaja on juba olemas.",
+    submitting: "Saadame e-kirja...",
+    success: "Registreerimine loodud. Kinnitage konto e-posti lingi kaudu.",
+    required: "Täitke eesnimi, perekonnanimi, e-post ja parool.",
+    passwordPolicy: "Parool peab olema vähemalt 8 märki ja sisaldama 1 suurtähte.",
+    mismatch: "Paroolid ei kattu.",
+    emailNote: "Pärast registreerimist saadame konto kinnitamise e-kirja.",
     haveAccount: "Konto on olemas? Logi sisse",
   },
   lt: {
     eyebrow: "Registracija",
     title: "Sukurti paskyrą",
-    regular: "Įprastas",
-    name: "Vardas",
+    regular: "Privatus klientas",
+    firstName: "Vardas",
+    lastName: "Pavardė",
     password: "Slaptažodis",
+    confirmPassword: "Pakartokite slaptažodį",
     company: "Įmonė",
-    optIn: "Double opt-in email patvirtinimas",
     submit: "Registruotis",
-    success: "Registracija baigta. Email patvirtintas.",
-    exists: "Vartotojas su šiuo email jau yra.",
+    submitting: "Siunčiame laišką...",
+    success: "Registracija sukurta. Patvirtinkite paskyrą el. paštu.",
+    required: "Užpildykite vardą, pavardę, el. paštą ir slaptažodį.",
+    passwordPolicy: "Slaptažodis turi turėti bent 8 simbolius ir 1 didžiąją raidę.",
+    mismatch: "Slaptažodžiai nesutampa.",
+    emailNote: "Po registracijos atsiųsime paskyros patvirtinimo laišką.",
     haveAccount: "Jau turite paskyrą? Prisijungti",
   },
 } as const;
+
+function hasValidPassword(password: string) {
+  return password.length >= 8 && /[A-Z]/.test(password);
+}
 
 export default function RegisterPage() {
   const { register } = useDemoSession();
@@ -80,13 +109,50 @@ export default function RegisterPage() {
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const [role, setRole] = useState<Extract<UserRole, "user" | "b2b">>("user");
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
+    confirmPassword: "",
     company: "",
     vatNumber: "",
   });
+
+  async function handleRegister() {
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+    const email = form.email.trim();
+
+    if (!firstName || !lastName || !email || !form.password) {
+      setMessage(c.required);
+      return;
+    }
+
+    if (!hasValidPassword(form.password)) {
+      setMessage(c.passwordPolicy);
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setMessage(c.mismatch);
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await register({
+      firstName,
+      lastName,
+      email,
+      password: form.password,
+      role,
+      company: form.company,
+      vatNumber: form.vatNumber,
+    });
+    setIsSubmitting(false);
+    setMessage(result.ok ? c.success : result.message);
+  }
 
   return (
     <section className="auth-page">
@@ -109,16 +175,29 @@ export default function RegisterPage() {
             B2B
           </button>
         </div>
-        <label>
-          {c.name}
-          <input
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-          />
-        </label>
+        <div className="auth-name-grid">
+          <label>
+            {c.firstName}
+            <input
+              autoComplete="given-name"
+              value={form.firstName}
+              onChange={(event) => setForm({ ...form, firstName: event.target.value })}
+            />
+          </label>
+          <label>
+            {c.lastName}
+            <input
+              autoComplete="family-name"
+              value={form.lastName}
+              onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+            />
+          </label>
+        </div>
         <label>
           Email
           <input
+            autoComplete="email"
+            inputMode="email"
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
           />
@@ -126,9 +205,20 @@ export default function RegisterPage() {
         <label>
           {c.password}
           <input
+            autoComplete="new-password"
             type="password"
             value={form.password}
             onChange={(event) => setForm({ ...form, password: event.target.value })}
+          />
+          <span className="auth-hint">{c.passwordPolicy}</span>
+        </label>
+        <label>
+          {c.confirmPassword}
+          <input
+            autoComplete="new-password"
+            type="password"
+            value={form.confirmPassword}
+            onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
           />
         </label>
         {role === "b2b" ? (
@@ -136,27 +226,21 @@ export default function RegisterPage() {
             <label>
               {c.company}
               <input
+                autoComplete="organization"
                 value={form.company}
-                onChange={(event) =>
-                  setForm({ ...form, company: event.target.value })
-                }
+                onChange={(event) => setForm({ ...form, company: event.target.value })}
               />
             </label>
             <label>
               PVN / VAT
               <input
                 value={form.vatNumber}
-                onChange={(event) =>
-                  setForm({ ...form, vatNumber: event.target.value })
-                }
+                onChange={(event) => setForm({ ...form, vatNumber: event.target.value })}
               />
             </label>
           </>
         ) : null}
-        <label className="check-row">
-          <input defaultChecked type="checkbox" />
-          {c.optIn}
-        </label>
+        <p className="auth-hint strong">{c.emailNote}</p>
         <input
           aria-hidden="true"
           autoComplete="off"
@@ -166,13 +250,11 @@ export default function RegisterPage() {
         />
         <button
           className="wide-button"
-          onClick={() => {
-            const result = register({ ...form, role });
-            setMessage(result.ok ? c.success : c.exists);
-          }}
+          disabled={isSubmitting}
+          onClick={() => void handleRegister()}
           type="button"
         >
-          {c.submit}
+          {isSubmitting ? c.submitting : c.submit}
         </button>
         {message ? <p className="status-box">{message}</p> : null}
         <Link href="/login">{c.haveAccount}</Link>

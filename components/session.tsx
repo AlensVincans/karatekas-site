@@ -8,7 +8,10 @@ const sessionKey = "bc_session";
 const sessionChangeEvent = "bc-session-change";
 let browserHydrated = false;
 
-export type SessionUser = Omit<DemoUser, "password">;
+export type SessionUser = Omit<DemoUser, "password"> & {
+  firstName?: string;
+  lastName?: string;
+};
 type StoredUser = DemoUser;
 
 function readStoredUsers(): StoredUser[] {
@@ -60,6 +63,18 @@ export function useDemoSession() {
   const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>(() =>
     browserHydrated ? readStoredUsers() : [],
   );
+  const [serverUsers, setServerUsers] = useState<SessionUser[]>([]);
+
+  function refreshServerUsers() {
+    fetch("/api/auth/users")
+      .then((response) => response.json())
+      .then((data: { users?: SessionUser[] }) => {
+        if (Array.isArray(data.users)) {
+          setServerUsers(data.users);
+        }
+      })
+      .catch(() => undefined);
+  }
 
   useEffect(() => {
     function syncFromStorage() {
@@ -69,6 +84,7 @@ export function useDemoSession() {
     }
 
     syncFromStorage();
+    refreshServerUsers();
     window.addEventListener("storage", syncFromStorage);
     window.addEventListener(sessionChangeEvent, syncFromStorage);
 
@@ -78,10 +94,19 @@ export function useDemoSession() {
     };
   }, []);
 
-  const allUsers = useMemo(
-    () => [...demoUsers, ...registeredUsers],
-    [registeredUsers],
-  );
+  const allUsers = useMemo(() => {
+    const unique = new Map<string, SessionUser>();
+
+    for (const user of [
+      ...demoUsers.map(withoutPassword),
+      ...registeredUsers.map(withoutPassword),
+      ...serverUsers,
+    ]) {
+      unique.set(user.email.toLowerCase(), user);
+    }
+
+    return Array.from(unique.values());
+  }, [registeredUsers, serverUsers]);
 
   function persistSession(user: SessionUser | null) {
     setSession(user);
@@ -95,59 +120,87 @@ export function useDemoSession() {
     notifySessionChange();
   }
 
-  function login(email: string, password: string) {
-    const user = allUsers.find(
+  async function login(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const localUser = [...demoUsers, ...registeredUsers].find(
       (candidate) =>
-        candidate.email.toLowerCase() === email.trim().toLowerCase() &&
-        candidate.password === password,
+        candidate.email.toLowerCase() === normalizedEmail && candidate.password === password,
     );
 
-    if (!user) {
-      return { ok: false, message: "Неверный email или пароль." };
+    if (localUser) {
+      if (!localUser.emailConfirmed) {
+        return { ok: false, message: "Email is not confirmed yet." };
+      }
+
+      persistSession(withoutPassword(localUser));
+      return { ok: true, message: "Signed in." };
     }
 
-    if (!user.emailConfirmed) {
-      return { ok: false, message: "Email ещё не подтверждён." };
-    }
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: normalizedEmail, password }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        user?: SessionUser;
+        error?: string;
+        message?: string;
+      };
 
-    persistSession(withoutPassword(user));
-    return { ok: true, message: "Вход выполнен." };
+      if (!response.ok || !result.user) {
+        return {
+          ok: false,
+          message: result.error || result.message || "Incorrect email or password.",
+        };
+      }
+
+      persistSession(result.user);
+      return { ok: true, message: result.message || "Signed in." };
+    } catch {
+      return { ok: false, message: "Could not sign in. Try again later." };
+    }
   }
 
-  function register(input: {
-    name: string;
+  async function register(input: {
+    firstName: string;
+    lastName: string;
     email: string;
     password: string;
     role: Extract<UserRole, "user" | "b2b">;
     company?: string;
     vatNumber?: string;
   }) {
-    const email = input.email.trim().toLowerCase();
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+      };
 
-    if (allUsers.some((user) => user.email.toLowerCase() === email)) {
-      return { ok: false, message: "Пользователь с таким email уже есть." };
+      if (!response.ok) {
+        return {
+          ok: false,
+          message: result.error || result.message || "Registration failed.",
+        };
+      }
+
+      refreshServerUsers();
+      return {
+        ok: true,
+        message: result.message || "Registration created. Please confirm your email.",
+      };
+    } catch {
+      return { ok: false, message: "Registration failed. Try again later." };
     }
-
-    const user: StoredUser = {
-      id: `usr-${Date.now()}`,
-      name: input.name.trim() || email,
-      email,
-      password: input.password,
-      role: input.role,
-      company: input.company,
-      vatNumber: input.vatNumber,
-      creditLimit: input.role === "b2b" ? 2500 : undefined,
-      paymentTerms:
-        input.role === "b2b" ? ["card", "invoice", "defer15"] : ["card"],
-      emailConfirmed: true,
-    };
-
-    const nextUsers = [...registeredUsers, user];
-    setRegisteredUsers(nextUsers);
-    window.localStorage.setItem(usersKey, JSON.stringify(nextUsers));
-    persistSession(withoutPassword(user));
-
-    return { ok: true, message: "Регистрация выполнена. Email подтверждён." };
   }
 
   function logout() {
