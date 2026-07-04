@@ -6,6 +6,7 @@ import { demoUsers, type DemoUser, type UserRole } from "../lib/store-data";
 const usersKey = "bc_registered_users";
 const sessionKey = "bc_session";
 const sessionChangeEvent = "bc-session-change";
+let browserHydrated = false;
 
 export type SessionUser = Omit<DemoUser, "password">;
 type StoredUser = DemoUser;
@@ -53,11 +54,16 @@ function notifySessionChange() {
 }
 
 export function useDemoSession() {
-  const [session, setSession] = useState<SessionUser | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>([]);
+  const [session, setSession] = useState<SessionUser | null>(() =>
+    browserHydrated ? readSession() : null,
+  );
+  const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>(() =>
+    browserHydrated ? readStoredUsers() : [],
+  );
 
   useEffect(() => {
     function syncFromStorage() {
+      browserHydrated = true;
       setSession(readSession());
       setRegisteredUsers(readStoredUsers());
     }

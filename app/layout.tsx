@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HydrationReady } from "../components/hydration-ready";
 import { StoreFooter } from "../components/store-footer";
 import { StoreHeader } from "../components/store-header";
 import "./globals.css";
@@ -21,6 +22,13 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "document.documentElement.classList.add('kg-prehydrate')",
+          }}
+        />
+        <HydrationReady />
         <StoreHeader />
         <main>{children}</main>
         <StoreFooter />

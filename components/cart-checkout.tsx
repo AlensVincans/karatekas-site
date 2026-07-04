@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   findVariation,
@@ -466,26 +467,34 @@ function carrierIcon(method: ShippingMethodOption) {
   const carrier = method.carrierCode.toLowerCase();
 
   if (method.shippingType === "self_pickup" || carrier === "self") {
-    return { className: "self", label: "K" };
+    return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.png" };
   }
 
   if (method.shippingType === "courier") {
-    return { className: "courier", label: "↗" };
+    return { alt: "Courier", className: "courier", src: "/shipping-logos/courier.png" };
   }
 
   if (carrier.includes("dpd")) {
-    return { className: "dpd", label: "DPD" };
+    return { alt: "DPD", className: "dpd", src: "/shipping-logos/dpd.png" };
+  }
+
+  if (carrier.includes("smartposti") || carrier.includes("itella")) {
+    return { alt: "Smartposti", className: "smartposti", src: "/shipping-logos/smartposti.png" };
   }
 
   if (carrier.includes("unisend")) {
-    return { className: "unisend", label: "U" };
+    return { alt: "Unisend", className: "unisend", src: "/shipping-logos/unisend.png" };
+  }
+
+  if (carrier.includes("venipak")) {
+    return { alt: "Venipak", className: "venipak", src: "/shipping-logos/venipak.png" };
   }
 
   if (carrier.includes("pasts") || carrier.includes("latvijas")) {
-    return { className: "pasts", label: "LP" };
+    return { alt: "Latvijas Pasts", className: "pasts", src: "/shipping-logos/latvijas-pasts.png" };
   }
 
-  return { className: "omniva", label: "O" };
+  return { alt: "Omniva", className: "omniva", src: "/shipping-logos/omniva.png" };
 }
 
 export function CartCheckout() {
@@ -948,8 +957,15 @@ export function CartCheckout() {
                   onClick={() => setShippingId(method.id)}
                   type="button"
                 >
-                  <span className={`carrier-icon ${icon.className}`} aria-hidden="true">
-                    {icon.label}
+                  <span className={`carrier-icon ${icon.className}`}>
+                    <Image
+                      alt={icon.alt}
+                      className="carrier-logo"
+                      height={44}
+                      src={icon.src}
+                      unoptimized
+                      width={76}
+                    />
                   </span>
                   <span className="shipping-option-copy">
                     <strong>{methodName(method, language)}</strong>

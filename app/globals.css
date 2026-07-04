@@ -15,6 +15,10 @@
   --shadow: 0 16px 42px rgba(23, 18, 15, 0.13);
 }
 
+html.kg-prehydrate body {
+  visibility: hidden;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -4179,7 +4183,7 @@ textarea {
   border-radius: 8px;
   display: grid;
   gap: 11px;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
   justify-items: stretch;
   min-height: 66px;
   min-width: 0;
@@ -4216,40 +4220,52 @@ textarea {
 .carrier-icon {
   align-items: center;
   align-self: center;
+  background: #fff;
+  border: 1px solid var(--v3-line);
   border-radius: 8px;
-  color: #fff !important;
   display: inline-flex !important;
-  font-size: 12px !important;
-  font-weight: 950;
-  height: 42px;
+  height: 44px;
   justify-content: center;
-  letter-spacing: 0;
-  width: 42px;
+  overflow: hidden;
+  padding: 6px;
+  width: 76px;
+}
+
+.carrier-logo {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  width: 100%;
 }
 
 .carrier-icon.omniva {
-  background: #f58220;
+  background: #111;
 }
 
-.carrier-icon.dpd {
-  background: #c91429;
-}
-
-.carrier-icon.unisend {
-  background: linear-gradient(135deg, #153e75, #22a06b);
-}
-
+.carrier-icon.dpd,
+.carrier-icon.smartposti,
+.carrier-icon.unisend,
+.carrier-icon.venipak,
 .carrier-icon.pasts {
-  background: #f4c400;
-  color: #123c73 !important;
+  background: #fff;
 }
 
-.carrier-icon.self {
-  background: var(--v3-black);
-}
-
+.carrier-icon.self,
 .carrier-icon.courier {
-  background: #315c78;
+  background:
+    linear-gradient(45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(-45deg, #f5f5f5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f5f5f5 75%),
+    linear-gradient(-45deg, transparent 75%, #f5f5f5 75%),
+    #fff;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+.carrier-icon.self .carrier-logo,
+.carrier-icon.courier .carrier-logo {
+  filter: contrast(1.15);
 }
 
 .totals-v3 {
