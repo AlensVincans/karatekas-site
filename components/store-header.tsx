@@ -2,12 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { LanguageSelect, useLanguage } from "./language";
 import { ProductSearchSuggestions } from "./product-search-suggestions";
 import { useDemoSession } from "./session";
-import { categories } from "../lib/store-data";
-import { categoryLabel } from "../lib/i18n";
 
 function SearchIcon() {
   return (
@@ -56,7 +55,8 @@ function MenuIcon({ open }: { open: boolean }) {
 
 export function StoreHeader() {
   const { session, logout } = useDemoSession();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAdmin = session?.role === "admin";
@@ -66,9 +66,7 @@ export function StoreHeader() {
 
     const normalized = query.trim();
     setMobileOpen(false);
-    window.location.href = normalized
-      ? `/catalog?q=${encodeURIComponent(normalized)}`
-      : "/catalog";
+    router.push(normalized ? `/catalog?q=${encodeURIComponent(normalized)}` : "/catalog");
   }
 
   function logoutAndClose() {
@@ -127,6 +125,7 @@ export function StoreHeader() {
             className="brand-logo-v2"
             height={54}
             priority
+            unoptimized
             src="/karatekas-mark.png"
             width={54}
           />
@@ -137,16 +136,7 @@ export function StoreHeader() {
         </Link>
 
         <nav className="primary-nav-v2 desktop-nav" aria-label="Main navigation">
-          <div className="catalog-hover-v2">
-            <Link href="/catalog">{t.navCatalog}</Link>
-            <nav className="category-rail-v2" aria-label="Product categories">
-              {categories.map((category) => (
-                <Link key={category} href={`/catalog?category=${encodeURIComponent(category)}`}>
-                  {categoryLabel(category, language)}
-                </Link>
-              ))}
-            </nav>
-          </div>
+          <Link href="/catalog">{t.navCatalog}</Link>
           <Link href="/catalog?promo=1">{t.discountedOnly}</Link>
           {isAdmin ? <Link href="/admin">{t.navAdmin}</Link> : null}
         </nav>
@@ -176,16 +166,6 @@ export function StoreHeader() {
             <Link href="/catalog" onClick={() => setMobileOpen(false)}>
               {t.navCatalog}
             </Link>
-            {categories.map((category) => (
-              <Link
-                className="mobile-category-link-v2"
-                href={`/catalog?category=${encodeURIComponent(category)}`}
-                key={category}
-                onClick={() => setMobileOpen(false)}
-              >
-                {categoryLabel(category, language)}
-              </Link>
-            ))}
             <Link href="/cart" onClick={() => setMobileOpen(false)}>
               {t.navCart}
             </Link>

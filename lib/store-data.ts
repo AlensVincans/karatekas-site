@@ -112,38 +112,7 @@ export const demoUsers: DemoUser[] = [
 
 export const products: Product[] = karateProducts;
 
-export const discounts: DiscountRule[] = [
-  {
-    id: "disc-kihon-b2c",
-    name: "Kihon старт сезона",
-    scope: "brand",
-    target: "Kihon",
-    type: "percent",
-    value: 10,
-    audience: "user",
-    active: true,
-  },
-  {
-    id: "disc-body-b2b",
-    name: "Клубная защита",
-    scope: "product",
-    target: "kihon-body-protector",
-    type: "fixed",
-    value: 8,
-    audience: "b2b",
-    active: true,
-  },
-  {
-    id: "disc-arawaza-protector",
-    name: "WKF комплект",
-    scope: "variation",
-    target: "a0564xs",
-    type: "percent",
-    value: 7,
-    audience: "both",
-    active: true,
-  },
-];
+export const discounts: DiscountRule[] = [];
 
 export const deliveryOptions = [
   { id: "omniva", name: "Omniva", region: "Балтия", price: 3.49, eta: "1-2 дня" },

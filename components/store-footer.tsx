@@ -89,7 +89,14 @@ export function StoreFooter() {
       <div className="footer-main-v3">
         <div className="footer-brand-v3">
           <Link className="footer-logo-v3" href="/" aria-label="Karatekas Gear">
-            <Image alt="" className="brand-logo-v2" height={54} src="/karatekas-mark.png" width={54} />
+            <Image
+              alt=""
+              className="brand-logo-v2"
+              height={54}
+              src="/karatekas-mark.png"
+              unoptimized
+              width={54}
+            />
             <span>
               <strong>Karatekas.eu</strong>
               <small>{t.brandSubline}</small>

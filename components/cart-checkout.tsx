@@ -462,6 +462,32 @@ function methodDetails(method: ShippingMethodOption, language: Parameters<typeof
   return `${method.carrierName} - ${typeLabel}`;
 }
 
+function carrierIcon(method: ShippingMethodOption) {
+  const carrier = method.carrierCode.toLowerCase();
+
+  if (method.shippingType === "self_pickup" || carrier === "self") {
+    return { className: "self", label: "K" };
+  }
+
+  if (method.shippingType === "courier") {
+    return { className: "courier", label: "↗" };
+  }
+
+  if (carrier.includes("dpd")) {
+    return { className: "dpd", label: "DPD" };
+  }
+
+  if (carrier.includes("unisend")) {
+    return { className: "unisend", label: "U" };
+  }
+
+  if (carrier.includes("pasts") || carrier.includes("latvijas")) {
+    return { className: "pasts", label: "LP" };
+  }
+
+  return { className: "omniva", label: "O" };
+}
+
 export function CartCheckout() {
   const { session, role } = useDemoSession();
   const { language } = useLanguage();
@@ -912,19 +938,28 @@ export function CartCheckout() {
             </select>
           </label>
           <div className="shipping-options">
-            {shippingMethods.map((method) => (
-              <button
-                className={method.id === shippingId ? "shipping-option active" : "shipping-option"}
-                key={method.id}
-                onClick={() => setShippingId(method.id)}
-                type="button"
-              >
-                <strong>{methodName(method, language)}</strong>
-                <span>
-                  {methodDetails(method, language)} / {money(method.price, language)}
-                </span>
-              </button>
-            ))}
+            {shippingMethods.map((method) => {
+              const icon = carrierIcon(method);
+
+              return (
+                <button
+                  className={method.id === shippingId ? "shipping-option active" : "shipping-option"}
+                  key={method.id}
+                  onClick={() => setShippingId(method.id)}
+                  type="button"
+                >
+                  <span className={`carrier-icon ${icon.className}`} aria-hidden="true">
+                    {icon.label}
+                  </span>
+                  <span className="shipping-option-copy">
+                    <strong>{methodName(method, language)}</strong>
+                    <span>
+                      {methodDetails(method, language)} / {money(method.price, language)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {selectedShippingMethod?.type === "pickupPoint" ? (
