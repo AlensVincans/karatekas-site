@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { defaultLanguage, dictionary, languages, type Language } from "../lib/i18n";
 
 const storageKey = "kg_language";
@@ -50,20 +50,43 @@ export function useLanguage() {
 
 export function LanguageSelect() {
   const { language, setLanguage } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const activeLanguage = languages.find((item) => item.code === language) ?? languages[0];
+
+  function chooseLanguage(next: Language) {
+    setLanguage(next);
+    setOpen(false);
+  }
 
   return (
-    <div className="language-switch" aria-label="Language">
-      <select
+    <div className={open ? "language-switch open" : "language-switch"} aria-label="Language">
+      <button
+        aria-expanded={open}
         aria-label="Language"
-        value={language}
-        onChange={(event) => setLanguage(event.target.value as Language)}
+        className="language-trigger"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
       >
-        {languages.map((item) => (
-          <option key={item.code} value={item.code}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+        <span className={`language-flag flag-${language}`} />
+        <span>{activeLanguage.label}</span>
+      </button>
+      {open ? (
+        <div className="language-menu" role="listbox">
+          {languages.map((item) => (
+            <button
+              aria-selected={item.code === language}
+              className={item.code === language ? "active" : ""}
+              key={item.code}
+              onClick={() => chooseLanguage(item.code)}
+              role="option"
+              type="button"
+            >
+              <span className={`language-flag flag-${item.code}`} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -181,6 +181,8 @@ const copy = {
     noVat: "Счёт без PVN",
     goods: "Товары",
     inStock: "в наличии",
+    readyGroups: "групп товаров готовы к выбору доставки.",
+    qty: "Кол-во",
     total: "Итого",
     placeOrder: "Оформить заказ",
     needLogin: "Сначала войдите или зарегистрируйтесь.",
@@ -219,6 +221,8 @@ const copy = {
     noVat: "Rēķins bez PVN",
     goods: "Preces",
     inStock: "noliktavā",
+    readyGroups: "preču grupas gatavas piegādes izvēlei.",
+    qty: "Daudzums",
     total: "Kopā",
     placeOrder: "Noformēt pasūtījumu",
     needLogin: "Vispirms ieejiet vai reģistrējieties.",
@@ -257,6 +261,8 @@ const copy = {
     noVat: "Invoice without VAT",
     goods: "Products",
     inStock: "in stock",
+    readyGroups: "item groups ready for delivery selection.",
+    qty: "Qty",
     total: "Total",
     placeOrder: "Place order",
     needLogin: "Please sign in or register first.",
@@ -270,6 +276,86 @@ const copy = {
     paymentError: "Could not open Montonio payment. Please try again.",
     invoiceStatus: "Order created. The invoice will be prepared by admin.",
     deferStatus: "Order created. 15-day deferred payment will be checked by admin.",
+  },
+  et: {
+    title: "Ostukorv ja makse",
+    empty: "Ostukorv on tühi. Lisa tooteid kataloogist.",
+    checkout: "Kassa",
+    shipping: "Tarne",
+    pickupSearch: "Otsi väljastuspunkti",
+    pickupSelect: "Vali väljastuspunkt",
+    pickupLoading: "Laeme väljastuspunkte...",
+    noPickupPoints: "Väljastuspunkte ei leitud.",
+    courierAddress: "Kulleri tarneaadress",
+    street: "Tänav ja maja",
+    city: "Linn",
+    region: "Piirkond",
+    postalCode: "Postiindeks",
+    country: "Riik",
+    phoneCountry: "Telefonikood",
+    phone: "Telefon",
+    payment: "Makse",
+    card: "Kaart",
+    invoice: "Arve",
+    defer15: "15 päeva",
+    noVat: "Arve ilma PVN-ita",
+    goods: "Tooted",
+    inStock: "laos",
+    readyGroups: "tootegruppi on tarne valikuks valmis.",
+    qty: "Kogus",
+    total: "Kokku",
+    placeOrder: "Vormista tellimus",
+    needLogin: "Palun logi sisse või registreeru.",
+    cartEmpty: "Ostukorv on tühi.",
+    b2bOnly: "Arve ja edasilükatud makse on saadaval ainult B2B jaoks.",
+    shippingRequired: "Vali esmalt tarneviis.",
+    pickupRequired: "Vali väljastuspunkt.",
+    addressRequired: "Täida kulleri aadress ja telefon.",
+    cardStatus: "Suundume Montonio maksesse.",
+    redirecting: "Avame Montonio...",
+    paymentError: "Montonio makset ei õnnestunud avada. Proovi uuesti.",
+    invoiceStatus: "Tellimus loodud. Administraator valmistab arve ette.",
+    deferStatus: "Tellimus loodud. 15-päevase maksepikenduse kontrollib administraator.",
+  },
+  lt: {
+    title: "Krepšelis ir apmokėjimas",
+    empty: "Krepšelis tuščias. Pridėkite prekių iš katalogo.",
+    checkout: "Apmokėjimas",
+    shipping: "Pristatymas",
+    pickupSearch: "Ieškoti atsiėmimo punkto",
+    pickupSelect: "Pasirinkite atsiėmimo punktą",
+    pickupLoading: "Įkeliami atsiėmimo punktai...",
+    noPickupPoints: "Atsiėmimo punktų nerasta.",
+    courierAddress: "Kurjerio pristatymo adresas",
+    street: "Gatvė ir namas",
+    city: "Miestas",
+    region: "Regionas",
+    postalCode: "Pašto kodas",
+    country: "Šalis",
+    phoneCountry: "Telefono kodas",
+    phone: "Telefonas",
+    payment: "Apmokėjimas",
+    card: "Kortelė",
+    invoice: "Sąskaita",
+    defer15: "15 dienų",
+    noVat: "Sąskaita be PVN",
+    goods: "Prekės",
+    inStock: "sandėlyje",
+    readyGroups: "prekių grupės paruoštos pristatymo pasirinkimui.",
+    qty: "Kiekis",
+    total: "Iš viso",
+    placeOrder: "Pateikti užsakymą",
+    needLogin: "Pirmiausia prisijunkite arba užsiregistruokite.",
+    cartEmpty: "Krepšelis tuščias.",
+    b2bOnly: "Sąskaita ir atidėtas mokėjimas prieinami tik B2B.",
+    shippingRequired: "Pirmiausia pasirinkite pristatymo būdą.",
+    pickupRequired: "Pasirinkite atsiėmimo punktą.",
+    addressRequired: "Užpildykite kurjerio adresą ir telefoną.",
+    cardStatus: "Pereiname prie Montonio apmokėjimo.",
+    redirecting: "Atidarome Montonio...",
+    paymentError: "Nepavyko atidaryti Montonio mokėjimo. Bandykite dar kartą.",
+    invoiceStatus: "Užsakymas sukurtas. Administratorius paruoš sąskaitą.",
+    deferStatus: "Užsakymas sukurtas. 15 dienų atidėjimą patikrins administratorius.",
   },
 } as const;
 
@@ -289,23 +375,89 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
-function methodDetails(method: ShippingMethodOption, language: Parameters<typeof money>[1]) {
+const deliveryLabels = {
+  ru: {
+    countries: { LV: "Латвия", LT: "Литва", EE: "Эстония" },
+    selfPickupName: "Забрать самому",
+    courierName: "Курьерская доставка",
+    selfPickup: "самовывоз",
+    courier: "адрес",
+    postOffice: "почтовое отделение",
+    parcelMachine: "пакомат",
+  },
+  lv: {
+    countries: { LV: "Latvija", LT: "Lietuva", EE: "Igaunija" },
+    selfPickupName: "Saņemt uz vietas",
+    courierName: "Kurjera piegāde",
+    selfPickup: "saņemšana uz vietas",
+    courier: "adrese",
+    postOffice: "pasta nodaļa",
+    parcelMachine: "paku automāts",
+  },
+  en: {
+    countries: { LV: "Latvia", LT: "Lithuania", EE: "Estonia" },
+    selfPickupName: "Pick up from store",
+    courierName: "Courier delivery",
+    selfPickup: "self pickup",
+    courier: "address",
+    postOffice: "post office",
+    parcelMachine: "parcel machine",
+  },
+  et: {
+    countries: { LV: "Läti", LT: "Leedu", EE: "Eesti" },
+    selfPickupName: "Tulen ise järele",
+    courierName: "Kulleriga tarne",
+    selfPickup: "ise järele tulemine",
+    courier: "aadress",
+    postOffice: "postkontor",
+    parcelMachine: "pakiautomaat",
+  },
+  lt: {
+    countries: { LV: "Latvija", LT: "Lietuva", EE: "Estija" },
+    selfPickupName: "Atsiimti vietoje",
+    courierName: "Kurjerio pristatymas",
+    selfPickup: "atsiėmimas vietoje",
+    courier: "adresas",
+    postOffice: "pašto skyrius",
+    parcelMachine: "paštomatas",
+  },
+} as const;
+
+function shippingLabels(language: Parameters<typeof money>[1]) {
+  return deliveryLabels[language as keyof typeof deliveryLabels] ?? deliveryLabels.en;
+}
+
+function methodName(method: ShippingMethodOption, language: Parameters<typeof money>[1]) {
+  const labels = shippingLabels(language);
+
   if (method.shippingType === "self_pickup") {
-    return language === "ru"
-      ? "самовывоз"
-      : language === "lv"
-        ? "saņemšana uz vietas"
-        : "self pickup";
+    return labels.selfPickupName;
+  }
+
+  if (method.shippingType === "courier") {
+    return labels.courierName;
+  }
+
+  if (method.shippingType === "post_office") {
+    return method.carrierName;
+  }
+
+  return `${method.carrierName} ${labels.parcelMachine}`;
+}
+
+function methodDetails(method: ShippingMethodOption, language: Parameters<typeof money>[1]) {
+  const labels = shippingLabels(language);
+
+  if (method.shippingType === "self_pickup") {
+    return labels.selfPickup;
   }
 
   const typeLabel =
     method.shippingType === "courier"
-      ? language === "en"
-        ? "address"
-        : "address"
+      ? labels.courier
       : method.shippingType === "post_office"
-        ? "post office"
-        : "parcel machine";
+        ? labels.postOffice
+        : labels.parcelMachine;
 
   return `${method.carrierName} - ${typeLabel}`;
 }
@@ -690,7 +842,7 @@ export function CartCheckout() {
         <div className="checkout-heading-v3">
           <span className="kicker-v3">{c.goods}</span>
           <h1>{c.title}</h1>
-          <p>{lines.length} item groups ready for delivery selection.</p>
+          <p>{lines.length} {c.readyGroups}</p>
         </div>
         {lines.length ? (
           <div className="cart-item-list-v3">
@@ -715,7 +867,7 @@ export function CartCheckout() {
                     <small>{line.availability} {c.inStock}</small>
                   </div>
                   <label className="cart-qty-v3">
-                    Qty
+                    {c.qty}
                     <input
                       min={0}
                       onChange={(event) => updateQty(line.variation.id, Number(event.target.value))}
@@ -754,7 +906,7 @@ export function CartCheckout() {
             >
               {deliveryCountries.map((country) => (
                 <option key={country.code} value={country.code}>
-                  {country.name}
+                  {shippingLabels(language).countries[country.code]}
                 </option>
               ))}
             </select>
@@ -767,7 +919,7 @@ export function CartCheckout() {
                 onClick={() => setShippingId(method.id)}
                 type="button"
               >
-                <strong>{method.name}</strong>
+                <strong>{methodName(method, language)}</strong>
                 <span>
                   {methodDetails(method, language)} / {money(method.price, language)}
                 </span>

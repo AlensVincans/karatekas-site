@@ -43,6 +43,30 @@ const copy = {
     goAccount: "Open account",
     noAccount: "No account? Register",
   },
+  et: {
+    eyebrow: "Konto",
+    title: "Logi sisse",
+    text: "Logi sisse, et näha tellimusi, arveid, maksetingimusi ja salvestatud tarneandmeid.",
+    password: "Parool",
+    passwordPlaceholder: "Sinu parool",
+    submit: "Logi sisse",
+    success: "Sisselogimine õnnestus.",
+    failed: "Vale email või parool.",
+    goAccount: "Ava konto",
+    noAccount: "Kontot pole? Registreeru",
+  },
+  lt: {
+    eyebrow: "Paskyra",
+    title: "Prisijungti",
+    text: "Prisijunkite, kad matytumėte užsakymus, sąskaitas, mokėjimo sąlygas ir išsaugotus pristatymo duomenis.",
+    password: "Slaptažodis",
+    passwordPlaceholder: "Jūsų slaptažodis",
+    submit: "Prisijungti",
+    success: "Prisijungta.",
+    failed: "Neteisingas email arba slaptažodis.",
+    goAccount: "Atidaryti paskyrą",
+    noAccount: "Neturite paskyros? Registracija",
+  },
 } as const;
 
 export default function LoginPage() {

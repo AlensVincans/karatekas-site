@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { promoBannerHref, useActivePromoBanners } from "../lib/promotions";
+import { useActivePromoBanners } from "../lib/promotions";
 
 export function PromoCarousel() {
-  const banners = useActivePromoBanners();
+  const banners = useActivePromoBanners().filter((item) => item.image);
   const [index, setIndex] = useState(0);
   const hasMany = banners.length > 1;
   const banner = banners[index] ?? banners[0];
 
-  if (!banner) {
+  if (!banner?.image) {
     return null;
   }
 
@@ -24,19 +24,13 @@ export function PromoCarousel() {
 
   return (
     <div className={hasMany ? "promo-carousel" : "promo-carousel single"}>
-      <div className="promo-carousel-media">
-        {banner.image ? (
-          <div className="promo-carousel-image" style={{ backgroundImage: `url("${banner.image}")` }} />
-        ) : (
-          <span>Sale</span>
-        )}
-      </div>
-      <div className="promo-carousel-copy">
-        <strong>{banner.title}</strong>
-        <span>{banner.text}</span>
-      </div>
-      <div className="promo-carousel-actions">
-        <Link href={promoBannerHref(banner)}>{banner.buttonText || "Open"}</Link>
+      <Link
+        aria-label={banner.title || "Sale"}
+        className="promo-image-banner"
+        href="/catalog?promo=1"
+        style={{ backgroundImage: `url("${banner.image}")` }}
+      />
+      <div className="promo-carousel-actions image-actions">
         {hasMany ? (
           <>
             <button onClick={previous} type="button" aria-label="Previous banner">

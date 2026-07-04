@@ -120,15 +120,6 @@ export function StoreHeader() {
 
   return (
     <header className="site-header-v2">
-      <div className="service-strip-v2">
-        <span>Karatekas.eu / Karate Equipment</span>
-        <div>
-          <span>Fast Baltic delivery</span>
-          <span>Secure checkout</span>
-          <span>B2B club pricing</span>
-        </div>
-      </div>
-
       <div className="nav-main-v2">
         <Link className="brand-lockup-v2" href="/" aria-label="Karatekas Gear">
           <Image
@@ -146,10 +137,17 @@ export function StoreHeader() {
         </Link>
 
         <nav className="primary-nav-v2 desktop-nav" aria-label="Main navigation">
-          <Link href="/catalog">{t.navCatalog}</Link>
+          <div className="catalog-hover-v2">
+            <Link href="/catalog">{t.navCatalog}</Link>
+            <nav className="category-rail-v2" aria-label="Product categories">
+              {categories.map((category) => (
+                <Link key={category} href={`/catalog?category=${encodeURIComponent(category)}`}>
+                  {categoryLabel(category, language)}
+                </Link>
+              ))}
+            </nav>
+          </div>
           <Link href="/catalog?promo=1">{t.discountedOnly}</Link>
-          <Link href="/catalog?category=Protective%20Equipment">Protection</Link>
-          <Link href="/catalog?category=Kimono">Gi</Link>
           {isAdmin ? <Link href="/admin">{t.navAdmin}</Link> : null}
         </nav>
 
@@ -178,6 +176,16 @@ export function StoreHeader() {
             <Link href="/catalog" onClick={() => setMobileOpen(false)}>
               {t.navCatalog}
             </Link>
+            {categories.map((category) => (
+              <Link
+                className="mobile-category-link-v2"
+                href={`/catalog?category=${encodeURIComponent(category)}`}
+                key={category}
+                onClick={() => setMobileOpen(false)}
+              >
+                {categoryLabel(category, language)}
+              </Link>
+            ))}
             <Link href="/cart" onClick={() => setMobileOpen(false)}>
               {t.navCart}
             </Link>
@@ -190,14 +198,6 @@ export function StoreHeader() {
           {userActions("mobile")}
         </div>
       </div>
-
-      <nav className="category-rail-v2" aria-label="Product categories">
-        {categories.map((category) => (
-          <Link key={category} href={`/catalog?category=${encodeURIComponent(category)}`}>
-            {categoryLabel(category, language)}
-          </Link>
-        ))}
-      </nav>
     </header>
   );
 }

@@ -6,10 +6,11 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "node scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js dev",
-    "build": "node scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js build",
-    "start": "node scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js start",
-    "lint": "node scripts/use-modern-node.mjs node_modules/eslint/bin/eslint.js . --ignore-pattern dist --ignore-pattern .next --ignore-pattern work",
+    "dev": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js dev",
+    "build": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js build",
+    "start": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js start",
+    "lint": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/eslint/bin/eslint.js . --ignore-pattern dist --ignore-pattern .next --ignore-pattern work",
+    "typecheck": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/typescript/bin/tsc --noEmit --pretty false",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

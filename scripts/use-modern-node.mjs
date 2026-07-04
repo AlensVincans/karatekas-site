@@ -34,7 +34,8 @@ function bundledNodeCandidates() {
 }
 
 const target = resolve(args[0]);
-const targetArgs = [target, ...args.slice(1)];
+const preserveSymlinkArgs = ["--preserve-symlinks", "--preserve-symlinks-main"];
+const targetArgs = [...preserveSymlinkArgs, target, ...args.slice(1)];
 const nodePath = currentNodeIsModern()
   ? process.execPath
   : bundledNodeCandidates().find((candidate) => existsSync(candidate));

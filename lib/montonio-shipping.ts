@@ -200,8 +200,10 @@ function normalizeCarrierCode(carrier: string) {
 }
 
 function shippingApiBaseUrl() {
-  if (env().MONTONIO_SHIPPING_API_BASE_URL?.trim()) {
-    return env().MONTONIO_SHIPPING_API_BASE_URL.trim().replace(/\/+$/g, "");
+  const configuredBaseUrl = env().MONTONIO_SHIPPING_API_BASE_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/g, "");
   }
 
   return env().MONTONIO_ENV?.trim().toLowerCase() === "production"

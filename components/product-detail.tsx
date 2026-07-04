@@ -22,6 +22,64 @@ type CartLine = {
   qty: number;
 };
 
+const copy = {
+  ru: {
+    delivery: "Доставка",
+    deliveryText: "Пакоматы, курьерская доставка или самовывоз.",
+    returns: "Возврат",
+    returnsText: "Неиспользованную экипировку можно обменять, если не подошел размер или цвет.",
+    b2b: "B2B",
+    b2bText: "Войдите, чтобы видеть розничную цену зачеркнутой и активную клубную цену.",
+    details: "Детали товара",
+    detailsTitle: "Для тренировок и соревнований по карате.",
+    completeKit: "Соберите комплект",
+  },
+  lv: {
+    delivery: "Piegāde",
+    deliveryText: "Paku automāti, kurjers vai saņemšana uz vietas.",
+    returns: "Atgriešana",
+    returnsText: "Nelietotu ekipējumu var apmainīt, ja neder izmērs vai krāsa.",
+    b2b: "B2B",
+    b2bText: "Ieejiet, lai redzētu mazumtirdzniecības cenu pārsvītrotu un aktīvo kluba cenu.",
+    details: "Preces detaļas",
+    detailsTitle: "Karatē treniņiem un sacensībām.",
+    completeKit: "Pabeidziet komplektu",
+  },
+  en: {
+    delivery: "Delivery",
+    deliveryText: "Parcel machines, courier delivery or self pickup.",
+    returns: "Returns",
+    returnsText: "Unused gear can be exchanged if size or color is wrong.",
+    b2b: "B2B",
+    b2bText: "Login to see crossed retail price and active club pricing.",
+    details: "Product details",
+    detailsTitle: "Built for karate training and competition.",
+    completeKit: "Complete the kit",
+  },
+  et: {
+    delivery: "Tarne",
+    deliveryText: "Pakiautomaadid, kuller või ise järele tulemine.",
+    returns: "Tagastus",
+    returnsText: "Kasutamata varustust saab vahetada, kui suurus või värv ei sobi.",
+    b2b: "B2B",
+    b2bText: "Logi sisse, et näha jaehinda läbikriipsutatult ja aktiivset klubihinda.",
+    details: "Toote andmed",
+    detailsTitle: "Karate treeninguteks ja võistlusteks.",
+    completeKit: "Täienda komplekti",
+  },
+  lt: {
+    delivery: "Pristatymas",
+    deliveryText: "Paštomatai, kurjeris arba atsiėmimas vietoje.",
+    returns: "Grąžinimas",
+    returnsText: "Nenaudotą įrangą galima pakeisti, jei netiko dydis arba spalva.",
+    b2b: "B2B",
+    b2bText: "Prisijunkite, kad matytumėte perbrauktą mažmeninę kainą ir aktyvią klubo kainą.",
+    details: "Prekės informacija",
+    detailsTitle: "Karatė treniruotėms ir varžyboms.",
+    completeKit: "Užbaikite komplektą",
+  },
+} as const;
+
 function readCart() {
   try {
     return JSON.parse(window.localStorage.getItem("bc_cart") ?? "[]") as CartLine[];
@@ -45,6 +103,7 @@ function variationTitle(
 export function ProductDetail({ product }: { product: Product }) {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
+  const c = copy[language as keyof typeof copy] ?? copy.en;
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
   const { levels } = useInventoryLevels();
@@ -208,16 +267,16 @@ export function ProductDetail({ product }: { product: Product }) {
 
           <div className="pdp-service-stack-v3">
             <div>
-              <strong>Delivery</strong>
-              <span>Parcel machines, courier delivery or self pickup.</span>
+              <strong>{c.delivery}</strong>
+              <span>{c.deliveryText}</span>
             </div>
             <div>
-              <strong>Returns</strong>
-              <span>Unused gear can be exchanged if size or color is wrong.</span>
+              <strong>{c.returns}</strong>
+              <span>{c.returnsText}</span>
             </div>
             <div>
-              <strong>B2B</strong>
-              <span>Login to see crossed retail price and active club pricing.</span>
+              <strong>{c.b2b}</strong>
+              <span>{c.b2bText}</span>
             </div>
           </div>
         </aside>
@@ -225,8 +284,8 @@ export function ProductDetail({ product }: { product: Product }) {
 
       <section className="pdp-info-v3">
         <div>
-          <span className="kicker-v3">Product details</span>
-          <h2>Built for karate training and competition.</h2>
+          <span className="kicker-v3">{c.details}</span>
+          <h2>{c.detailsTitle}</h2>
         </div>
         <p>{product.description || productDescription(product, language)}</p>
         <div className="pdp-spec-grid-v3">
@@ -240,7 +299,7 @@ export function ProductDetail({ product }: { product: Product }) {
 
       <section className="pdp-related-v3">
         <div className="section-intro-v3">
-          <span className="kicker-v3">Complete the kit</span>
+          <span className="kicker-v3">{c.completeKit}</span>
           <h2>{t.similarProducts}</h2>
         </div>
         <div className="product-grid product-grid-v3 compact-grid-v3">

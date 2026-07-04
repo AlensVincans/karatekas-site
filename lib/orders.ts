@@ -229,7 +229,7 @@ export async function createOrder(input: CreateOrderInput) {
 export async function updateOrder(
   id: string,
   patch: Partial<Omit<StoreOrder, "id" | "createdAt">>,
-) {
+): Promise<StoreOrder | null> {
   const store = await readStore();
   let updated: StoreOrder | null = null;
 

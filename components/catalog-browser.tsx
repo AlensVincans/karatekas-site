@@ -18,6 +18,74 @@ import { useDemoSession } from "./session";
 const allValue = "__all";
 type SortMode = "featured" | "price-asc" | "price-desc" | "name";
 
+const copy = {
+  ru: {
+    refineTitle: "Подбор экипировки",
+    refineText: "Ищите по товару, бренду, категории, SKU или вариации.",
+    results: "результатов",
+    allEquipment: "Вся экипировка для карате",
+    sort: "Сортировка",
+    featured: "Рекомендуемые",
+    priceAsc: "Сначала дешевле",
+    priceDesc: "Сначала дороже",
+    name: "Название",
+    emptyTitle: "Товары не найдены",
+    emptyText: "Попробуйте другую категорию, бренд или поисковую фразу.",
+  },
+  lv: {
+    refineTitle: "Ekipējuma atlase",
+    refineText: "Meklējiet pēc preces, zīmola, kategorijas, SKU vai variācijas.",
+    results: "rezultāti",
+    allEquipment: "Viss karatē ekipējums",
+    sort: "Kārtošana",
+    featured: "Ieteiktie",
+    priceAsc: "Cena augoši",
+    priceDesc: "Cena dilstoši",
+    name: "Nosaukums",
+    emptyTitle: "Preces nav atrastas",
+    emptyText: "Izmēģiniet citu kategoriju, zīmolu vai meklēšanas frāzi.",
+  },
+  en: {
+    refineTitle: "Refine your kit",
+    refineText: "Search by product, brand, category, SKU or variation.",
+    results: "results",
+    allEquipment: "All karate equipment",
+    sort: "Sort",
+    featured: "Featured",
+    priceAsc: "Price low to high",
+    priceDesc: "Price high to low",
+    name: "Name",
+    emptyTitle: "No products found",
+    emptyText: "Try another category, brand or search phrase.",
+  },
+  et: {
+    refineTitle: "Vali varustus",
+    refineText: "Otsi toote, brändi, kategooria, SKU või variatsiooni järgi.",
+    results: "tulemust",
+    allEquipment: "Kogu karate varustus",
+    sort: "Sorteeri",
+    featured: "Soovitatud",
+    priceAsc: "Hind kasvavalt",
+    priceDesc: "Hind kahanevalt",
+    name: "Nimi",
+    emptyTitle: "Tooteid ei leitud",
+    emptyText: "Proovi teist kategooriat, brändi või otsingufraasi.",
+  },
+  lt: {
+    refineTitle: "Atrinkite įrangą",
+    refineText: "Ieškokite pagal prekę, prekės ženklą, kategoriją, SKU ar variaciją.",
+    results: "rezultatai",
+    allEquipment: "Visa karatė įranga",
+    sort: "Rikiavimas",
+    featured: "Rekomenduojami",
+    priceAsc: "Kaina didėjančiai",
+    priceDesc: "Kaina mažėjančiai",
+    name: "Pavadinimas",
+    emptyTitle: "Prekių nerasta",
+    emptyText: "Pabandykite kitą kategoriją, prekės ženklą arba paieškos frazę.",
+  },
+} as const;
+
 function readCatalogParams(brands: string[]) {
   if (typeof window === "undefined") {
     return {
@@ -83,6 +151,7 @@ function lowestProductPrice(
 export function CatalogBrowser() {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
+  const c = copy[language as keyof typeof copy] ?? copy.en;
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
   const brands = Array.from(new Set(products.map((product) => product.brand)));
@@ -168,8 +237,8 @@ export function CatalogBrowser() {
       <aside className="filter-dock-v3 filters-panel">
         <div className="filters-head-v3">
           <span className="kicker-v3">{t.filters}</span>
-          <h2>Refine your kit</h2>
-          <p>Search by product, brand, category, SKU or variation.</p>
+          <h2>{c.refineTitle}</h2>
+          <p>{c.refineText}</p>
         </div>
         <div className="search-field">
           <label>
@@ -221,18 +290,18 @@ export function CatalogBrowser() {
       <section className="catalog-shelf-v3 catalog-results" aria-label={t.navCatalog}>
         <div className="catalog-toolbar-v3">
           <div className="catalog-result-copy-v3">
-            <span>{visibleProducts.length} results</span>
+            <span>{visibleProducts.length} {c.results}</span>
             <strong>
-              {category === allValue ? "All karate equipment" : categoryLabel(category, language)}
+              {category === allValue ? c.allEquipment : categoryLabel(category, language)}
             </strong>
           </div>
           <label>
-            Sort
+            {c.sort}
             <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}>
-              <option value="featured">Featured</option>
-              <option value="price-asc">Price low to high</option>
-              <option value="price-desc">Price high to low</option>
-              <option value="name">Name</option>
+              <option value="featured">{c.featured}</option>
+              <option value="price-asc">{c.priceAsc}</option>
+              <option value="price-desc">{c.priceDesc}</option>
+              <option value="name">{c.name}</option>
             </select>
           </label>
         </div>
@@ -265,8 +334,8 @@ export function CatalogBrowser() {
           </div>
         ) : (
           <div className="empty-state catalog-empty">
-            <strong>No products found</strong>
-            <span>Try another category, brand or search phrase.</span>
+            <strong>{c.emptyTitle}</strong>
+            <span>{c.emptyText}</span>
           </div>
         )}
       </section>

@@ -24,6 +24,14 @@ type CartLine = {
   qty: number;
 };
 
+const cardCopy = {
+  ru: { sale: "Акция", inStock: "В наличии", order: "Под заказ", promo: "Промо" },
+  lv: { sale: "Akcija", inStock: "Noliktavā", order: "Pēc pasūtījuma", promo: "Promo" },
+  en: { sale: "Sale", inStock: "In stock", order: "Order", promo: "Promo" },
+  et: { sale: "Soodus", inStock: "Laos", order: "Tellimisel", promo: "Promo" },
+  lt: { sale: "Akcija", inStock: "Sandėlyje", order: "Pagal užsakymą", promo: "Promo" },
+} as const;
+
 function readCart() {
   try {
     return JSON.parse(window.localStorage.getItem("bc_cart") ?? "[]") as CartLine[];
@@ -34,6 +42,7 @@ function readCart() {
 
 export function ProductCard({ product, role }: { product: Product; role: UserRole }) {
   const { language, t } = useLanguage();
+  const c = cardCopy[language as keyof typeof cardCopy] ?? cardCopy.en;
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
   const { levels } = useInventoryLevels();
@@ -55,12 +64,12 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
   const photo = productImages(product, productImageMap)[0];
   const isDiscounted = Boolean(price.hasPromo || price.discount);
   const badge = isDiscounted
-    ? "Sale"
+    ? c.sale
     : price.isB2B
       ? "B2B"
       : availability > 0
-        ? "In stock"
-        : "Order";
+        ? c.inStock
+        : c.order;
   const photoStyle = photo
     ? ({ backgroundImage: `url("${photo}")` } as CSSProperties)
     : ({
@@ -138,7 +147,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
             ) : null}
             <strong>{money(price.final, language)}</strong>
             {price.hasPromo ? (
-              <span className="discount-label">Promo</span>
+              <span className="discount-label">{c.promo}</span>
             ) : price.discount ? (
               <span className="discount-label">
                 {price.discount.type === "percent"

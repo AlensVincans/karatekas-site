@@ -46,6 +46,32 @@ const copy = {
     exists: "A user with this email already exists.",
     haveAccount: "Already have an account? Login",
   },
+  et: {
+    eyebrow: "Registreerimine",
+    title: "Loo konto",
+    regular: "Tavaklient",
+    name: "Nimi",
+    password: "Parool",
+    company: "Ettevõte",
+    optIn: "Double opt-in emaili kinnitus",
+    submit: "Registreeru",
+    success: "Registreerimine lõpetatud. Email on kinnitatud.",
+    exists: "Selle emailiga kasutaja on juba olemas.",
+    haveAccount: "Konto on olemas? Logi sisse",
+  },
+  lt: {
+    eyebrow: "Registracija",
+    title: "Sukurti paskyrą",
+    regular: "Įprastas",
+    name: "Vardas",
+    password: "Slaptažodis",
+    company: "Įmonė",
+    optIn: "Double opt-in email patvirtinimas",
+    submit: "Registruotis",
+    success: "Registracija baigta. Email patvirtintas.",
+    exists: "Vartotojas su šiuo email jau yra.",
+    haveAccount: "Jau turite paskyrą? Prisijungti",
+  },
 } as const;
 
 export default function RegisterPage() {
