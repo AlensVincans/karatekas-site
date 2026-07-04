@@ -409,7 +409,10 @@ const colorLabels: Record<Language, Record<string, string>> = {
 export const colorHex: Record<string, string> = {
   White: "#ffffff",
   Black: "#161616",
+  "black matt": "#111111",
+  "black satin": "#1f1f1f",
   Blue: "#0f61d6",
+  Brown: "#7a4b2a",
   Red: "#d7252f",
   Pink: "#ef7aa7",
   Green: "#26824a",
@@ -417,7 +420,48 @@ export const colorHex: Record<string, string> = {
   Orange: "#f08a24",
   Grey: "#8b949e",
   Skin: "#d7a982",
+  transparent:
+    "repeating-conic-gradient(#f1f1f1 0% 25%, #ffffff 0% 50%) 50% / 8px 8px",
 };
+
+function colorPartHex(color: string) {
+  const exact = colorHex[color];
+
+  if (exact) {
+    return exact;
+  }
+
+  const normalized = color.trim().toLowerCase();
+
+  return (
+    Object.entries(colorHex).find(([name]) => name.toLowerCase() === normalized)?.[1] ??
+    "#d9dfdc"
+  );
+}
+
+export function colorSwatch(color: string | undefined) {
+  if (!color) {
+    return "#d9dfdc";
+  }
+
+  const parts = color
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    const stops = parts.map((part, index) => {
+      const start = (index / parts.length) * 100;
+      const end = ((index + 1) / parts.length) * 100;
+
+      return `${colorPartHex(part)} ${start}% ${end}%`;
+    });
+
+    return `linear-gradient(90deg, ${stops.join(", ")})`;
+  }
+
+  return colorPartHex(color);
+}
 
 export function categoryLabel(category: string, language: Language) {
   return categoryLabels[language][category] ?? category;

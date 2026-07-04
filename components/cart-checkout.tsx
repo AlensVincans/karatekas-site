@@ -105,6 +105,19 @@ const fallbackShippingMethods: ShippingMethodOption[] = [
     available: true,
   },
   {
+    id: "smartposti-parcel-machine",
+    carrier: "smartposti",
+    carrierCode: "smartposti",
+    carrierName: "Smartposti",
+    name: "Smartposti parcel machine",
+    type: "pickupPoint",
+    shippingType: "parcel_machine",
+    subtype: "parcelMachine",
+    price: 4.9,
+    currency: "EUR",
+    available: true,
+  },
+  {
     id: "unisend-parcel-machine",
     carrier: "unisend",
     carrierCode: "unisend",
@@ -782,8 +795,37 @@ export function CartCheckout() {
     return true;
   }
 
+  function payloadShippingAddress(shipping: ShippingMethodOption) {
+    const contact = {
+      name: session?.name,
+      companyName: session?.company,
+      email: session?.email,
+    };
+
+    if (shipping.type === "courier") {
+      return {
+        ...shippingAddress,
+        ...contact,
+      };
+    }
+
+    if (shipping.type === "pickupPoint" && selectedPickupPoint) {
+      return {
+        ...shippingAddress,
+        ...contact,
+        streetAddress: selectedPickupPoint.streetAddress || selectedPickupPoint.name,
+        locality: selectedPickupPoint.locality || shippingAddress.locality,
+        postalCode: selectedPickupPoint.postalCode || shippingAddress.postalCode,
+        country: selectedPickupPoint.countryCode || shippingCountry,
+      };
+    }
+
+    return undefined;
+  }
+
   function checkoutPayload() {
     const shipping = selectedShippingMethod;
+    const shippingAddressPayload = payloadShippingAddress(shipping);
 
     return {
       customer: {
@@ -798,15 +840,7 @@ export function CartCheckout() {
       shippingType: shipping.shippingType,
       pickupPointId: selectedPickupPoint?.id,
       pickupPointName: selectedPickupPoint?.name,
-      shippingAddress:
-        shipping.type === "courier"
-          ? {
-              ...shippingAddress,
-              name: session?.name,
-              companyName: session?.company,
-              email: session?.email,
-            }
-          : undefined,
+      shippingAddress: shippingAddressPayload,
       shippingPrice,
       paymentMethod: payment,
       language,
@@ -834,15 +868,7 @@ export function CartCheckout() {
         shippingType: shipping.shippingType,
         pickupPointId: selectedPickupPoint?.id,
         pickupPointName: selectedPickupPoint?.name,
-        address:
-          shipping.type === "courier"
-            ? {
-                ...shippingAddress,
-                name: session?.name,
-                companyName: session?.company,
-                email: session?.email,
-              }
-            : undefined,
+        address: shippingAddressPayload,
         price: shippingPrice,
       },
     };

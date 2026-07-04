@@ -118,6 +118,7 @@ type ApiOrder = {
 };
 
 const orderStatuses: OrderStatus[] = ["reserved", "paid", "packing", "sent", "closed"];
+const emptyStockItems: ClientInventoryItem[] = [];
 
 const copy = {
   ru: {
@@ -1073,7 +1074,31 @@ export default function AdminPage() {
   const selectedStockGroup =
     stockGroups.find(([brand]) => brand === activeStockBrand) ?? stockGroups[0];
   const selectedStockBrand = selectedStockGroup?.[0] ?? "";
-  const selectedStockItems = selectedStockGroup?.[1] ?? [];
+  const selectedStockItems = selectedStockGroup?.[1] ?? emptyStockItems;
+  const selectedStockRows = useMemo(() => {
+    const rows = selectedStockItems.reduce<
+      Record<
+        string,
+        {
+          productName: string;
+          category: string;
+          items: ClientInventoryItem[];
+        }
+      >
+    >((result, item) => {
+      result[item.productId] = result[item.productId] ?? {
+        productName: item.productName,
+        category: item.category,
+        items: [],
+      };
+      result[item.productId].items.push(item);
+      return result;
+    }, {});
+
+    return Object.values(rows).sort((left, right) =>
+      left.productName.localeCompare(right.productName),
+    );
+  }, [selectedStockItems]);
 
   if (session?.role !== "admin") {
     return (
@@ -1829,34 +1854,41 @@ export default function AdminPage() {
               <thead>
                 <tr>
                   <th>{c.product}</th>
-                  <th>{c.color}</th>
-                  <th>{c.size}</th>
-                  <th>{c.physicalStock}</th>
-                  <th>{c.availableStock}</th>
+                  <th>{c.variants}</th>
                 </tr>
               </thead>
               <tbody>
-                {selectedStockItems.map((item) => (
-                  <tr key={item.variationId}>
+                {selectedStockRows.map((row) => (
+                  <tr key={`${selectedStockBrand}-${row.productName}`}>
                     <td>
-                      <strong>{item.productName}</strong>
-                      <span>{categoryLabel(item.category, language)}</span>
+                      <strong>{row.productName}</strong>
+                      <span>
+                        {categoryLabel(row.category, language)} · {row.items.length}
+                      </span>
                     </td>
-                    <td>{item.color || "-"}</td>
-                    <td>{item.size || "-"}</td>
-                    <td className="stock-compact-input">
-                      <input
-                        min={0}
-                        type="number"
-                        value={item.physical}
-                        onChange={(event) =>
-                          void updateStockLevel(item, Number(event.target.value))
-                        }
-                      />
-                    </td>
-                    <td>
-                      <strong>{item.available}</strong>
-                      <span>{item.reserved} {c.statuses.reserved}</span>
+                    <td className="stock-variant-cell">
+                      <div className="stock-variant-grid">
+                        {row.items.map((item) => (
+                          <div className="stock-variant-token" key={item.variationId}>
+                            <span className="stock-variant-title">
+                              {[item.color, item.size].filter(Boolean).join(" / ") || "-"}
+                            </span>
+                            <input
+                              aria-label={`${item.productName} ${item.color ?? ""} ${item.size ?? ""}`}
+                              min={0}
+                              type="number"
+                              value={item.physical}
+                              onChange={(event) =>
+                                void updateStockLevel(item, Number(event.target.value))
+                              }
+                            />
+                            <small>
+                              {item.available} {c.availableStock} · {item.reserved}{" "}
+                              {c.statuses.reserved}
+                            </small>
+                          </div>
+                        ))}
+                      </div>
                     </td>
                   </tr>
                 ))}

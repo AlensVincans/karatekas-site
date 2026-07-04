@@ -173,6 +173,22 @@ function lowestProductPrice(
   );
 }
 
+function paginationPages(currentPage: number, pageCount: number) {
+  if (pageCount <= 3) {
+    return Array.from({ length: pageCount }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 1) {
+    return [1, 2, 3];
+  }
+
+  if (currentPage >= pageCount) {
+    return [pageCount - 2, pageCount - 1, pageCount];
+  }
+
+  return [currentPage - 1, currentPage, currentPage + 1];
+}
+
 export function CatalogBrowser() {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
@@ -305,6 +321,7 @@ export function CatalogBrowser() {
   const safePage = Math.min(page, pageCount);
   const firstProductIndex = (safePage - 1) * pageSize;
   const paginatedProducts = visibleProducts.slice(firstProductIndex, firstProductIndex + pageSize);
+  const pageButtons = paginationPages(safePage, pageCount);
 
   return (
     <div className="catalog-workspace-v3">
@@ -460,17 +477,41 @@ export function CatalogBrowser() {
               <div>
                 <button
                   disabled={safePage <= 1}
+                  onClick={() => setPage(1)}
+                  type="button"
+                >
+                  {"<<"}
+                </button>
+                <button
+                  disabled={safePage <= 1}
                   onClick={() => setPage(Math.max(1, safePage - 1))}
                   type="button"
                 >
                   {p.previous}
                 </button>
+                {pageButtons.map((item) => (
+                  <button
+                    className={item === safePage ? "page-number active" : "page-number"}
+                    key={item}
+                    onClick={() => setPage(item)}
+                    type="button"
+                  >
+                    {item}
+                  </button>
+                ))}
                 <button
                   disabled={safePage >= pageCount}
                   onClick={() => setPage(Math.min(pageCount, safePage + 1))}
                   type="button"
                 >
                   {p.next}
+                </button>
+                <button
+                  disabled={safePage >= pageCount}
+                  onClick={() => setPage(pageCount)}
+                  type="button"
+                >
+                  {">>"}
                 </button>
               </div>
             </div>

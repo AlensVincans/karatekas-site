@@ -1587,7 +1587,7 @@ td span {
 }
 
 .stock-compact-table table {
-  min-width: 650px;
+  min-width: 920px;
 }
 
 .stock-compact-table th,
@@ -1598,7 +1598,8 @@ td span {
 }
 
 .stock-compact-table td:first-child {
-  min-width: 260px;
+  min-width: 220px;
+  width: 260px;
 }
 
 .stock-compact-table td:first-child span {
@@ -1615,6 +1616,52 @@ td span {
   padding: 4px 6px;
   text-align: center;
   width: 64px;
+}
+
+.stock-variant-cell {
+  width: 100%;
+}
+
+.stock-variant-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stock-variant-token {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: minmax(72px, 1fr) 54px;
+  min-width: 190px;
+  padding: 5px 6px;
+}
+
+.stock-variant-title {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-variant-token input {
+  min-height: 25px;
+  padding: 3px 5px;
+  text-align: center;
+  width: 54px;
+}
+
+.stock-variant-token small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  grid-column: 1 / -1;
+  line-height: 1.2;
 }
 
 .promo-rule-row {
@@ -4050,7 +4097,9 @@ textarea {
 
 .catalog-pagination-v3 div {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .catalog-pagination-v3 button {
@@ -4066,6 +4115,20 @@ textarea {
 .catalog-pagination-v3 button:disabled {
   background: #e5e0d9;
   color: var(--v3-muted);
+}
+
+.catalog-pagination-v3 button.page-number {
+  background: #fff;
+  border: 1px solid var(--v3-line);
+  color: var(--v3-black);
+  min-width: 36px;
+  padding: 0 10px;
+}
+
+.catalog-pagination-v3 button.page-number.active {
+  background: var(--v3-accent);
+  border-color: var(--v3-accent);
+  color: #fff;
 }
 
 .pdp-page-v3 {
@@ -4105,6 +4168,10 @@ textarea {
   grid-template-columns: 88px minmax(0, 1fr);
   position: sticky;
   top: 156px;
+}
+
+.pdp-gallery-v3.single-image {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .pdp-thumb-rail-v3 {

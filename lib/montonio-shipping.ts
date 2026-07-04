@@ -143,6 +143,20 @@ const fallbackMethods: ShippingMethodOption[] = [
     source: "fallback",
   },
   {
+    id: "smartposti-parcel-machine",
+    carrier: "smartposti",
+    carrierCode: "smartposti",
+    carrierName: "Smartposti",
+    name: "Smartposti parcel machine",
+    type: "pickupPoint",
+    shippingType: "parcel_machine",
+    subtype: "parcelMachine",
+    price: 4.9,
+    currency: "EUR",
+    available: true,
+    source: "fallback",
+  },
+  {
     id: "unisend-parcel-machine",
     carrier: "unisend",
     carrierCode: "unisend",
@@ -211,6 +225,20 @@ function normalizeCarrierCode(carrier: string) {
   }
 
   return normalized;
+}
+
+function carrierCodeCandidates(carrier: string) {
+  const normalized = normalizeCarrierCode(carrier);
+
+  if (normalized === "smartposti") {
+    return ["smartposti", "itella", "smartpost", "smart_posti"];
+  }
+
+  if (normalized === "latvijas_pasts") {
+    return ["latvijas_pasts", "latvian_post", "latvia_post", "pasts"];
+  }
+
+  return [normalized];
 }
 
 function shippingApiBaseUrl() {
@@ -440,35 +468,44 @@ export async function getPickupPoints(
 ) {
   const carrierCode = normalizeCarrierCode(carrier);
 
-  try {
-    const params = new URLSearchParams({
-      carrierCode,
-      countryCode: countryCode.toUpperCase(),
-    });
+  for (const candidate of carrierCodeCandidates(carrierCode)) {
+    for (const requestedType of [type, ""]) {
+      const params = new URLSearchParams({
+        carrierCode: candidate,
+        countryCode: countryCode.toUpperCase(),
+      });
 
-    if (type) {
-      params.set("type", type);
+      if (requestedType) {
+        params.set("type", requestedType);
+      }
+
+      try {
+        const data = await shippingRequest<MontonioPickupPointResponse>(
+          `/shipping-methods/pickup-points?${params.toString()}`,
+        );
+        const points = (data.pickupPoints ?? [])
+          .filter((point) => point.id && point.name)
+          .map((point) => ({
+            id: point.id as string,
+            name: point.name as string,
+            type: point.type || requestedType || type,
+            streetAddress: point.streetAddress,
+            locality: point.locality,
+            postalCode: point.postalCode,
+            carrierCode: normalizeCarrierCode(point.carrierCode || candidate),
+            countryCode: data.countryCode || countryCode.toUpperCase(),
+          }));
+
+        if (points.length) {
+          return points;
+        }
+      } catch {
+        continue;
+      }
     }
-
-    const data = await shippingRequest<MontonioPickupPointResponse>(
-      `/shipping-methods/pickup-points?${params.toString()}`,
-    );
-
-    return (data.pickupPoints ?? [])
-      .filter((point) => point.id && point.name)
-      .map((point) => ({
-        id: point.id as string,
-        name: point.name as string,
-        type: point.type || type,
-        streetAddress: point.streetAddress,
-        locality: point.locality,
-        postalCode: point.postalCode,
-        carrierCode: normalizeCarrierCode(point.carrierCode || carrierCode),
-        countryCode: data.countryCode || countryCode.toUpperCase(),
-      }));
-  } catch {
-    return [];
   }
+
+  return [];
 }
 
 async function resolveCourierServiceId(order: StoreOrder) {
@@ -583,12 +620,16 @@ export async function createShipmentForOrder(order: StoreOrder) {
 }
 
 export async function createLabelForShipment(shipmentId: string) {
+  const pageSize = cleanText(env().MONTONIO_LABEL_PAGE_SIZE, "A6").toUpperCase();
+  const labelsPerPage =
+    Number(env().MONTONIO_LABELS_PER_PAGE?.trim()) ||
+    (pageSize === "A4" ? 4 : 1);
   const data = await shippingRequest<MontonioLabelFile>("/label-files", {
     method: "POST",
     body: JSON.stringify({
       shipmentIds: [shipmentId],
-      pageSize: "A4",
-      labelsPerPage: 1,
+      pageSize,
+      labelsPerPage,
       orderLabelsBy: "createdAt",
       synchronous: true,
     }),

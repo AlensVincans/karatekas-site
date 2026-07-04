@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { colorHex, colorLabel } from "../lib/i18n";
+import { colorLabel, colorSwatch } from "../lib/i18n";
 import type { Product } from "../lib/store-data";
 import { useLanguage } from "./language";
 
@@ -62,7 +62,7 @@ export function VariationPicker({
                 className={variation.color === color ? "color-dot active" : "color-dot"}
                 key={color}
                 onClick={() => choose(color, undefined)}
-                style={{ "--swatch": colorHex[color] ?? "#d9dfdc" } as CSSProperties}
+                style={{ "--swatch": colorSwatch(color) } as CSSProperties}
                 title={colorLabel(color, language)}
                 type="button"
               />

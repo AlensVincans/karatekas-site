@@ -190,7 +190,7 @@ export function ProductDetail({ product }: { product: Product }) {
       </div>
 
       <div className="pdp-layout-v3">
-        <div className="pdp-gallery-v3">
+        <div className={canSwitchPhotos ? "pdp-gallery-v3" : "pdp-gallery-v3 single-image"}>
           {canSwitchPhotos ? (
             <div className="pdp-thumb-rail-v3" aria-label="Product images">
               {images.map((image, index) => (
