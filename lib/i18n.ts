@@ -467,6 +467,7 @@ export function money(value: number, language: Language) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: value < 20 ? 2 : 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }

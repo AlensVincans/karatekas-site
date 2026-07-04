@@ -60,6 +60,7 @@ type OrderRow = {
   id: string;
   client: string;
   email?: string;
+  createdAt?: string;
   invoiceNumber?: string;
   invoiceIssuedAt?: string;
   total: number;
@@ -89,6 +90,7 @@ type OrderRow = {
 
 type ApiOrder = {
   id: string;
+  createdAt?: string;
   invoiceNumber?: string;
   invoiceIssuedAt?: string;
   customer?: {
@@ -435,12 +437,21 @@ const copy = {
   },
 } as const;
 
+const adminDateLabels = {
+  ru: "Дата",
+  lv: "Datums",
+  en: "Date",
+  et: "Kuupaev",
+  lt: "Data",
+} as const;
+
 type CopyText = (typeof copy)[keyof typeof copy];
 
 const initialOrders: OrderRow[] = [
   {
     id: "ORD-2026-041",
     client: "Riga Karate Club",
+    createdAt: "2026-07-01T10:15:00.000Z",
     total: 684,
     payment: "invoice15",
     status: "reserved",
@@ -450,6 +461,7 @@ const initialOrders: OrderRow[] = [
   {
     id: "ORD-2026-042",
     client: "Marta Ozola",
+    createdAt: "2026-07-02T13:30:00.000Z",
     total: 157.3,
     payment: "card",
     status: "paid",
@@ -461,6 +473,7 @@ const initialOrders: OrderRow[] = [
   {
     id: "ORD-2026-043",
     client: "Tallinn Karate Dojo",
+    createdAt: "2026-07-03T08:45:00.000Z",
     total: 1240,
     payment: "invoice",
     status: "packing",
@@ -496,6 +509,7 @@ function paymentFromApiOrder(order: ApiOrder): OrderPayment {
 function mapApiOrder(order: ApiOrder): OrderRow {
   return {
     id: order.id,
+    createdAt: order.createdAt || order.invoiceIssuedAt,
     invoiceNumber: order.invoiceNumber,
     invoiceIssuedAt: order.invoiceIssuedAt,
     client:
@@ -696,6 +710,37 @@ function variationSummary(product: AdminProduct, fallback: string) {
   return labels.slice(0, 3).join(", ") || fallback;
 }
 
+function formatOrderDate(value: string | undefined, language: Parameters<typeof money>[1]) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const locale =
+    language === "lv"
+      ? "lv-LV"
+      : language === "en"
+        ? "en-GB"
+        : language === "et"
+          ? "et-EE"
+          : language === "lt"
+            ? "lt-LT"
+            : "ru-RU";
+
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function ProductForm({
   product,
   c,
@@ -715,6 +760,19 @@ function ProductForm({
   onRemoveVariation: (variationId: string) => void;
   footer: ReactNode;
 }) {
+  const brandSuggestions = useMemo(
+    () =>
+      Array.from(new Set([...products.map((item) => item.brand), product.brand].filter(Boolean)))
+        .sort((left, right) => left.localeCompare(right)),
+    [product.brand],
+  );
+  const categorySuggestions = useMemo(
+    () => Array.from(new Set([...categories, product.category].filter(Boolean))),
+    [product.category],
+  );
+  const brandListId = `brand-options-${product.id}`;
+  const categoryListId = `category-options-${product.id}`;
+
   async function addImageFiles(files: FileList | null) {
     const nextImages = (await readImageFiles(files)).filter(Boolean);
 
@@ -740,22 +798,28 @@ function ProductForm({
         <label>
           {c.brand}
           <input
+            list={brandListId}
             value={product.brand}
             onChange={(event) => onProductChange({ brand: event.target.value })}
           />
+          <datalist id={brandListId}>
+            {brandSuggestions.map((brand) => (
+              <option key={brand} value={brand} />
+            ))}
+          </datalist>
         </label>
         <label>
           {c.category}
-          <select
+          <input
+            list={categoryListId}
             value={product.category}
             onChange={(event) => onProductChange({ category: event.target.value })}
-          >
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {categoryLabel(category, language)}
-              </option>
+          />
+          <datalist id={categoryListId}>
+            {categorySuggestions.map((category) => (
+              <option key={category} label={categoryLabel(category, language)} value={category} />
             ))}
-          </select>
+          </datalist>
         </label>
       </div>
 
@@ -927,6 +991,7 @@ export default function AdminPage() {
   const { session, allUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
+  const dateLabel = adminDateLabels[language as keyof typeof adminDateLabels] ?? adminDateLabels.en;
   const {
     items: inventoryItems,
     levels: inventoryLevels,
@@ -944,6 +1009,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [activeStockBrand, setActiveStockBrand] = useState("");
   const availableTotal = inventoryItems.length
     ? inventoryItems.reduce((sum, item) => sum + item.available, 0)
     : adminProducts.reduce((sum, product) => sum + productStock(product), 0);
@@ -1003,6 +1069,10 @@ export default function AdminPage() {
 
     return Object.entries(groups).sort(([left], [right]) => left.localeCompare(right));
   }, [inventoryItems]);
+  const selectedStockGroup =
+    stockGroups.find(([brand]) => brand === activeStockBrand) ?? stockGroups[0];
+  const selectedStockBrand = selectedStockGroup?.[0] ?? "";
+  const selectedStockItems = selectedStockGroup?.[1] ?? [];
 
   if (session?.role !== "admin") {
     return (
@@ -1552,33 +1622,6 @@ export default function AdminPage() {
               {banners.map((banner) => (
                 <div className="banner-editor-row" key={banner.id}>
                   <label>
-                    {c.bannerTitle}
-                    <input
-                      value={banner.title}
-                      onChange={(event) =>
-                        updateBanner(banner.id, { title: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    {c.bannerText}
-                    <textarea
-                      value={banner.text}
-                      onChange={(event) =>
-                        updateBanner(banner.id, { text: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    {c.bannerButton}
-                    <input
-                      value={banner.buttonText}
-                      onChange={(event) =>
-                        updateBanner(banner.id, { buttonText: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
                     {c.bannerTarget}
                     <select
                       value={banner.targetType ?? "discounts"}
@@ -1711,53 +1754,61 @@ export default function AdminPage() {
       ) : null}
 
       {tab === "stock" ? (
-        <div className="stock-sheet-list">
-          {stockGroups.map(([brand, items]) => (
-            <section className="stock-sheet-brand" key={brand}>
-              <div className="stock-sheet-title">
-                <h3>{brand}</h3>
-                <span>
-                  {items.length} {c.variants} / {items.reduce((sum, item) => sum + item.available, 0)} {c.availableStock}
-                </span>
-              </div>
-              <div className="stock-sheet-wrap">
-                <table className="stock-sheet-table">
-                  <thead>
-                    <tr>
-                      <th>{c.product}</th>
-                      <th>{c.sku}</th>
-                      <th>{c.color}</th>
-                      <th>{c.size}</th>
-                      <th>{c.stock}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => (
-                      <tr key={item.variationId}>
-                        <td>
-                          <strong>{item.productName}</strong>
-                          <span>{categoryLabel(item.category, language)}</span>
-                        </td>
-                        <td>{item.sku}</td>
-                        <td>{item.color || "-"}</td>
-                        <td>{item.size || "-"}</td>
-                        <td className="stock-sheet-input-cell">
-                          <input
-                            min={0}
-                            type="number"
-                            value={item.physical}
-                            onChange={(event) =>
-                              void updateStockLevel(item, Number(event.target.value))
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
+        <div className="stock-compact-panel">
+          <div className="stock-brand-tabs">
+            {stockGroups.map(([brand, items]) => (
+              <button
+                className={brand === selectedStockBrand ? "active" : ""}
+                key={brand}
+                onClick={() => setActiveStockBrand(brand)}
+                type="button"
+              >
+                {brand}
+                <span>{items.length}</span>
+              </button>
+            ))}
+          </div>
+          <div className="table-wrap admin-table stock-compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>{c.product}</th>
+                  <th>{c.sku}</th>
+                  <th>{c.color}</th>
+                  <th>{c.size}</th>
+                  <th>{c.physicalStock}</th>
+                  <th>{c.availableStock}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedStockItems.map((item) => (
+                  <tr key={item.variationId}>
+                    <td>
+                      <strong>{item.productName}</strong>
+                      <span>{categoryLabel(item.category, language)}</span>
+                    </td>
+                    <td>{item.sku}</td>
+                    <td>{item.color || "-"}</td>
+                    <td>{item.size || "-"}</td>
+                    <td className="stock-compact-input">
+                      <input
+                        min={0}
+                        type="number"
+                        value={item.physical}
+                        onChange={(event) =>
+                          void updateStockLevel(item, Number(event.target.value))
+                        }
+                      />
+                    </td>
+                    <td>
+                      <strong>{item.available}</strong>
+                      <span>{item.reserved} {c.statuses.reserved}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 
@@ -1767,6 +1818,7 @@ export default function AdminPage() {
             <thead>
               <tr>
                 <th>{c.order}</th>
+                <th>{dateLabel}</th>
                 <th>{c.invoiceNumber}</th>
                 <th>{c.clients}</th>
                 <th>{c.sum}</th>
@@ -1783,6 +1835,7 @@ export default function AdminPage() {
                 <Fragment key={order.id}>
                   <tr>
                     <td>{order.id}</td>
+                    <td>{formatOrderDate(order.createdAt, language)}</td>
                     <td>
                       {order.invoiceNumber ?? "-"}
                       <span>

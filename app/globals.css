@@ -1489,6 +1489,68 @@ td span {
   width: 100%;
 }
 
+.stock-compact-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.stock-brand-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stock-brand-tabs button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 850;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.stock-brand-tabs button.active {
+  background: var(--deep);
+  border-color: var(--deep);
+  color: #fff;
+}
+
+.stock-brand-tabs span {
+  background: rgba(127, 117, 106, 0.14);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 2px 7px;
+}
+
+.stock-brand-tabs button.active span {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.stock-compact-table table {
+  min-width: 780px;
+}
+
+.stock-compact-table th,
+.stock-compact-table td {
+  padding: 7px 9px;
+}
+
+.stock-compact-input {
+  width: 92px;
+}
+
+.stock-compact-input input {
+  min-height: 30px;
+  padding: 4px 6px;
+  text-align: center;
+  width: 76px;
+}
+
 .promo-rule-row {
   align-items: end;
   background: #f9f6f2;
@@ -1507,7 +1569,7 @@ td span {
   border-radius: 8px;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(150px, 1fr) minmax(220px, 1.3fr) minmax(120px, 0.7fr) minmax(150px, 0.8fr) minmax(220px, 1.2fr) auto auto;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(180px, 0.8fr) minmax(240px, 1.2fr) auto auto;
   padding: 12px;
 }
 
