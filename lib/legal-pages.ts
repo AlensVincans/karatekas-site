@@ -1,18 +1,330 @@
 import type { LegalPageSlug } from "./legal-service-links";
+import type { Language } from "./i18n";
 
-type LegalBlock =
+export type LegalBlock =
   | { type: "heading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] };
 
-export const legalPages: Record<
-  LegalPageSlug,
-  {
-    title: string;
-    description: string;
-    blocks: LegalBlock[];
-  }
+export type LegalPageContent = {
+  title: string;
+  description: string;
+  blocks: LegalBlock[];
+};
+
+export const legalServiceTitles: Record<Language, Record<LegalPageSlug, string>> = {
+  ru: {
+    "delivery-information": "Информация о доставке",
+    payments: "Оплата",
+    "return-of-goods": "Возврат товара",
+    "privacy-policy": "Политика конфиденциальности",
+    gdpr: "GDPR",
+    cookies: "Cookies",
+  },
+  lv: {
+    "delivery-information": "Piegādes informācija",
+    payments: "Apmaksa",
+    "return-of-goods": "Preču atgriešana",
+    "privacy-policy": "Privātuma politika",
+    gdpr: "GDPR",
+    cookies: "Sīkdatnes",
+  },
+  en: {
+    "delivery-information": "Delivery Information",
+    payments: "Payments",
+    "return-of-goods": "Return of Goods",
+    "privacy-policy": "Privacy Policy",
+    gdpr: "GDPR",
+    cookies: "Cookies",
+  },
+  et: {
+    "delivery-information": "Tarneinfo",
+    payments: "Maksed",
+    "return-of-goods": "Kauba tagastamine",
+    "privacy-policy": "Privaatsuspoliitika",
+    gdpr: "GDPR",
+    cookies: "Küpsised",
+  },
+  lt: {
+    "delivery-information": "Pristatymo informacija",
+    payments: "Apmokėjimas",
+    "return-of-goods": "Prekių grąžinimas",
+    "privacy-policy": "Privatumo politika",
+    gdpr: "GDPR",
+    cookies: "Slapukai",
+  },
+};
+
+const localizedLegalPages: Partial<
+  Record<Language, Partial<Record<LegalPageSlug, LegalPageContent>>>
 > = {
+  ru: {
+    "delivery-information": {
+      title: "Информация о доставке",
+      description: "Стоимость доставки и сроки доставки заказов Karatekas.eu.",
+      blocks: [
+        { type: "heading", text: "Стоимость доставки" },
+        {
+          type: "paragraph",
+          text:
+            "Стоимость доставки рассчитывается по адресу доставки и общему весу товаров. Точная стоимость показывается в корзине после выбора страны, способа доставки и пункта выдачи или курьерского адреса.",
+        },
+        { type: "heading", text: "Доставка товаров" },
+        {
+          type: "paragraph",
+          text:
+            "Если товара нет на складе в момент заказа, мы сообщим об этом по email. В таком случае срок доставки может измениться. Заказы доставляются через партнёрские пункты выдачи и курьерские службы.",
+        },
+        {
+          type: "paragraph",
+          text:
+            "Если товар отсутствует на складе в Риге, доставка товара под заказ обычно занимает от 1 до 4 недель.",
+        },
+      ],
+    },
+    payments: {
+      title: "Оплата",
+      description: "Информация о заказе и оплате для клиентов Karatekas.eu.",
+      blocks: [
+        { type: "heading", text: "Что нужно знать перед заказом" },
+        {
+          type: "list",
+          items: [
+            "Товары и цены на Karatekas.eu указаны для информации и оформления заказа.",
+            "Стоимость доставки указывается отдельно и зависит от страны, адреса и выбранного способа доставки.",
+            "Цены и ассортимент могут быть изменены без предварительного уведомления.",
+            "Описание товара основано на информации производителя и может изменяться при обновлении характеристик товара.",
+          ],
+        },
+        { type: "heading", text: "Оплата заказа" },
+        {
+          type: "paragraph",
+          text:
+            "Заказы можно оплатить картой через безопасную оплату Montonio или по счёту, если такой способ доступен вашему типу аккаунта. При оплате по счёту реквизиты, номер заказа и платёжная информация отправляются на email.",
+        },
+      ],
+    },
+    "return-of-goods": {
+      title: "Возврат товара",
+      description: "Право отказа и порядок возврата товаров Karatekas.eu.",
+      blocks: [
+        { type: "heading", text: "Возврат товара и право отказа" },
+        {
+          type: "paragraph",
+          text:
+            "Покупатель имеет право отказаться от покупки в течение 14 дней с момента получения товара и вернуть товар продавцу в соответствии с законодательством Латвийской Республики и ЕС.",
+        },
+        { type: "heading", text: "Как вернуть товар" },
+        {
+          type: "paragraph",
+          text:
+            "Если товар не подходит по размеру, цвету или модели, его можно вернуть или обменять в течение 14 дней с момента получения. Товар должен быть неиспользованным и возвращён в надлежащем состоянии.",
+        },
+        {
+          type: "paragraph",
+          text:
+            "Для возврата заполните форму возврата, приложите документ покупки и отправьте товар через согласованный способ доставки. Возврат через Omniva возможен на пакомат Rīgas Deglava ielas Maxima XXX, Augusta Deglava iela 67, Rīga, телефон +37125168811.",
+        },
+      ],
+    },
+    "privacy-policy": {
+      title: "Политика конфиденциальности",
+      description: "Как BBK AUTO, SIA обрабатывает и хранит персональные данные на Karatekas.eu.",
+      blocks: [
+        { type: "heading", text: "Общие положения" },
+        {
+          type: "paragraph",
+          text:
+            "Настоящая политика описывает, как BBK AUTO, SIA, регистрационный номер 40003924244, Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, получает, обрабатывает и хранит персональные данные клиентов и посетителей сайта.",
+        },
+        {
+          type: "paragraph",
+          text:
+            "Персональные данные - это любая информация об идентифицированном или идентифицируемом физическом лице. Обработка включает сбор, запись, хранение, использование, просмотр, удаление и другие операции с данными.",
+        },
+        { type: "heading", text: "Какие данные мы обрабатываем" },
+        {
+          type: "list",
+          items: [
+            "Имя и фамилия;",
+            "Контактные данные, включая email и телефон;",
+            "Данные заказа: товары, адрес доставки, цена, способ оплаты и история платежей;",
+            "Информация, которую вы предоставляете при использовании сайта или обращении к нам.",
+          ],
+        },
+        { type: "heading", text: "Правовое основание и срок хранения" },
+        {
+          type: "paragraph",
+          text:
+            "Данные обрабатываются на основании согласия, исполнения договора, юридической обязанности и законного интереса в соответствии с GDPR. Данные хранятся только столько, сколько необходимо для цели обработки, выполнения закона, защиты законных интересов или пока действует согласие.",
+        },
+        { type: "heading", text: "Ваши права" },
+        {
+          type: "paragraph",
+          text:
+            "Вы имеете право запросить доступ к данным, исправление, удаление, ограничение обработки, переносимость данных, отзыв согласия и подачу жалобы в надзорный орган. Для запроса напишите на info@karatekas.eu.",
+        },
+      ],
+    },
+    gdpr: {
+      title: "GDPR",
+      description: "Правила обработки персональных данных физических лиц.",
+      blocks: [
+        { type: "heading", text: "Контролёр данных" },
+        {
+          type: "paragraph",
+          text:
+            "BBK AUTO, SIA, регистрационный номер 40003924244, юридический адрес Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, является контролёром данных и выполняет требования Общего регламента ЕС по защите данных 2016/679.",
+        },
+        { type: "heading", text: "Цели обработки" },
+        {
+          type: "paragraph",
+          text:
+            "Данные обрабатываются для администрирования отношений с клиентами, оформления заказов, выставления счетов, обеспечения оплаты, доставки и реализации законных интересов компании с соблюдением прав субъекта данных.",
+        },
+        { type: "heading", text: "Доступ, хранение и раскрытие" },
+        {
+          type: "paragraph",
+          text:
+            "Доступ к данным имеют только сотрудники, которым данные необходимы для выполнения обязанностей. Данные защищены паролями и организационными мерами. Данные могут быть раскрыты государственным органам по законному мотивированному запросу.",
+        },
+        { type: "heading", text: "Права субъекта данных" },
+        {
+          type: "paragraph",
+          text:
+            "Физические лица имеют право проверять свои данные, требовать исправления, удаления или дополнения неверных данных, а также запретить использование данных для целей, не связанных с оказанием услуг.",
+        },
+      ],
+    },
+    cookies: {
+      title: "Cookies",
+      description: "Информация о cookies для посетителей Karatekas.eu.",
+      blocks: [
+        { type: "heading", text: "Что такое cookie?" },
+        {
+          type: "paragraph",
+          text:
+            "Cookie - это небольшой текстовый файл, который сайт сохраняет на вашем компьютере или мобильном устройстве. Cookie помогает сайту запоминать настройки, улучшать удобство использования и распознавать браузер при повторных визитах.",
+        },
+        { type: "heading", text: "Как мы используем cookies" },
+        {
+          type: "list",
+          items: [
+            "чтобы помнить, согласились ли вы с использованием cookies;",
+            "для YouTube, Vimeo и Google Maps, если на странице есть такие элементы;",
+            "для Google Analytics, чтобы улучшать качество контента и адаптировать сайт под потребности пользователей.",
+          ],
+        },
+        { type: "heading", text: "Как отключить cookies" },
+        {
+          type: "paragraph",
+          text:
+            "Вы можете удалить cookies или заблокировать их в настройках браузера. В таком случае некоторые функции сайта могут работать ограниченно.",
+        },
+      ],
+    },
+  },
+  lv: {
+    "delivery-information": {
+      title: "Piegādes informācija",
+      description: "Karatekas.eu pasūtījumu piegādes izmaksas un termiņi.",
+      blocks: [
+        { type: "heading", text: "Piegādes izmaksas" },
+        { type: "paragraph", text: "Piegādes maksa tiek aprēķināta pēc piegādes adreses, izvēlētā piegādes veida un preču kopējā svara. Precīza cena tiek parādīta grozā pirms pasūtījuma apstiprināšanas." },
+        { type: "heading", text: "Preču piegāde" },
+        { type: "paragraph", text: "Ja pasūtīšanas brīdī kāda prece nav noliktavā, mēs par to paziņosim e-pastā. Šādā gadījumā piegādes termiņš var mainīties. Pasūtījumi tiek piegādāti ar pakomātiem, pasta punktiem vai kurjeru." },
+        { type: "paragraph", text: "Ja prece nav pieejama Rīgas noliktavā, piegāde pasūtāmajai precei parasti aizņem no 1 līdz 4 nedēļām." },
+      ],
+    },
+    payments: {
+      title: "Apmaksa",
+      description: "Pasūtījumu un apmaksas informācija Karatekas.eu klientiem.",
+      blocks: [
+        { type: "heading", text: "Kas jāzina pirms pasūtījuma" },
+        { type: "list", items: ["Preces un cenas Karatekas.eu internetveikalā ir norādītas pasūtījuma noformēšanai.", "Piegādes maksa tiek norādīta atsevišķi un var atšķirties pēc piegādes valsts un veida.", "Cenas un preču piedāvājums var tikt mainīts bez iepriekšēja brīdinājuma.", "Preču apraksti balstīti uz ražotāja informāciju un var mainīties, ja ražotājs atjauno specifikāciju."] },
+        { type: "heading", text: "Pasūtījumu apmaksa" },
+        { type: "paragraph", text: "Pasūtījumus var apmaksāt ar karti, izmantojot drošu Montonio apmaksu, vai ar rēķinu, ja šis maksājuma veids ir pieejams jūsu konta tipam. Rēķina apmaksas informācija tiek nosūtīta uz e-pastu." },
+      ],
+    },
+    "return-of-goods": {
+      title: "Preču atgriešana",
+      description: "Atteikuma tiesības un preču atgriešanas kārtība.",
+      blocks: [
+        { type: "heading", text: "Preču atgriešana un atteikuma tiesības" },
+        { type: "paragraph", text: "Pircējam ir tiesības 14 dienu laikā no preces saņemšanas dienas izmantot atteikuma tiesības un atgriezt preci pārdevējam saskaņā ar Latvijas Republikas un ES normatīvajiem aktiem." },
+        { type: "heading", text: "Atteikšanās no pirkuma" },
+        { type: "paragraph", text: "Ja prece neder pēc izmēra, krāsas vai modeļa, to var atgriezt vai apmainīt 14 dienu laikā no saņemšanas. Precei jābūt nelietotai un atbilstošā stāvoklī." },
+        { type: "paragraph", text: "Preci var atgriezt ar pirkuma dokumentu, izmantojot saskaņotu piegādes veidu. Omniva atgriešana iespējama uz Rīgas Deglava ielas Maxima XXX pakomātu, Augusta Deglava iela 67, Rīga, tālr. +37125168811." },
+      ],
+    },
+    "privacy-policy": {
+      title: "Privātuma politika",
+      description: "Kā BBK AUTO, SIA apstrādā un glabā personas datus Karatekas.eu.",
+      blocks: [
+        { type: "heading", text: "Vispārīgie noteikumi" },
+        { type: "paragraph", text: "Šī politika apraksta, kā BBK AUTO, SIA, reģ. Nr. 40003924244, Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, iegūst, apstrādā un glabā klientu un vietnes apmeklētāju personas datus." },
+        { type: "heading", text: "Apstrādājamie dati" },
+        { type: "list", items: ["Vārds un uzvārds;", "Kontaktinformācija, tai skaitā e-pasts un tālrunis;", "Darījumu dati: preces, piegādes adrese, cena un apmaksas informācija;", "Cita informācija, ko sniedzat, izmantojot vietni vai sazinoties ar mums."] },
+        { type: "heading", text: "Tiesiskais pamats un glabāšana" },
+        { type: "paragraph", text: "Dati tiek apstrādāti uz piekrišanas, līguma izpildes, juridiska pienākuma un leģitīmo interešu pamata saskaņā ar GDPR. Dati tiek glabāti tikai tik ilgi, cik nepieciešams apstrādes mērķim vai normatīvo aktu izpildei." },
+        { type: "heading", text: "Datu subjekta tiesības" },
+        { type: "paragraph", text: "Jums ir tiesības piekļūt saviem datiem, pieprasīt labošanu, dzēšanu, apstrādes ierobežošanu, datu pārnesamību, atsaukt piekrišanu un iesniegt sūdzību uzraudzības iestādei. Rakstiet uz info@karatekas.eu." },
+      ],
+    },
+    gdpr: {
+      title: "GDPR",
+      description: "Fiziskās personas datu apstrādes noteikumi.",
+      blocks: [
+        { type: "heading", text: "Fiziskas personas datu apstrades noteikumi" },
+        { type: "paragraph", text: "BBK AUTO, SIA, reg. Nr. 40003924244, juridiska adrese Riga, Ilukstes iela 103 k-3 - 29, LV-1082, ir Parzinis un izpilda Eiropas Savienibas Visparigas datu aizsardzibas regulas Nr. 2016/679 prasibas Latvija." },
+        { type: "heading", text: "Datu apstrades noluki" },
+        { type: "paragraph", text: "Dati tiek apstradati, lai administretu klientu attiecibas, noformetu pasutijumus, izrakstitu rekinus, nodrosinatu apmaksu un piegadi, ka ari istenotu sabiedribas likumiskas intereses." },
+        { type: "heading", text: "Piekluve un izpausana" },
+        { type: "paragraph", text: "Piekluve datiem ir tikai darbiniekiem, kuriem ta nepieciesama darba pienakumu veiksanai. Datus var izpaust valsts institucijam, pamatojoties uz likumigu un motivetu pieprasijumu." },
+        { type: "heading", text: "Datu subjekta tiesibas" },
+        { type: "paragraph", text: "Fiziskajai personai ir tiesibas parbaudit savus datus, pieprasit to labosanu, dzesanu vai papildinasanu un aizliegt datu izmantosanu ar pakalpojumu sniegsanu nesaistitiem merkiem." },
+      ],
+    },
+    cookies: {
+      title: "Sīkdatnes",
+      description: "Informācija par Karatekas.eu izmantotajām sīkdatnēm.",
+      blocks: [
+        { type: "heading", text: "Kas ir sīkdatne?" },
+        { type: "paragraph", text: "Sīkdatne ir neliels teksta fails, ko tīmekļa vietne saglabā jūsu datorā vai mobilajā ierīcē. Tā palīdz atcerēties iestatījumus, uzlabot lietošanas ērtumu un atpazīt pārlūku nākamajās apmeklējuma reizēs." },
+        { type: "heading", text: "Kā mēs izmantojam sīkdatnes?" },
+        { type: "list", items: ["lai atcerētos, vai esat piekritis sīkdatņu izmantošanai;", "YouTube, Vimeo un Google Maps funkcijām;", "Google Analytics, lai uzlabotu vietnes saturu un pielāgotu to lietotāju vajadzībām."] },
+        { type: "heading", text: "Kā atspējot sīkdatnes?" },
+        { type: "paragraph", text: "Jūs varat dzēst vai bloķēt sīkdatnes pārlūka iestatījumos. Šādā gadījumā dažas vietnes funkcijas var nedarboties pilnvērtīgi." },
+      ],
+    },
+  },
+  et: {
+    "delivery-information": { title: "Tarneinfo", description: "Karatekas.eu tellimuste tarnekulud ja -ajad.", blocks: [{ type: "heading", text: "Tarnekulud" }, { type: "paragraph", text: "Tarnehind arvutatakse tarneaadressi, valitud tarneviisi ja toodete kogukaalu järgi. Täpne hind kuvatakse ostukorvis enne tellimuse kinnitamist." }, { type: "heading", text: "Toodete tarne" }, { type: "paragraph", text: "Kui mõni toode ei ole tellimise hetkel laos, teavitame sellest e-posti teel. Sellisel juhul võib tarneaeg muutuda. Tellimused tarnitakse pakiautomaatidesse, postipunktidesse või kulleriga." }, { type: "paragraph", text: "Kui toodet ei ole Riia laos, võtab ettetellitava toote tarne tavaliselt 1 kuni 4 nädalat." }] },
+    payments: { title: "Maksed", description: "Karatekas.eu tellimuste ja maksete info.", blocks: [{ type: "heading", text: "Mida enne tellimist teada" }, { type: "list", items: ["Karatekas.eu veebipoes kuvatavad tooted ja hinnad on tellimuse vormistamiseks.", "Tarnekulu näidatakse eraldi ja see võib sõltuda riigist ning tarneviisist.", "Hinnad ja tootevalik võivad muutuda ette teatamata.", "Tootekirjeldused põhinevad tootja andmetel ja võivad muutuda tootja uuenduste tõttu."] }, { type: "heading", text: "Tellimuse eest tasumine" }, { type: "paragraph", text: "Tellimuse saab tasuda kaardiga turvalise Montonio makse kaudu või arve alusel, kui see makseviis on sinu konto tüübile saadaval. Arve makseinfo saadetakse e-posti aadressile." }] },
+    "return-of-goods": { title: "Kauba tagastamine", description: "Taganemisõigus ja kaupade tagastamise kord.", blocks: [{ type: "heading", text: "Kauba tagastamine ja taganemisõigus" }, { type: "paragraph", text: "Ostjal on õigus 14 päeva jooksul alates kauba kättesaamisest ostust taganeda ja kaup müüjale tagastada kooskõlas Läti Vabariigi ja EL õigusaktidega." }, { type: "heading", text: "Kuidas kaup tagastada" }, { type: "paragraph", text: "Kui toode ei sobi suuruse, värvi või mudeli poolest, saab selle 14 päeva jooksul tagastada või ümber vahetada. Toode peab olema kasutamata ja sobivas seisukorras." }, { type: "paragraph", text: "Lisa ostudokument ja kasuta kokkulepitud tarneviisi. Omniva tagastus on võimalik pakiautomaati Rīgas Deglava ielas Maxima XXX, Augusta Deglava iela 67, Rīga, telefon +37125168811." }] },
+    "privacy-policy": { title: "Privaatsuspoliitika", description: "Kuidas BBK AUTO, SIA töötleb ja säilitab isikuandmeid Karatekas.eu lehel.", blocks: [{ type: "heading", text: "Üldsätted" }, { type: "paragraph", text: "See poliitika kirjeldab, kuidas BBK AUTO, SIA, reg. nr 40003924244, Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, kogub, töötleb ja säilitab klientide ning veebilehe külastajate isikuandmeid." }, { type: "heading", text: "Töödeldavad andmed" }, { type: "list", items: ["Ees- ja perekonnanimi;", "Kontaktandmed, sh e-post ja telefon;", "Tellimuse andmed: tooted, tarneaadress, hind ja makseinfo;", "Muu info, mille annad veebilehte kasutades või meiega suheldes."] }, { type: "heading", text: "Õiguslik alus ja säilitamine" }, { type: "paragraph", text: "Andmeid töödeldakse nõusoleku, lepingu täitmise, juriidilise kohustuse ja õigustatud huvi alusel vastavalt GDPR-ile. Andmeid säilitatakse ainult nii kaua, kui see on vajalik töötlemise eesmärgi või seaduse täitmiseks." }, { type: "heading", text: "Andmesubjekti õigused" }, { type: "paragraph", text: "Sul on õigus taotleda juurdepääsu, parandamist, kustutamist, töötlemise piiramist, andmete ülekandmist, nõusoleku tagasivõtmist ja esitada kaebus järelevalveasutusele. Kirjuta info@karatekas.eu." }] },
+    gdpr: { title: "GDPR", description: "Füüsilise isiku andmete töötlemise reeglid.", blocks: [{ type: "heading", text: "Vastutav töötleja" }, { type: "paragraph", text: "BBK AUTO, SIA, reg. nr 40003924244, aadress Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, on vastutav töötleja ja järgib EL isikuandmete kaitse üldmäärust 2016/679." }, { type: "heading", text: "Töötlemise eesmärgid" }, { type: "paragraph", text: "Andmeid töödeldakse kliendisuhete haldamiseks, tellimuste vormistamiseks, arvete väljastamiseks, maksete ja tarnete korraldamiseks ning ettevõtte õigustatud huvide kaitsmiseks." }, { type: "heading", text: "Juurdepääs ja avaldamine" }, { type: "paragraph", text: "Andmetele pääsevad ligi ainult töötajad, kellel on neid tööülesannete täitmiseks vaja. Andmeid võib avaldada ametiasutustele seadusliku ja põhjendatud taotluse alusel." }, { type: "heading", text: "Andmesubjekti õigused" }, { type: "paragraph", text: "Isikul on õigus kontrollida enda andmeid, taotleda parandamist, kustutamist või täiendamist ning keelata andmete kasutamine eesmärkidel, mis ei ole teenuse osutamisega seotud." }] },
+    cookies: { title: "Küpsised", description: "Info Karatekas.eu küpsiste kohta.", blocks: [{ type: "heading", text: "Mis on küpsis?" }, { type: "paragraph", text: "Küpsis on väike tekstifail, mille veebileht salvestab sinu arvutisse või mobiilseadmesse. Küpsised aitavad meelde jätta seadeid, parandada kasutusmugavust ja tuvastada brauserit järgmistel külastustel." }, { type: "heading", text: "Kuidas küpsiseid kasutame?" }, { type: "list", items: ["et mäletada, kas oled küpsiste kasutamisega nõustunud;", "YouTube, Vimeo ja Google Maps funktsioonide jaoks;", "Google Analyticsi jaoks, et parandada sisu ja kohandada veebilehte kasutajate vajadustele."] }, { type: "heading", text: "Kuidas küpsiseid keelata?" }, { type: "paragraph", text: "Küpsiseid saab kustutada või blokeerida brauseri seadetes. Sel juhul ei pruugi mõned veebilehe funktsioonid täielikult töötada." }] },
+  },
+  lt: {
+    "delivery-information": { title: "Pristatymo informacija", description: "Karatekas.eu užsakymų pristatymo kainos ir terminai.", blocks: [{ type: "heading", text: "Pristatymo kaina" }, { type: "paragraph", text: "Pristatymo kaina apskaičiuojama pagal pristatymo adresą, pasirinktą pristatymo būdą ir bendrą prekių svorį. Tiksli kaina rodoma krepšelyje prieš patvirtinant užsakymą." }, { type: "heading", text: "Prekių pristatymas" }, { type: "paragraph", text: "Jei užsakymo metu prekės nėra sandėlyje, apie tai informuosime el. paštu. Tokiu atveju pristatymo terminas gali keistis. Užsakymai pristatomi į paštomatus, pašto punktus arba kurjeriu." }, { type: "paragraph", text: "Jei prekės nėra Rygos sandėlyje, užsakomos prekės pristatymas paprastai trunka nuo 1 iki 4 savaičių." }] },
+    payments: { title: "Apmokėjimas", description: "Karatekas.eu užsakymų ir mokėjimų informacija.", blocks: [{ type: "heading", text: "Ką reikia žinoti prieš užsakant" }, { type: "list", items: ["Karatekas.eu internetinėje parduotuvėje rodomos prekės ir kainos skirtos užsakymui pateikti.", "Pristatymo mokestis nurodomas atskirai ir gali priklausyti nuo šalies bei pristatymo būdo.", "Kainos ir prekių pasiūla gali būti keičiamos be išankstinio įspėjimo.", "Prekių aprašymai parengti pagal gamintojo informaciją ir gali keistis gamintojui atnaujinus specifikacijas."] }, { type: "heading", text: "Užsakymo apmokėjimas" }, { type: "paragraph", text: "Užsakymą galima apmokėti kortele per saugų Montonio mokėjimą arba pagal sąskaitą, jei šis mokėjimo būdas prieinamas jūsų paskyros tipui. Sąskaitos apmokėjimo informacija siunčiama el. paštu." }] },
+    "return-of-goods": { title: "Prekių grąžinimas", description: "Atsisakymo teisė ir prekių grąžinimo tvarka.", blocks: [{ type: "heading", text: "Prekių grąžinimas ir atsisakymo teisė" }, { type: "paragraph", text: "Pirkėjas turi teisę per 14 dienų nuo prekės gavimo atsisakyti pirkimo ir grąžinti prekę pardavėjui pagal Latvijos Respublikos ir ES teisės aktus." }, { type: "heading", text: "Kaip grąžinti prekę" }, { type: "paragraph", text: "Jei prekė netinka pagal dydį, spalvą ar modelį, ją galima grąžinti arba pakeisti per 14 dienų nuo gavimo. Prekė turi būti nenaudota ir tinkamos būklės." }, { type: "paragraph", text: "Pridėkite pirkimo dokumentą ir naudokite suderintą pristatymo būdą. Omniva grąžinimas galimas į Rīgas Deglava ielas Maxima XXX paštomatą, Augusta Deglava iela 67, Rīga, tel. +37125168811." }] },
+    "privacy-policy": { title: "Privatumo politika", description: "Kaip BBK AUTO, SIA tvarko ir saugo asmens duomenis Karatekas.eu.", blocks: [{ type: "heading", text: "Bendrosios nuostatos" }, { type: "paragraph", text: "Ši politika aprašo, kaip BBK AUTO, SIA, reg. Nr. 40003924244, Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, renka, tvarko ir saugo klientų bei svetainės lankytojų asmens duomenis." }, { type: "heading", text: "Tvarkomi duomenys" }, { type: "list", items: ["Vardas ir pavardė;", "Kontaktiniai duomenys, įskaitant el. paštą ir telefoną;", "Užsakymo duomenys: prekės, pristatymo adresas, kaina ir mokėjimo informacija;", "Kita informacija, kurią pateikiate naudodamiesi svetaine arba susisiekdami su mumis."] }, { type: "heading", text: "Teisinis pagrindas ir saugojimas" }, { type: "paragraph", text: "Duomenys tvarkomi sutikimo, sutarties vykdymo, teisinės prievolės ir teisėto intereso pagrindu pagal GDPR. Duomenys saugomi tik tiek, kiek būtina tvarkymo tikslui arba teisės aktų reikalavimams." }, { type: "heading", text: "Duomenų subjekto teisės" }, { type: "paragraph", text: "Turite teisę prašyti prieigos, taisymo, ištrynimo, tvarkymo apribojimo, duomenų perkeliamumo, atšaukti sutikimą ir pateikti skundą priežiūros institucijai. Rašykite info@karatekas.eu." }] },
+    gdpr: { title: "GDPR", description: "Fizinio asmens duomenų tvarkymo taisyklės.", blocks: [{ type: "heading", text: "Duomenų valdytojas" }, { type: "paragraph", text: "BBK AUTO, SIA, reg. Nr. 40003924244, adresas Rīga, Ilūkstes iela 103 k-3 - 29, LV-1082, yra duomenų valdytojas ir laikosi ES Bendrojo duomenų apsaugos reglamento 2016/679." }, { type: "heading", text: "Tvarkymo tikslai" }, { type: "paragraph", text: "Duomenys tvarkomi klientų santykiams administruoti, užsakymams formuoti, sąskaitoms išrašyti, mokėjimams ir pristatymui užtikrinti bei teisėtiems bendrovės interesams įgyvendinti." }, { type: "heading", text: "Prieiga ir atskleidimas" }, { type: "paragraph", text: "Prieigą prie duomenų turi tik darbuotojai, kuriems jie būtini pareigoms atlikti. Duomenys gali būti atskleidžiami valstybės institucijoms pagal teisėtą ir motyvuotą prašymą." }, { type: "heading", text: "Duomenų subjekto teisės" }, { type: "paragraph", text: "Asmenys turi teisę tikrinti savo duomenis, prašyti juos ištaisyti, ištrinti ar papildyti ir uždrausti naudoti duomenis tikslais, nesusijusiais su paslaugų teikimu." }] },
+    cookies: { title: "Slapukai", description: "Informacija apie Karatekas.eu naudojamus slapukus.", blocks: [{ type: "heading", text: "Kas yra slapukas?" }, { type: "paragraph", text: "Slapukas yra mažas tekstinis failas, kurį svetainė išsaugo jūsų kompiuteryje ar mobiliajame įrenginyje. Slapukai padeda įsiminti nustatymus, pagerinti patogumą ir atpažinti naršyklę vėlesnių apsilankymų metu." }, { type: "heading", text: "Kaip naudojame slapukus?" }, { type: "list", items: ["kad prisimintume, ar sutikote su slapukų naudojimu;", "YouTube, Vimeo ir Google Maps funkcijoms;", "Google Analytics, kad gerintume turinį ir pritaikytume svetainę vartotojų poreikiams."] }, { type: "heading", text: "Kaip išjungti slapukus?" }, { type: "paragraph", text: "Slapukus galite ištrinti arba blokuoti naršyklės nustatymuose. Tokiu atveju kai kurios svetainės funkcijos gali veikti ne visiškai." }] },
+  },
+};
+
+export function legalPageForLanguage(slug: LegalPageSlug, language: Language) {
+  return localizedLegalPages[language]?.[slug] ?? legalPages[slug];
+}
+
+export function legalServiceTitle(slug: LegalPageSlug, language: Language) {
+  return legalServiceTitles[language]?.[slug] ?? legalServiceTitles.en[slug];
+}
+
+export const legalPages: Record<LegalPageSlug, LegalPageContent> = {
   "delivery-information": {
     title: "Delivery Information",
     description: "Delivery costs and product delivery terms for Karatekas.eu orders.",

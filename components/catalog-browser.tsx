@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { categories, pricedVariation, products, type Product, type UserRole } from "../lib/store-data";
 import { categoryLabel, productDescription } from "../lib/i18n";
 import {
@@ -322,6 +322,11 @@ export function CatalogBrowser() {
   const firstProductIndex = (safePage - 1) * pageSize;
   const paginatedProducts = visibleProducts.slice(firstProductIndex, firstProductIndex + pageSize);
   const pageButtons = paginationPages(safePage, pageCount);
+  const catalogGridStyle = {
+    "--catalog-desktop-min-height": `${Math.ceil(pageSize / 3) * 640}px`,
+    "--catalog-tablet-min-height": `${Math.ceil(pageSize / 2) * 610}px`,
+    "--catalog-mobile-min-height": `${pageSize * 590}px`,
+  } as CSSProperties;
 
   return (
     <div className="catalog-workspace-v3">
@@ -465,7 +470,7 @@ export function CatalogBrowser() {
 
         {visibleProducts.length ? (
           <>
-            <div className="product-grid product-grid-v3 catalog-grid-v3">
+            <div className="product-grid product-grid-v3 catalog-grid-v3" style={catalogGridStyle}>
               {paginatedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} role={role} />
               ))}

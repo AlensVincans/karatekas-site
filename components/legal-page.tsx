@@ -1,9 +1,26 @@
+"use client";
+
 import Link from "next/link";
-import { legalPages } from "../lib/legal-pages";
-import { legalServiceLinks, type LegalPageSlug } from "../lib/legal-service-links";
+import { legalPageForLanguage } from "../lib/legal-pages";
+import {
+  legalServiceLinks,
+  legalServiceTitle,
+  type LegalPageSlug,
+} from "../lib/legal-service-links";
+import { useLanguage } from "./language";
 
 export function LegalPage({ slug }: { slug: LegalPageSlug }) {
-  const page = legalPages[slug];
+  const { language } = useLanguage();
+  const page = legalPageForLanguage(slug, language);
+  const serviceTitle = language === "ru"
+    ? "Сервис"
+    : language === "lv"
+      ? "Serviss"
+      : language === "et"
+        ? "Teenindus"
+        : language === "lt"
+          ? "Servisas"
+          : "Our Service";
 
   return (
     <section className="legal-page-v3">
@@ -14,15 +31,15 @@ export function LegalPage({ slug }: { slug: LegalPageSlug }) {
       </div>
 
       <div className="legal-layout-v3">
-        <aside className="legal-nav-v3" aria-label="Our Service">
-          <strong>Our Service</strong>
+        <aside className="legal-nav-v3" aria-label={serviceTitle}>
+          <strong>{serviceTitle}</strong>
           {legalServiceLinks.map((item) => (
             <Link
               className={item.slug === slug ? "active" : ""}
               href={`/${item.slug}`}
               key={item.slug}
             >
-              {item.title}
+              {legalServiceTitle(item.slug, language)}
             </Link>
           ))}
         </aside>

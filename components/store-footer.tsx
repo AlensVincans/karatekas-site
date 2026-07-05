@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { categories } from "../lib/store-data";
 import { categoryLabel } from "../lib/i18n";
-import { legalServiceLinks } from "../lib/legal-service-links";
+import { legalServiceLinks, legalServiceTitle } from "../lib/legal-service-links";
 import { useLanguage } from "./language";
 
 const footerCopy = {
@@ -125,7 +125,7 @@ export function StoreFooter() {
             <strong>{c.service}</strong>
             {legalServiceLinks.map((item) => (
               <Link href={`/${item.slug}`} key={item.slug}>
-                {item.title}
+                {legalServiceTitle(item.slug, language)}
               </Link>
             ))}
           </div>
