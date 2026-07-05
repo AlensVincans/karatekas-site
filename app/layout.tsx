@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   description:
     "Интернет-магазин экипировки для карате с B2C/B2B ценами, складом, счетами, оплатой и доставкой по Балтии.",
   icons: {
-    icon: "/karatekas-mark.png",
-    shortcut: "/karatekas-mark.png",
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
     apple: "/karatekas-mark.png",
   },
 };

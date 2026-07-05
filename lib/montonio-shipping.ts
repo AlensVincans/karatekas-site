@@ -185,9 +185,9 @@ const fallbackMethods: ShippingMethodOption[] = [
     source: "fallback",
   },
   {
-    id: "omniva-courier-standard",
-    carrier: "omniva",
-    carrierCode: "omniva",
+    id: "dpd-courier-standard",
+    carrier: "dpd",
+    carrierCode: "dpd",
     carrierName: "Courier",
     name: "Courier delivery",
     type: "courier",
@@ -199,6 +199,36 @@ const fallbackMethods: ShippingMethodOption[] = [
     source: "fallback",
   },
 ];
+
+const manualShippingPrices: Record<string, Record<string, number>> = {
+  LV: {
+    "self:self_pickup": 0,
+    "omniva:parcel_machine": 3.49,
+    "dpd:parcel_machine": 4.9,
+    "smartposti:parcel_machine": 4.9,
+    "unisend:parcel_machine": 2.99,
+    "latvijas_pasts:post_office": 5.6,
+    "dpd:courier": 8.5,
+  },
+  LT: {
+    "self:self_pickup": 0,
+    "omniva:parcel_machine": 5.45,
+    "dpd:parcel_machine": 5.45,
+    "smartposti:parcel_machine": 5.45,
+    "unisend:parcel_machine": 5.45,
+    "latvijas_pasts:post_office": 5.45,
+    "dpd:courier": 8.39,
+  },
+  EE: {
+    "self:self_pickup": 0,
+    "omniva:parcel_machine": 5.45,
+    "dpd:parcel_machine": 5.45,
+    "smartposti:parcel_machine": 5.45,
+    "unisend:parcel_machine": 5.45,
+    "latvijas_pasts:post_office": 5.45,
+    "dpd:courier": 8.39,
+  },
+};
 
 function env() {
   return process.env;
@@ -308,10 +338,41 @@ async function shippingRequest<T>(path: string, init?: RequestInit) {
   return data;
 }
 
-function priceFor(carrierCode: string, shippingType: OrderShippingType) {
+function priceKey(carrierCode: string, shippingType: OrderShippingType) {
+  return `${normalizeCarrierCode(carrierCode)}:${shippingType}`;
+}
+
+function manualPriceFor(
+  carrierCode: string,
+  shippingType: OrderShippingType,
+  countryCode = defaultCountry,
+) {
+  const country = countryCode.trim().toUpperCase() || defaultCountry;
+  const key = priceKey(carrierCode, shippingType);
+  const countryPrice = manualShippingPrices[country]?.[key];
+
+  if (typeof countryPrice === "number") {
+    return countryPrice;
+  }
+
+  return manualShippingPrices[defaultCountry]?.[key];
+}
+
+function priceFor(
+  carrierCode: string,
+  shippingType: OrderShippingType,
+  countryCode = defaultCountry,
+) {
+  const manualPrice = manualPriceFor(carrierCode, shippingType, countryCode);
+
+  if (typeof manualPrice === "number") {
+    return manualPrice;
+  }
+
   const fallback = fallbackMethods.find(
     (method) =>
-      method.carrierCode === carrierCode && method.shippingType === shippingType,
+      method.carrierCode === normalizeCarrierCode(carrierCode) &&
+      method.shippingType === shippingType,
   );
 
   return fallback?.price ?? (shippingType === "courier" ? 8.5 : 4.9);
@@ -321,12 +382,13 @@ function moneyOrFallback(
   value: string | undefined,
   carrierCode: string,
   shippingType: OrderShippingType,
+  countryCode = defaultCountry,
 ) {
   const parsed = Number(value);
 
   return Number.isFinite(parsed) && parsed > 0
     ? roundMoney(parsed)
-    : priceFor(carrierCode, shippingType);
+    : priceFor(carrierCode, shippingType, countryCode);
 }
 
 function methodName(
@@ -392,7 +454,7 @@ function normalizeMethods(
           type: "courier",
           shippingType: "courier",
           subtype: method.subtypes?.[0]?.code || "standard",
-          price: priceFor(carrierCode, "courier"),
+          price: priceFor(carrierCode, "courier", countryCode),
           currency: "EUR",
           available: true,
           source: "montonio",
@@ -423,7 +485,7 @@ function normalizeMethods(
           type: "pickupPoint",
           shippingType,
           subtype: subtype.code,
-          price: moneyOrFallback(subtype.rate, carrierCode, shippingType),
+          price: moneyOrFallback(subtype.rate, carrierCode, shippingType, countryCode),
           currency: "EUR",
           available: true,
           source: "montonio",
@@ -435,12 +497,17 @@ function normalizeMethods(
   return methods;
 }
 
-export function fallbackShippingMethods() {
-  return fallbackMethods;
+export function fallbackShippingMethods(countryCode = defaultCountry) {
+  return fallbackMethods.map((method) => ({
+    ...method,
+    price: priceFor(method.carrierCode, method.shippingType, countryCode),
+  }));
 }
 
-function withSelfPickup(methods: ShippingMethodOption[]) {
-  const selfPickup = fallbackMethods.find((method) => method.shippingType === "self_pickup");
+function withSelfPickup(methods: ShippingMethodOption[], countryCode = defaultCountry) {
+  const selfPickup = fallbackShippingMethods(countryCode).find(
+    (method) => method.shippingType === "self_pickup",
+  );
 
   if (!selfPickup || methods.some((method) => method.shippingType === "self_pickup")) {
     return methods;
@@ -450,14 +517,18 @@ function withSelfPickup(methods: ShippingMethodOption[]) {
 }
 
 export async function getShippingMethods(countryCode = defaultCountry) {
+  if (env().MONTONIO_SHIPPING_USE_API?.trim().toLowerCase() !== "true") {
+    return fallbackShippingMethods(countryCode);
+  }
+
   try {
     const data =
       await shippingRequest<MontonioShippingMethodResponse>("/shipping-methods");
     const methods = normalizeMethods(data, countryCode);
 
-    return methods.length ? withSelfPickup(methods) : fallbackShippingMethods();
+    return methods.length ? withSelfPickup(methods, countryCode) : fallbackShippingMethods(countryCode);
   } catch {
-    return fallbackShippingMethods();
+    return fallbackShippingMethods(countryCode);
   }
 }
 

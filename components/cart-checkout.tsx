@@ -64,7 +64,7 @@ type ShippingAddress = {
   phoneNumber: string;
 };
 
-const fallbackShippingMethods: ShippingMethodOption[] = [
+const baseFallbackShippingMethods: ShippingMethodOption[] = [
   {
     id: "self-pickup-riga",
     carrier: "self",
@@ -144,9 +144,9 @@ const fallbackShippingMethods: ShippingMethodOption[] = [
     available: true,
   },
   {
-    id: "omniva-courier-standard",
-    carrier: "omniva",
-    carrierCode: "omniva",
+    id: "dpd-courier-standard",
+    carrier: "dpd",
+    carrierCode: "dpd",
     carrierName: "Courier",
     name: "Courier delivery",
     type: "courier",
@@ -157,6 +157,48 @@ const fallbackShippingMethods: ShippingMethodOption[] = [
     available: true,
   },
 ];
+
+const manualShippingPrices: Record<DeliveryCountry, Record<string, number>> = {
+  LV: {
+    "self:self_pickup": 0,
+    "omniva:parcel_machine": 3.49,
+    "dpd:parcel_machine": 4.9,
+    "smartposti:parcel_machine": 4.9,
+    "unisend:parcel_machine": 2.99,
+    "latvijas_pasts:post_office": 5.6,
+    "dpd:courier": 8.5,
+  },
+  LT: {
+    "self:self_pickup": 0,
+    "omniva:parcel_machine": 5.45,
+    "dpd:parcel_machine": 5.45,
+    "smartposti:parcel_machine": 5.45,
+    "unisend:parcel_machine": 5.45,
+    "latvijas_pasts:post_office": 5.45,
+    "dpd:courier": 8.39,
+  },
+  EE: {
+    "self:self_pickup": 0,
+    "omniva:parcel_machine": 5.45,
+    "dpd:parcel_machine": 5.45,
+    "smartposti:parcel_machine": 5.45,
+    "unisend:parcel_machine": 5.45,
+    "latvijas_pasts:post_office": 5.45,
+    "dpd:courier": 8.39,
+  },
+};
+
+function fallbackShippingMethods(country: DeliveryCountry) {
+  const prices = manualShippingPrices[country] ?? manualShippingPrices.LV;
+
+  return baseFallbackShippingMethods.map((method) => ({
+    ...method,
+    price:
+      prices[`${method.carrierCode}:${method.shippingType}`] ??
+      manualShippingPrices.LV[`${method.carrierCode}:${method.shippingType}`] ??
+      method.price,
+  }));
+}
 
 const deliveryCountries: Array<{
   code: DeliveryCountry;
@@ -569,9 +611,9 @@ export function CartCheckout() {
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
   const [shippingCountry, setShippingCountry] = useState<DeliveryCountry>("LV");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
-    fallbackShippingMethods,
+    () => fallbackShippingMethods("LV"),
   );
-  const [shippingId, setShippingId] = useState(fallbackShippingMethods[0].id);
+  const [shippingId, setShippingId] = useState(() => fallbackShippingMethods("LV")[0].id);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [pickupPointId, setPickupPointId] = useState("");
   const [pickupQuery, setPickupQuery] = useState("");
@@ -613,7 +655,12 @@ export function CartCheckout() {
             : activeMethods[0].id,
         );
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          const fallbackMethods = fallbackShippingMethods(shippingCountry);
+          setShippingMethods(fallbackMethods);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -623,7 +670,7 @@ export function CartCheckout() {
   const selectedShippingMethod =
     shippingMethods.find((method) => method.id === shippingId) ??
     shippingMethods[0] ??
-    fallbackShippingMethods[0];
+    fallbackShippingMethods(shippingCountry)[0];
 
   useEffect(() => {
     if (!selectedShippingMethod || selectedShippingMethod.type !== "pickupPoint") {
@@ -752,8 +799,15 @@ export function CartCheckout() {
 
   function updateShippingCountry(country: DeliveryCountry) {
     const details = deliveryCountries.find((item) => item.code === country);
+    const fallbackMethods = fallbackShippingMethods(country);
 
     setShippingCountry(country);
+    setShippingMethods(fallbackMethods);
+    setShippingId((current) =>
+      fallbackMethods.some((method) => method.id === current)
+        ? current
+        : fallbackMethods[0].id,
+    );
     setPickupQuery("");
     setPickupPointId("");
     setShippingAddress((address) => ({
