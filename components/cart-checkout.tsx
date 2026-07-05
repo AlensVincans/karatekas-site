@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   findVariation,
@@ -235,6 +236,10 @@ const copy = {
     invoice: "Счёт",
     defer15: "15 дней",
     noVat: "Счёт без PVN",
+    termsPrefix: "Я прочитал(а) и согласен(на) с ",
+    termsLink: "terms and conditions",
+    termsSuffix: "",
+    termsRequired: "Подтвердите согласие с terms and conditions.",
     goods: "Товары",
     inStock: "в наличии",
     readyGroups: "групп товаров готовы к выбору доставки.",
@@ -275,6 +280,10 @@ const copy = {
     invoice: "Rēķins",
     defer15: "15 dienas",
     noVat: "Rēķins bez PVN",
+    termsPrefix: "Es esmu izlasījis un piekrītu lapas ",
+    termsLink: "terms and conditions",
+    termsSuffix: "",
+    termsRequired: "Lūdzu, apstipriniet piekrišanu terms and conditions.",
     goods: "Preces",
     inStock: "noliktavā",
     readyGroups: "preču grupas gatavas piegādes izvēlei.",
@@ -315,6 +324,10 @@ const copy = {
     invoice: "Invoice",
     defer15: "15 days",
     noVat: "Invoice without VAT",
+    termsPrefix: "I have read and agree to the site's ",
+    termsLink: "terms and conditions",
+    termsSuffix: "",
+    termsRequired: "Please confirm that you agree to the terms and conditions.",
     goods: "Products",
     inStock: "in stock",
     readyGroups: "item groups ready for delivery selection.",
@@ -355,6 +368,10 @@ const copy = {
     invoice: "Arve",
     defer15: "15 päeva",
     noVat: "Arve ilma PVN-ita",
+    termsPrefix: "Olen lugenud ja nõustun saidi ",
+    termsLink: "terms and conditions",
+    termsSuffix: "",
+    termsRequired: "Palun kinnita nõustumist terms and conditions tingimustega.",
     goods: "Tooted",
     inStock: "laos",
     readyGroups: "tootegruppi on tarne valikuks valmis.",
@@ -395,6 +412,10 @@ const copy = {
     invoice: "Sąskaita",
     defer15: "15 dienų",
     noVat: "Sąskaita be PVN",
+    termsPrefix: "Perskaičiau ir sutinku su svetainės ",
+    termsLink: "terms and conditions",
+    termsSuffix: "",
+    termsRequired: "Patvirtinkite sutikimą su terms and conditions.",
     goods: "Prekės",
     inStock: "sandėlyje",
     readyGroups: "prekių grupės paruoštos pristatymo pasirinkimui.",
@@ -629,6 +650,7 @@ export function CartCheckout() {
   });
   const [payment, setPayment] = useState<PaymentMethod>("card");
   const [noVat, setNoVat] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -948,6 +970,11 @@ export function CartCheckout() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setStatus(c.termsRequired);
+      return;
+    }
+
     setIsSubmitting(true);
     setStatus(payment === "card" ? c.cardStatus : c.invoiceStatus);
 
@@ -1231,6 +1258,20 @@ export function CartCheckout() {
         <label className="check-row vat-row-v3">
           <input checked={noVat} onChange={(event) => setNoVat(event.target.checked)} type="checkbox" />
           {c.noVat}
+        </label>
+
+        <label className="check-row terms-row-v3">
+          <input
+            checked={acceptedTerms}
+            onChange={(event) => setAcceptedTerms(event.target.checked)}
+            type="checkbox"
+          />
+          <span>
+            {c.termsPrefix}
+            <Link href="/privacy-policy">{c.termsLink}</Link>
+            {c.termsSuffix}
+            <span className="required-mark-v3">*</span>
+          </span>
         </label>
 
         <div className="totals totals-v3">
