@@ -1,6 +1,5 @@
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
 import { createOrder, updateOrder, type OrderShippingType } from "../../../../lib/orders";
-import { sendOrderEmails } from "../../../../lib/email";
 
 type CheckoutLine = {
   productId?: string;
@@ -357,20 +356,12 @@ export async function POST(request: Request) {
     montonioOrderUuid: result.uuid,
     paymentUrl: result.paymentUrl,
   });
-  let emailSent = true;
-
-  try {
-    await sendOrderEmails(updatedOrder ?? localOrder);
-  } catch (error) {
-    emailSent = false;
-    console.error("Order email sending failed", error);
-  }
 
   return Response.json({
-    orderId: localOrder.id,
+    orderId: updatedOrder?.id ?? localOrder.id,
     merchantReference: reference,
     orderUuid: result.uuid,
     paymentUrl: result.paymentUrl,
-    emailSent,
+    emailSent: false,
   });
 }

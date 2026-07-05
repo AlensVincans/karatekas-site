@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { verifyMontonioJwt } from "../../../lib/montonio";
+import { cancelPendingCardOrder } from "../../../lib/orders";
 
 type MontonioReturnPayload = {
   currency?: string;
@@ -63,6 +64,12 @@ function paymentStatusText(status: string | undefined) {
   };
 }
 
+function shouldCancelReturnedOrder(status: string | undefined) {
+  const normalized = status?.toLowerCase();
+
+  return Boolean(normalized && normalized !== "paid" && normalized !== "pending");
+}
+
 export default async function PaymentReturnPage({
   searchParams,
 }: {
@@ -71,10 +78,21 @@ export default async function PaymentReturnPage({
   const params = await searchParams;
   const payment = await readPayment(params?.["order-token"]);
   const paymentStatus = payment?.paymentStatus ?? payment?.payment_status;
+
+  if (payment?.merchantReference && shouldCancelReturnedOrder(paymentStatus)) {
+    await cancelPendingCardOrder({ merchantReference: payment.merchantReference });
+  }
+
   const copy = paymentStatusText(paymentStatus);
 
   return (
     <section className="payment-return-page">
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "try{sessionStorage.removeItem('kg_pending_montonio_order')}catch(e){}",
+        }}
+      />
       <div className={`payment-return-card ${copy.tone}`}>
         <div className="payment-return-icon" aria-hidden="true">
           {copy.tone === "success" ? "✓" : "!"}

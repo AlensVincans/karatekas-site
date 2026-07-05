@@ -119,7 +119,7 @@ export function StoreHeader() {
   return (
     <header className="site-header-v2">
       <div className="nav-main-v2">
-        <Link className="brand-lockup-v2" href="/" aria-label="Karatekas Gear">
+        <Link className="brand-lockup-v2" href="/" aria-label="Karatekas">
           <Image
             alt=""
             className="brand-logo-v2"

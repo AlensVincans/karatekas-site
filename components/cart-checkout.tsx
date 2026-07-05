@@ -65,6 +65,52 @@ type ShippingAddress = {
   phoneNumber: string;
 };
 
+const pendingMontonioOrderKey = "kg_pending_montonio_order";
+
+type PendingMontonioOrder = {
+  orderId?: string;
+  merchantReference?: string;
+};
+
+async function cancelPendingMontonioOrder() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const raw = window.sessionStorage.getItem(pendingMontonioOrderKey);
+
+  if (!raw) {
+    return;
+  }
+
+  let pending: PendingMontonioOrder;
+
+  try {
+    pending = JSON.parse(raw) as PendingMontonioOrder;
+  } catch {
+    window.sessionStorage.removeItem(pendingMontonioOrderKey);
+    return;
+  }
+
+  if (!pending.orderId || !pending.merchantReference) {
+    window.sessionStorage.removeItem(pendingMontonioOrderKey);
+    return;
+  }
+
+  try {
+    await fetch("/api/montonio/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId: pending.orderId,
+        merchantReference: pending.merchantReference,
+      }),
+    });
+  } finally {
+    window.sessionStorage.removeItem(pendingMontonioOrderKey);
+  }
+}
+
 const baseFallbackShippingMethods: ShippingMethodOption[] = [
   {
     id: "self-pickup-riga",
@@ -237,9 +283,9 @@ const copy = {
     defer15: "15 дней",
     noVat: "Счёт без PVN",
     termsPrefix: "Я прочитал(а) и согласен(на) с ",
-    termsLink: "terms and conditions",
+    termsLink: "правилами и условиями",
     termsSuffix: "",
-    termsRequired: "Подтвердите согласие с terms and conditions.",
+    termsRequired: "Подтвердите согласие с правилами и условиями.",
     goods: "Товары",
     inStock: "в наличии",
     readyGroups: "групп товаров готовы к выбору доставки.",
@@ -281,9 +327,9 @@ const copy = {
     defer15: "15 dienas",
     noVat: "Rēķins bez PVN",
     termsPrefix: "Es esmu izlasījis un piekrītu lapas ",
-    termsLink: "terms and conditions",
+    termsLink: "noteikumiem un nosacījumiem",
     termsSuffix: "",
-    termsRequired: "Lūdzu, apstipriniet piekrišanu terms and conditions.",
+    termsRequired: "Lūdzu, apstipriniet piekrišanu noteikumiem un nosacījumiem.",
     goods: "Preces",
     inStock: "noliktavā",
     readyGroups: "preču grupas gatavas piegādes izvēlei.",
@@ -369,9 +415,9 @@ const copy = {
     defer15: "15 päeva",
     noVat: "Arve ilma PVN-ita",
     termsPrefix: "Olen lugenud ja nõustun saidi ",
-    termsLink: "terms and conditions",
+    termsLink: "tingimustega",
     termsSuffix: "",
-    termsRequired: "Palun kinnita nõustumist terms and conditions tingimustega.",
+    termsRequired: "Palun kinnita nõustumist tingimustega.",
     goods: "Tooted",
     inStock: "laos",
     readyGroups: "tootegruppi on tarne valikuks valmis.",
@@ -413,9 +459,9 @@ const copy = {
     defer15: "15 dienų",
     noVat: "Sąskaita be PVN",
     termsPrefix: "Perskaičiau ir sutinku su svetainės ",
-    termsLink: "terms and conditions",
+    termsLink: "taisyklėmis ir sąlygomis",
     termsSuffix: "",
-    termsRequired: "Patvirtinkite sutikimą su terms and conditions.",
+    termsRequired: "Patvirtinkite sutikimą su taisyklėmis ir sąlygomis.",
     goods: "Prekės",
     inStock: "sandėlyje",
     readyGroups: "prekių grupės paruoštos pristatymo pasirinkimui.",
@@ -579,11 +625,11 @@ function carrierIcon(method: ShippingMethodOption) {
     .toLowerCase();
 
   if (method.shippingType === "self_pickup" || carrierText.includes("self")) {
-    return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.png" };
+    return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.webp" };
   }
 
   if (method.shippingType === "courier") {
-    return { alt: "Courier", className: "courier", src: "/shipping-logos/courier.png" };
+    return { alt: "Courier", className: "courier", src: "/shipping-logos/courier.webp" };
   }
 
   if (carrierText.includes("dpd")) {
@@ -653,6 +699,29 @@ export function CartCheckout() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    void cancelPendingMontonioOrder();
+
+    const cancelOnReturn = () => {
+      void cancelPendingMontonioOrder();
+    };
+    const cancelOnVisible = () => {
+      if (document.visibilityState === "visible") {
+        void cancelPendingMontonioOrder();
+      }
+    };
+
+    window.addEventListener("pageshow", cancelOnReturn);
+    window.addEventListener("focus", cancelOnReturn);
+    document.addEventListener("visibilitychange", cancelOnVisible);
+
+    return () => {
+      window.removeEventListener("pageshow", cancelOnReturn);
+      window.removeEventListener("focus", cancelOnReturn);
+      document.removeEventListener("visibilitychange", cancelOnVisible);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1012,6 +1081,8 @@ export function CartCheckout() {
       });
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
+        orderId?: string;
+        merchantReference?: string;
         paymentUrl?: string;
       };
 
@@ -1020,6 +1091,15 @@ export function CartCheckout() {
       }
 
       setStatus(c.redirecting);
+      if (data.orderId && data.merchantReference) {
+        window.sessionStorage.setItem(
+          pendingMontonioOrderKey,
+          JSON.stringify({
+            orderId: data.orderId,
+            merchantReference: data.merchantReference,
+          }),
+        );
+      }
       window.location.assign(data.paymentUrl);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : c.paymentError);

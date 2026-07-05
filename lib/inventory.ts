@@ -205,3 +205,40 @@ export async function decrementInventory(lines: InventoryAdjustmentLine[]) {
 
   return changed;
 }
+
+export async function restoreInventory(lines: InventoryAdjustmentLine[]) {
+  const store = await readStore();
+  let changed = false;
+
+  for (const line of lines) {
+    if (!line.variationId) {
+      continue;
+    }
+
+    const current = mergeStock(line.variationId, store.levels);
+
+    if (!current) {
+      continue;
+    }
+
+    const quantity = normalizeQty(line.quantity);
+
+    if (quantity <= 0) {
+      continue;
+    }
+
+    store.levels[line.variationId] = {
+      ...store.levels[line.variationId],
+      physical: current.physical + quantity,
+      reserved: current.reserved,
+      expected: current.expected,
+    };
+    changed = true;
+  }
+
+  if (changed) {
+    await writeStore(store);
+  }
+
+  return changed;
+}

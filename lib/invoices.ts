@@ -19,7 +19,7 @@ function envText(name: string, fallback: string) {
 
 function sellerDetails(): SellerDetails {
   return {
-    name: envText("INVOICE_SELLER_NAME", "Karatekas Gear"),
+    name: envText("INVOICE_SELLER_NAME", "Karatekas"),
     registrationNumber: envText("INVOICE_SELLER_REG_NO", "REG-NO-NOT-SET"),
     vatNumber: envText("INVOICE_SELLER_VAT_NO", "VAT-NO-NOT-SET"),
     address: envText("INVOICE_SELLER_ADDRESS", "Riga, Latvia"),

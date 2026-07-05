@@ -5,7 +5,7 @@ import { StoreHeader } from "../components/store-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Karatekas Gear",
+  title: "Karatekas",
   description:
     "Интернет-магазин экипировки для карате с B2C/B2B ценами, складом, счетами, оплатой и доставкой по Балтии.",
   icons: {

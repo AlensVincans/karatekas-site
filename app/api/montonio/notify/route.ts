@@ -6,7 +6,10 @@ import {
 import {
   getOrderByMerchantReference,
   updateOrder,
+  type StoreOrder,
 } from "../../../../lib/orders";
+import { sendOrderEmails } from "../../../../lib/email";
+import { decrementInventory } from "../../../../lib/inventory";
 
 type MontonioReturnPayload = {
   merchantReference?: string;
@@ -55,6 +58,21 @@ async function readOrderToken(request: Request) {
   return new URLSearchParams(body).get("order-token");
 }
 
+async function sendPaidOrderEmailOnce(order: StoreOrder) {
+  if (order.orderEmailSent) {
+    return false;
+  }
+
+  try {
+    await sendOrderEmails(order);
+    await updateOrder(order.id, { orderEmailSent: true });
+    return true;
+  } catch (error) {
+    console.error("Paid order email sending failed", error);
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   const token = await readOrderToken(request);
   const secretKey = montonioEnv.MONTONIO_SECRET_KEY?.trim();
@@ -81,10 +99,20 @@ export async function POST(request: Request) {
       const order = await getOrderByMerchantReference(payload.merchantReference);
 
       if (order) {
-        const updated = await updateOrder(order.id, {
+        let updated = await updateOrder(order.id, {
           paymentStatus: paid ? "paid" : order.paymentStatus,
           montonioOrderUuid: payload.uuid || payload.orderUuid || order.montonioOrderUuid,
         });
+
+        if (paid && updated && !updated.stockAdjusted) {
+          const stockAdjusted = await decrementInventory(updated.lines);
+
+          updated = await updateOrder(updated.id, { stockAdjusted }) ?? updated;
+        }
+
+        if (paid && updated) {
+          await sendPaidOrderEmailOnce(updated);
+        }
 
         if (
           paid &&

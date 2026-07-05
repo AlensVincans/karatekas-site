@@ -609,8 +609,8 @@ async function resolveCourierServiceId(order: StoreOrder) {
 
 function senderAddress() {
   return {
-    name: cleanText(env().MONTONIO_SHIPPER_NAME, "Karatekas Gear"),
-    companyName: cleanText(env().MONTONIO_SHIPPER_COMPANY, "Karatekas Gear"),
+    name: cleanText(env().MONTONIO_SHIPPER_NAME, "Karatekas"),
+    companyName: cleanText(env().MONTONIO_SHIPPER_COMPANY, "Karatekas"),
     streetAddress: cleanText(env().MONTONIO_ADDRESS_LINE1, "Online store"),
     locality: cleanText(env().MONTONIO_LOCALITY, "Riga"),
     region: cleanText(env().MONTONIO_REGION, "Riga"),

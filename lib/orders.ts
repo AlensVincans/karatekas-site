@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { decrementInventory } from "./inventory";
+import { decrementInventory, restoreInventory } from "./inventory";
 import { roundMoney } from "./montonio";
 
 export type OrderPaymentMethod = "card" | "invoice" | "defer15";
@@ -92,6 +92,7 @@ export type StoreOrder = {
   shippingStatus: OrderShippingStatus;
   shippingError?: string;
   stockAdjusted?: boolean;
+  orderEmailSent?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -174,9 +175,9 @@ async function writeStore(store: OrderStore) {
 export async function listOrders() {
   const store = await readStore();
 
-  return [...store.orders].sort((left, right) =>
-    right.createdAt.localeCompare(left.createdAt),
-  );
+  return store.orders
+    .filter((order) => order.paymentStatus !== "cancelled")
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 export async function getOrderById(id: string) {
@@ -262,4 +263,56 @@ export async function updateOrderByMerchantReference(
   const order = await getOrderByMerchantReference(merchantReference);
 
   return order ? updateOrder(order.id, patch) : null;
+}
+
+export async function cancelPendingCardOrder(input: {
+  id?: string;
+  merchantReference?: string;
+}): Promise<StoreOrder | null> {
+  if (!input.id && !input.merchantReference) {
+    return null;
+  }
+
+  const store = await readStore();
+  let cancelled: StoreOrder | null = null;
+
+  store.orders = await Promise.all(
+    store.orders.map(async (order) => {
+      const idMatches = input.id ? order.id === input.id : true;
+      const referenceMatches = input.merchantReference
+        ? order.merchantReference === input.merchantReference
+        : true;
+
+      if (
+        !idMatches ||
+        !referenceMatches ||
+        order.paymentMethod !== "card" ||
+        order.paymentStatus !== "pending"
+      ) {
+        return order;
+      }
+
+      const stockRestored = order.stockAdjusted
+        ? await restoreInventory(order.lines)
+        : false;
+
+      cancelled = {
+        ...order,
+        paymentStatus: "cancelled",
+        shippingStatus: "failed",
+        shippingError: "Payment checkout was interrupted before completion.",
+        stockAdjusted: stockRestored ? false : order.stockAdjusted,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return cancelled;
+    }),
+  );
+
+  if (!cancelled) {
+    return null;
+  }
+
+  await writeStore(store);
+  return cancelled;
 }
