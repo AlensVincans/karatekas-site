@@ -14,6 +14,7 @@
 /coverage
 /outputs/
 /work/
+/tmp/
 /data/orders.json
 /data/stock.json
 /data/users.json

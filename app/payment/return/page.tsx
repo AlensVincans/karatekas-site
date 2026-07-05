@@ -25,6 +25,44 @@ async function readPayment(token?: string) {
   }
 }
 
+function paymentStatusText(status: string | undefined) {
+  const normalized = status?.toLowerCase();
+
+  if (normalized === "paid") {
+    return {
+      label: "Оплата прошла",
+      title: "Спасибо, заказ принят",
+      text: "Мы получили подтверждение оплаты. Заказ уже сохранен в системе, а документы и детали доставки будут отправлены на email.",
+      tone: "success",
+    };
+  }
+
+  if (normalized === "pending") {
+    return {
+      label: "Оплата проверяется",
+      title: "Заказ ожидает подтверждения",
+      text: "Montonio еще обрабатывает платеж. Как только статус обновится, заказ появится в истории аккаунта.",
+      tone: "pending",
+    };
+  }
+
+  if (status) {
+    return {
+      label: `Статус: ${status}`,
+      title: "Мы вернулись из Montonio",
+      text: "Платежный статус получен. Если оплата была завершена, заказ будет обновлен автоматически.",
+      tone: "pending",
+    };
+  }
+
+  return {
+    label: "Возврат из оплаты",
+    title: "Проверяем заказ",
+    text: "Если оплата была завершена, заказ появится в истории аккаунта после webhook-уведомления от Montonio.",
+    tone: "pending",
+  };
+}
+
 export default async function PaymentReturnPage({
   searchParams,
 }: {
@@ -33,24 +71,45 @@ export default async function PaymentReturnPage({
   const params = await searchParams;
   const payment = await readPayment(params?.["order-token"]);
   const paymentStatus = payment?.paymentStatus ?? payment?.payment_status;
+  const copy = paymentStatusText(paymentStatus);
 
   return (
-    <section className="section-shell">
-      <div className="checkout-page">
-        <section className="checkout-list">
-          <h1>Оплата Montonio</h1>
-          <p className="empty-state">
-            {paymentStatus
-              ? `Montonio вернул статус оплаты: ${paymentStatus}.`
-              : "Вы вернулись из Montonio. Если оплата была завершена, заказ появится в Montonio."}
-          </p>
-          {payment?.merchantReference ? (
-            <p className="status-box">Заказ: {payment.merchantReference}</p>
-          ) : null}
-          <Link className="wide-button" href="/">
-            На главную
+    <section className="payment-return-page">
+      <div className={`payment-return-card ${copy.tone}`}>
+        <div className="payment-return-icon" aria-hidden="true">
+          {copy.tone === "success" ? "✓" : "!"}
+        </div>
+        <div className="payment-return-copy">
+          <span className="kicker-v3">{copy.label}</span>
+          <h1>{copy.title}</h1>
+          <p>{copy.text}</p>
+        </div>
+
+        <div className="payment-return-summary">
+          <div>
+            <span>Номер заказа</span>
+            <strong>{payment?.merchantReference ?? "-"}</strong>
+          </div>
+          <div>
+            <span>Сумма</span>
+            <strong>
+              {payment?.grandTotal ? `${payment.grandTotal} ${payment.currency ?? "EUR"}` : "-"}
+            </strong>
+          </div>
+          <div>
+            <span>Статус оплаты</span>
+            <strong>{paymentStatus ?? "-"}</strong>
+          </div>
+        </div>
+
+        <div className="payment-return-actions">
+          <Link className="button-v3 primary" href="/account">
+            История заказов
           </Link>
-        </section>
+          <Link className="button-v3 secondary" href="/catalog">
+            Вернуться в каталог
+          </Link>
+        </div>
       </div>
     </section>
   );

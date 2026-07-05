@@ -1011,6 +1011,7 @@ export default function AdminPage() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeStockBrand, setActiveStockBrand] = useState("");
+  const [stockQuery, setStockQuery] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
   const availableTotal = inventoryItems.length
     ? inventoryItems.reduce((sum, item) => sum + item.available, 0)
@@ -1076,6 +1077,7 @@ export default function AdminPage() {
   const selectedStockBrand = selectedStockGroup?.[0] ?? "";
   const selectedStockItems = selectedStockGroup?.[1] ?? emptyStockItems;
   const selectedStockRows = useMemo(() => {
+    const normalizedQuery = stockQuery.trim().toLowerCase();
     const rows = selectedStockItems.reduce<
       Record<
         string,
@@ -1097,8 +1099,23 @@ export default function AdminPage() {
 
     return Object.values(rows).sort((left, right) =>
       left.productName.localeCompare(right.productName),
-    );
-  }, [selectedStockItems]);
+    ).filter((row) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return [
+        row.productName,
+        row.category,
+        categoryLabel(row.category, language),
+        ...row.items.flatMap((item) => [item.color, item.size, item.sku]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery);
+    });
+  }, [language, selectedStockItems, stockQuery]);
 
   if (session?.role !== "admin") {
     return (
@@ -1836,18 +1853,26 @@ export default function AdminPage() {
 
       {tab === "stock" ? (
         <div className="stock-compact-panel">
-          <div className="stock-brand-tabs">
-            {stockGroups.map(([brand, items]) => (
-              <button
-                className={brand === selectedStockBrand ? "active" : ""}
-                key={brand}
-                onClick={() => setActiveStockBrand(brand)}
-                type="button"
-              >
-                {brand}
-                <span>{items.length}</span>
-              </button>
-            ))}
+          <div className="stock-topline">
+            <div className="stock-brand-tabs">
+              {stockGroups.map(([brand, items]) => (
+                <button
+                  className={brand === selectedStockBrand ? "active" : ""}
+                  key={brand}
+                  onClick={() => setActiveStockBrand(brand)}
+                  type="button"
+                >
+                  {brand}
+                  <span>{items.length}</span>
+                </button>
+              ))}
+            </div>
+            <input
+              className="admin-search stock-search"
+              placeholder={`${c.search.split(",")[0]}...`}
+              value={stockQuery}
+              onChange={(event) => setStockQuery(event.target.value)}
+            />
           </div>
           <div className="table-wrap admin-table stock-compact-table">
             <table>

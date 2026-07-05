@@ -620,10 +620,10 @@ export async function createShipmentForOrder(order: StoreOrder) {
 }
 
 export async function createLabelForShipment(shipmentId: string) {
-  const pageSize = cleanText(env().MONTONIO_LABEL_PAGE_SIZE, "A6").toUpperCase();
+  const pageSize = cleanText(env().MONTONIO_LABEL_PAGE_SIZE, "A4").toUpperCase();
   const labelsPerPage =
     Number(env().MONTONIO_LABELS_PER_PAGE?.trim()) ||
-    (pageSize === "A4" ? 4 : 1);
+    1;
   const data = await shippingRequest<MontonioLabelFile>("/label-files", {
     method: "POST",
     body: JSON.stringify({
