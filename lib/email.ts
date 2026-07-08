@@ -502,3 +502,45 @@ export async function sendTestEmail(to = adminEmail()) {
     }),
   });
 }
+
+export async function sendB2BRequestNotification(input: {
+  email: string;
+  companyName: string;
+  registrationNumber: string;
+  address: string;
+  phone: string;
+}) {
+  const text = [
+    "New B2B request",
+    "",
+    `Company: ${input.companyName}`,
+    `Registration number: ${input.registrationNumber}`,
+    `Email: ${input.email}`,
+    `Phone: ${input.phone}`,
+    `Address: ${input.address}`,
+  ].join("\n");
+
+  return sendMail({
+    to: adminEmail(),
+    subject: `New B2B request - ${input.companyName}`,
+    text,
+    html: emailShell({
+      title: "New B2B request",
+      eyebrow: "Wholesale approval",
+      preheader: `New wholesale request from ${input.companyName}`,
+      body: `
+        <p style="margin:0 0 18px;color:#4f4740;font-size:16px;line-height:1.65;">A customer requested wholesale/B2B access.</p>
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:18px;">
+          ${detailsTable([
+            ["Company", escapeHtml(input.companyName)],
+            ["Registration number", escapeHtml(input.registrationNumber)],
+            ["Email", `<a href="mailto:${escapeHtml(input.email)}" style="color:#ff6b00;text-decoration:none;">${escapeHtml(input.email)}</a>`],
+            ["Phone", escapeHtml(input.phone)],
+            ["Address", escapeHtml(input.address)],
+          ])}
+        </div>
+        <p style="margin:18px 0 0;color:#776f67;font-size:13px;line-height:1.6;">Open the admin panel, choose the client and approve or reject the request.</p>
+      `,
+    }),
+  });
+}

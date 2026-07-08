@@ -1394,6 +1394,128 @@ td span {
   color: var(--deep);
 }
 
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover,
+.clickable-row.active {
+  background: #fff7ef;
+}
+
+.admin-client-layout {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+}
+
+.admin-client-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  position: sticky;
+  top: 96px;
+}
+
+.admin-client-card h3,
+.client-orders-list h4 {
+  margin: 0;
+}
+
+.client-data-grid {
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: minmax(110px, auto) 1fr;
+}
+
+.client-data-grid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.client-data-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.b2b-request-box {
+  background: #fffaf5;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.admin-inline-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-orders-list {
+  display: grid;
+  gap: 8px;
+}
+
+.client-order-row {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 10px;
+  text-align: left;
+}
+
+.client-order-row span {
+  display: grid;
+  gap: 2px;
+}
+
+.client-order-row small {
+  color: var(--muted);
+}
+
+.order-status-select {
+  border-radius: 999px;
+  font-weight: 850;
+  min-width: 132px;
+  text-align: center;
+}
+
+.order-status-select.status-in_process {
+  background: #eef4ff;
+  color: #26467d;
+}
+
+.order-status-select.status-paid {
+  background: #e6f7ee;
+  color: #10683d;
+}
+
+.order-status-select.status-shipped {
+  background: #efeaff;
+  color: #5632a8;
+}
+
+.order-status-select.status-unpaid {
+  background: #fff1e6;
+  color: #a44705;
+}
+
+.order-status-select.status-completed {
+  background: #e8f6f3;
+  color: var(--deep);
+}
+
 .selected-row {
   background: #f5faf8;
 }
@@ -1756,6 +1878,23 @@ td span {
   display: grid;
   gap: 4px;
   padding: 10px;
+}
+
+.order-edit-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.order-edit-grid label {
+  display: grid;
+  gap: 5px;
+}
+
+.order-edit-grid input,
+.order-edit-grid select {
+  min-height: 34px;
+  width: 100%;
 }
 
 .account-order-row {

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLanguage } from "../../components/language";
-import { useDemoSession } from "../../components/session";
+import { type SessionUser, useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
 import {
   productImages,
@@ -27,7 +27,7 @@ import {
   writePromoPrices,
   writePromoRules,
 } from "../../lib/promotions";
-import { categories, products } from "../../lib/store-data";
+import { categories, products, type Product } from "../../lib/store-data";
 
 type AdminVariation = {
   id: string;
@@ -54,7 +54,7 @@ type AdminProduct = {
 };
 
 type OrderPayment = "invoice15" | "card" | "invoice";
-type OrderStatus = "reserved" | "paid" | "packing" | "sent" | "closed";
+type OrderStatus = "in_process" | "paid" | "shipped" | "unpaid" | "completed";
 
 type OrderRow = {
   id: string;
@@ -106,6 +106,7 @@ type ApiOrder = {
   };
   paymentMethod?: "card" | "invoice" | "defer15";
   paymentStatus?: string;
+  orderStatus?: OrderStatus;
   shippingMethodName?: string;
   pickupPointName?: string;
   shippingAddress?: Record<string, string | undefined>;
@@ -117,7 +118,7 @@ type ApiOrder = {
   lines?: OrderRow["lines"];
 };
 
-const orderStatuses: OrderStatus[] = ["reserved", "paid", "packing", "sent", "closed"];
+const orderStatuses: OrderStatus[] = ["in_process", "paid", "shipped", "unpaid", "completed"];
 const emptyStockItems: ClientInventoryItem[] = [];
 
 const copy = {
@@ -219,11 +220,11 @@ const copy = {
       invoice: "счёт",
     },
     statuses: {
-      reserved: "в резерве",
+      in_process: "в процессе",
       paid: "оплачен",
-      packing: "сборка",
-      sent: "отправлен",
-      closed: "закрыт",
+      shipped: "отправлен",
+      unpaid: "не оплачен",
+      completed: "завершен",
     },
   },
   lv: {
@@ -324,11 +325,11 @@ const copy = {
       invoice: "rēķins",
     },
     statuses: {
-      reserved: "rezervē",
+      in_process: "procesā",
       paid: "apmaksāts",
-      packing: "komplektēšana",
-      sent: "nosūtīts",
-      closed: "slēgts",
+      shipped: "nosūtīts",
+      unpaid: "nav apmaksāts",
+      completed: "pabeigts",
     },
   },
   en: {
@@ -429,11 +430,11 @@ const copy = {
       invoice: "invoice",
     },
     statuses: {
-      reserved: "reserved",
+      in_process: "in process",
       paid: "paid",
-      packing: "packing",
-      sent: "sent",
-      closed: "closed",
+      shipped: "shipped",
+      unpaid: "unpaid",
+      completed: "completed",
     },
   },
 } as const;
@@ -446,53 +447,111 @@ const adminDateLabels = {
   lt: "Data",
 } as const;
 
+const adminExtraCopy = {
+  ru: {
+    clientDetails: "Данные клиента",
+    selectClient: "Нажмите на клиента, чтобы увидеть данные и прошлые заказы.",
+    pastOrders: "Прошлые заказы",
+    b2bRequest: "Запрос оптового клиента",
+    companyName: "Компания",
+    registrationNumber: "Регистрационный номер",
+    address: "Адрес",
+    phone: "Телефон",
+    approve: "Подтвердить",
+    reject: "Отклонить",
+    noOrders: "Заказов пока нет.",
+    orderUpdated: "Заказ сохранён.",
+    actionSaved: "Решение сохранено.",
+    actionFailed: "Не удалось сохранить.",
+  },
+  lv: {
+    clientDetails: "Klienta dati",
+    selectClient: "Noklikšķiniet uz klienta, lai redzētu datus un iepriekšējos pasūtījumus.",
+    pastOrders: "Iepriekšējie pasūtījumi",
+    b2bRequest: "Vairumtirdzniecības pieprasījums",
+    companyName: "Uzņēmums",
+    registrationNumber: "Reģistrācijas numurs",
+    address: "Adrese",
+    phone: "Tālrunis",
+    approve: "Apstiprināt",
+    reject: "Noraidīt",
+    noOrders: "Pasūtījumu vēl nav.",
+    orderUpdated: "Pasūtījums saglabāts.",
+    actionSaved: "Lēmums saglabāts.",
+    actionFailed: "Neizdevās saglabāt.",
+  },
+  en: {
+    clientDetails: "Client details",
+    selectClient: "Click a client to see details and previous orders.",
+    pastOrders: "Previous orders",
+    b2bRequest: "Wholesale request",
+    companyName: "Company",
+    registrationNumber: "Registration number",
+    address: "Address",
+    phone: "Phone",
+    approve: "Approve",
+    reject: "Reject",
+    noOrders: "No orders yet.",
+    orderUpdated: "Order saved.",
+    actionSaved: "Decision saved.",
+    actionFailed: "Could not save.",
+  },
+  et: {
+    clientDetails: "Kliendi andmed",
+    selectClient: "Klõpsa kliendil, et näha andmeid ja varasemaid tellimusi.",
+    pastOrders: "Varasemad tellimused",
+    b2bRequest: "Hulgikliendi taotlus",
+    companyName: "Ettevõte",
+    registrationNumber: "Registrikood",
+    address: "Aadress",
+    phone: "Telefon",
+    approve: "Kinnita",
+    reject: "Lükka tagasi",
+    noOrders: "Tellimusi veel ei ole.",
+    orderUpdated: "Tellimus salvestatud.",
+    actionSaved: "Otsus salvestatud.",
+    actionFailed: "Salvestamine ebaõnnestus.",
+  },
+  lt: {
+    clientDetails: "Kliento duomenys",
+    selectClient: "Spustelėkite klientą, kad matytumėte duomenis ir ankstesnius užsakymus.",
+    pastOrders: "Ankstesni užsakymai",
+    b2bRequest: "Didmeninio kliento užklausa",
+    companyName: "Įmonė",
+    registrationNumber: "Registracijos numeris",
+    address: "Adresas",
+    phone: "Telefonas",
+    approve: "Patvirtinti",
+    reject: "Atmesti",
+    noOrders: "Užsakymų dar nėra.",
+    orderUpdated: "Užsakymas išsaugotas.",
+    actionSaved: "Sprendimas išsaugotas.",
+    actionFailed: "Nepavyko išsaugoti.",
+  },
+} as const;
+
 type CopyText = (typeof copy)[keyof typeof copy];
 
-const initialOrders: OrderRow[] = [
-  {
-    id: "ORD-2026-041",
-    client: "Riga Karate Club",
-    createdAt: "2026-07-01T10:15:00.000Z",
-    total: 684,
-    payment: "invoice15",
-    status: "reserved",
-    shippingMethodName: "Omniva parcel machine",
-    shippingStatus: "pending",
-  },
-  {
-    id: "ORD-2026-042",
-    client: "Marta Ozola",
-    createdAt: "2026-07-02T13:30:00.000Z",
-    total: 157.3,
-    payment: "card",
-    status: "paid",
-    shippingMethodName: "DPD parcel machine",
-    shippingStatus: "label_created",
-    trackingNumber: "SANDBOX-042",
-    labelFileId: "demo-label-042",
-  },
-  {
-    id: "ORD-2026-043",
-    client: "Tallinn Karate Dojo",
-    createdAt: "2026-07-03T08:45:00.000Z",
-    total: 1240,
-    payment: "invoice",
-    status: "packing",
-    shippingMethodName: "Courier delivery",
-    shippingStatus: "ready_to_ship",
-  },
-];
+const initialOrders: OrderRow[] = [];
 
 function statusFromApiOrder(order: ApiOrder): OrderStatus {
+  if (order.orderStatus && orderStatuses.includes(order.orderStatus)) {
+    return order.orderStatus;
+  }
+
   if (order.shippingStatus === "label_created" || order.trackingNumber) {
-    return "sent";
+    return "shipped";
   }
 
   if (order.paymentStatus === "paid") {
     return "paid";
   }
 
-  return "reserved";
+  if (order.paymentStatus === "unpaid" || order.paymentStatus === "cancelled") {
+    return "unpaid";
+  }
+
+  return "in_process";
 }
 
 function paymentFromApiOrder(order: ApiOrder): OrderPayment {
@@ -570,11 +629,11 @@ function createProduct(name = ""): AdminProduct {
   };
 }
 
-function productRows(): AdminProduct[] {
+function productRows(sourceProducts: Product[] = products): AdminProduct[] {
   const promoPrices = readPromoPrices();
   const imageMap = readProductImages();
 
-  return products.map((product) => ({
+  return sourceProducts.map((product) => ({
     id: product.id,
     name: product.name,
     brand: product.brand,
@@ -595,6 +654,47 @@ function productRows(): AdminProduct[] {
       active: true,
     })),
   }));
+}
+
+function adminProductToProduct(product: AdminProduct): Product {
+  const base = products.find((item) => item.id === product.id);
+
+  return {
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    category: product.category,
+    description: product.description,
+    specs: base?.specs ?? [],
+    tags: base?.tags ?? [],
+    sheetX: base?.sheetX ?? "0%",
+    sheetY: base?.sheetY ?? "0%",
+    images: product.images,
+    variations: product.variations.map((variation) => {
+      const baseVariation = base?.variations.find((item) => item.id === variation.id);
+
+      return {
+        id: variation.id,
+        sku: variation.sku,
+        name: [variation.color, variation.size].filter(Boolean).join(" / ") || variation.sku,
+        color: variation.color || undefined,
+        size: variation.size || undefined,
+        b2c: variation.b2c,
+        b2b: variation.b2b,
+        stock: {
+          physical: Math.max(0, Math.floor(variation.stock || 0)),
+          reserved: 0,
+          expected: baseVariation?.stock.expected ?? 0,
+          purchase: baseVariation?.stock.purchase ?? 0,
+          shipping: baseVariation?.stock.shipping ?? 0,
+          customs: baseVariation?.stock.customs ?? 0,
+          vatRate: baseVariation?.stock.vatRate ?? 21,
+          fx: baseVariation?.stock.fx ?? 1,
+          lots: baseVariation?.stock.lots ?? [],
+        },
+      };
+    }),
+  };
 }
 
 function parseOptionalPrice(value: string) {
@@ -992,6 +1092,7 @@ export default function AdminPage() {
   const { session, allUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
+  const extra = adminExtraCopy[language as keyof typeof adminExtraCopy] ?? adminExtraCopy.en;
   const dateLabel = adminDateLabels[language as keyof typeof adminDateLabels] ?? adminDateLabels.en;
   const {
     items: inventoryItems,
@@ -1009,10 +1110,13 @@ export default function AdminPage() {
   const [draftProduct, setDraftProduct] = useState<AdminProduct>(() => createProduct());
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [selectedClientEmail, setSelectedClientEmail] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeStockBrand, setActiveStockBrand] = useState("");
   const [stockQuery, setStockQuery] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
+  const [adminActionStatus, setAdminActionStatus] = useState("");
+  const productPersistTimer = useRef<number | null>(null);
   const availableTotal = inventoryItems.length
     ? inventoryItems.reduce((sum, item) => sum + item.available, 0)
     : adminProducts.reduce((sum, product) => sum + productStock(product), 0);
@@ -1020,10 +1124,19 @@ export default function AdminPage() {
   useEffect(() => {
     let cancelled = false;
 
+    fetch("/api/admin/products")
+      .then((response) => response.json())
+      .then((data: { products?: Product[] }) => {
+        if (!cancelled && Array.isArray(data.products) && data.products.length) {
+          setAdminProducts(productRows(data.products));
+        }
+      })
+      .catch(() => undefined);
+
     fetch("/api/orders")
       .then((response) => response.json())
       .then((data: { orders?: ApiOrder[] }) => {
-        if (!cancelled && data.orders?.length) {
+        if (!cancelled && Array.isArray(data.orders)) {
           setOrders(data.orders.map(mapApiOrder));
         }
       })
@@ -1116,6 +1229,22 @@ export default function AdminPage() {
         .includes(normalizedQuery);
     });
   }, [language, selectedStockItems, stockQuery]);
+  const selectedClient = useMemo(
+    () =>
+      allUsers.find(
+        (user) => user.email.toLowerCase() === selectedClientEmail?.toLowerCase(),
+      ) ?? null,
+    [allUsers, selectedClientEmail],
+  );
+  const selectedClientOrders = useMemo(() => {
+    if (!selectedClient) {
+      return [];
+    }
+
+    return orders.filter(
+      (order) => order.email?.toLowerCase() === selectedClient.email.toLowerCase(),
+    );
+  }, [orders, selectedClient]);
 
   if (session?.role !== "admin") {
     return (
@@ -1130,12 +1259,31 @@ export default function AdminPage() {
     );
   }
 
+  function scheduleProductPersistence(next: AdminProduct[]) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (productPersistTimer.current) {
+      window.clearTimeout(productPersistTimer.current);
+    }
+
+    productPersistTimer.current = window.setTimeout(() => {
+      void fetch("/api/admin/products", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ products: next.map(adminProductToProduct) }),
+      });
+    }, 650);
+  }
+
   function setProductsWithPromos(updater: (items: AdminProduct[]) => AdminProduct[]) {
     setAdminProducts((items) => {
       const next = updater(items);
 
       writePromoPrices(promoPricesFromProducts(next));
       writeProductImages(productImageMapFromProducts(next));
+      scheduleProductPersistence(next);
 
       return next;
     });
@@ -1175,7 +1323,8 @@ export default function AdminPage() {
     const nextItem = {
       ...item,
       physical: nextPhysical,
-      available: Math.max(0, nextPhysical - item.reserved),
+      reserved: 0,
+      available: nextPhysical,
     };
 
     setInventoryLevels({
@@ -1351,6 +1500,61 @@ export default function AdminPage() {
       );
     } catch {
       setEmailStatus("Reminders failed.");
+    }
+  }
+
+  async function updateOrderPatch(orderId: string, patch: Partial<ApiOrder>) {
+    try {
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        order?: ApiOrder;
+        error?: string;
+      };
+
+      if (!response.ok || !result.order) {
+        throw new Error(result.error || "Order update failed.");
+      }
+
+      setOrders((items) =>
+        items.map((item) => (item.id === orderId ? mapApiOrder(result.order!) : item)),
+      );
+      setAdminActionStatus(extra.orderUpdated);
+    } catch {
+      setAdminActionStatus(extra.actionFailed);
+    }
+  }
+
+  async function updateOrderStatus(orderId: string, status: OrderStatus) {
+    setOrders((items) =>
+      items.map((item) => (item.id === orderId ? { ...item, status } : item)),
+    );
+    await updateOrderPatch(orderId, { orderStatus: status });
+  }
+
+  async function reviewB2BRequest(user: SessionUser, approved: boolean) {
+    if (!user.b2bRequest) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/b2b-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.b2bRequest.id, approved }),
+      });
+
+      if (!response.ok) {
+        throw new Error("B2B request update failed.");
+      }
+
+      setAdminActionStatus(extra.actionSaved);
+      window.setTimeout(() => window.location.reload(), 450);
+    } catch {
+      setAdminActionStatus(extra.actionFailed);
     }
   }
 
@@ -1821,33 +2025,129 @@ export default function AdminPage() {
       ) : null}
 
       {tab === "clients" ? (
-        <div className="table-wrap admin-table">
-          <table>
-            <thead>
-              <tr>
-                <th>{c.clients}</th>
-                <th>Email</th>
-                <th>{c.type}</th>
-                <th>{c.company}</th>
-                <th>{c.status}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allUsers.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.name}</td>
-                  <td>{user.email}</td>
-                  <td>{user.role === "b2b" ? "B2B" : user.role === "admin" ? "Admin" : "B2C"}</td>
-                  <td>{user.company ?? "-"}</td>
-                  <td>
-                    <span className={user.emailConfirmed ? "status-pill ok" : "status-pill"}>
-                      {user.emailConfirmed ? c.confirmed : c.waitingEmail}
-                    </span>
-                  </td>
+        <div className="admin-client-layout">
+          <div className="table-wrap admin-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>{c.clients}</th>
+                  <th>Email</th>
+                  <th>{c.type}</th>
+                  <th>{c.company}</th>
+                  <th>{c.status}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {allUsers.map((user) => (
+                  <tr
+                    className={
+                      selectedClient?.email === user.email ? "clickable-row active" : "clickable-row"
+                    }
+                    key={user.id}
+                    onClick={() => setSelectedClientEmail(user.email)}
+                  >
+                    <td>{user.name}</td>
+                    <td>{user.email}</td>
+                    <td>{user.role === "b2b" ? "B2B" : user.role === "admin" ? "Admin" : "B2C"}</td>
+                    <td>{user.company ?? "-"}</td>
+                    <td>
+                      <span className={user.emailConfirmed ? "status-pill ok" : "status-pill"}>
+                        {user.emailConfirmed ? c.confirmed : c.waitingEmail}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <aside className="admin-client-card">
+            {selectedClient ? (
+              <>
+                <span className="eyebrow">{extra.clientDetails}</span>
+                <h3>{selectedClient.name}</h3>
+                <div className="client-data-grid">
+                  <span>Email</span>
+                  <strong>{selectedClient.email}</strong>
+                  <span>{c.type}</span>
+                  <strong>
+                    {selectedClient.role === "b2b"
+                      ? "B2B"
+                      : selectedClient.role === "admin"
+                        ? "Admin"
+                        : "B2C"}
+                  </strong>
+                  <span>{c.company}</span>
+                  <strong>{selectedClient.company ?? "-"}</strong>
+                  <span>PVN / VAT</span>
+                  <strong>{selectedClient.vatNumber ?? "-"}</strong>
+                </div>
+
+                {selectedClient.b2bRequest ? (
+                  <div className="b2b-request-box">
+                    <span className="eyebrow">{extra.b2bRequest}</span>
+                    <strong>{selectedClient.b2bRequest.status}</strong>
+                    <div className="client-data-grid">
+                      <span>{extra.companyName}</span>
+                      <strong>{selectedClient.b2bRequest.companyName}</strong>
+                      <span>{extra.registrationNumber}</span>
+                      <strong>{selectedClient.b2bRequest.registrationNumber}</strong>
+                      <span>{extra.address}</span>
+                      <strong>{selectedClient.b2bRequest.address}</strong>
+                      <span>{extra.phone}</span>
+                      <strong>{selectedClient.b2bRequest.phone}</strong>
+                    </div>
+                    {selectedClient.b2bRequest.status === "pending" ? (
+                      <div className="admin-inline-actions">
+                        <button
+                          className="wide-button inline-button"
+                          onClick={() => void reviewB2BRequest(selectedClient, true)}
+                          type="button"
+                        >
+                          {extra.approve}
+                        </button>
+                        <button
+                          className="table-action danger"
+                          onClick={() => void reviewB2BRequest(selectedClient, false)}
+                          type="button"
+                        >
+                          {extra.reject}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="client-orders-list">
+                  <h4>{extra.pastOrders}</h4>
+                  {selectedClientOrders.length ? (
+                    selectedClientOrders.map((order) => (
+                      <button
+                        className="client-order-row"
+                        key={order.id}
+                        onClick={() => {
+                          setTab("orders");
+                          setExpandedOrderId(order.id);
+                        }}
+                        type="button"
+                      >
+                        <span>
+                          {order.invoiceNumber ?? order.id}
+                          <small>{formatOrderDate(order.createdAt, language)}</small>
+                        </span>
+                        <strong>{money(order.total, language)}</strong>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="empty-state">{extra.noOrders}</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="empty-state">{extra.selectClient}</p>
+            )}
+            {adminActionStatus ? <p className="status-box">{adminActionStatus}</p> : null}
+          </aside>
         </div>
       ) : null}
 
@@ -1907,10 +2207,7 @@ export default function AdminPage() {
                                 void updateStockLevel(item, Number(event.target.value))
                               }
                             />
-                            <small>
-                              {item.available} {c.availableStock} · {item.reserved}{" "}
-                              {c.statuses.reserved}
-                            </small>
+                            <small>{item.available} {c.availableStock}</small>
                           </div>
                         ))}
                       </div>
@@ -1989,15 +2286,10 @@ export default function AdminPage() {
                     </td>
                     <td>
                       <select
+                        className={`order-status-select status-${order.status}`}
                         value={order.status}
                         onChange={(event) =>
-                          setOrders((items) =>
-                            items.map((item) =>
-                              item.id === order.id
-                                ? { ...item, status: event.target.value as OrderStatus }
-                                : item,
-                            ),
-                          )
+                          void updateOrderStatus(order.id, event.target.value as OrderStatus)
                         }
                       >
                         {orderStatuses.map((status) => (
@@ -2023,7 +2315,7 @@ export default function AdminPage() {
                   </tr>
                   {expandedOrderId === order.id ? (
                     <tr className="order-details-row">
-                      <td colSpan={10}>
+                      <td colSpan={11}>
                         <div className="order-details-grid">
                           <div>
                             <h4>{c.products}</h4>
@@ -2060,6 +2352,64 @@ export default function AdminPage() {
                                 .filter(Boolean)
                                 .join(", ") || "-"}
                             </p>
+                            <div className="order-edit-grid">
+                              <label>
+                                Payment
+                                <select
+                                  value={order.paymentStatus ?? "pending"}
+                                  onChange={(event) =>
+                                    void updateOrderPatch(order.id, {
+                                      paymentStatus: event.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="pending">pending</option>
+                                  <option value="paid">paid</option>
+                                  <option value="failed">failed</option>
+                                  <option value="cancelled">cancelled</option>
+                                </select>
+                              </label>
+                              <label>
+                                {c.shipping}
+                                <select
+                                  value={order.shippingStatus ?? "pending"}
+                                  onChange={(event) =>
+                                    void updateOrderPatch(order.id, {
+                                      shippingStatus: event.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="pending">pending</option>
+                                  <option value="ready_for_pickup">ready_for_pickup</option>
+                                  <option value="ready_to_ship">ready_to_ship</option>
+                                  <option value="shipment_created">shipment_created</option>
+                                  <option value="label_created">label_created</option>
+                                  <option value="failed">failed</option>
+                                </select>
+                              </label>
+                              <label>
+                                {c.tracking}
+                                <input
+                                  defaultValue={order.trackingNumber ?? ""}
+                                  onBlur={(event) =>
+                                    void updateOrderPatch(order.id, {
+                                      trackingNumber: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Tracking URL
+                                <input
+                                  defaultValue={order.trackingLink ?? ""}
+                                  onBlur={(event) =>
+                                    void updateOrderPatch(order.id, {
+                                      trackingLink: event.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                            </div>
                           </div>
                           <div>
                             <h4>{c.sum}</h4>

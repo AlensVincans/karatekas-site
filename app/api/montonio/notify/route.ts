@@ -101,6 +101,7 @@ export async function POST(request: Request) {
       if (order) {
         let updated = await updateOrder(order.id, {
           paymentStatus: paid ? "paid" : order.paymentStatus,
+          orderStatus: paid ? "paid" : order.orderStatus,
           montonioOrderUuid: payload.uuid || payload.orderUuid || order.montonioOrderUuid,
         });
 
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
               label = labelPatch;
               await updateOrder(withShipment.id, {
                 ...labelPatch,
+                orderStatus: "shipped",
                 shippingError: undefined,
               });
             }

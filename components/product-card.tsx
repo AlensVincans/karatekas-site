@@ -7,12 +7,11 @@ import {
   type Product,
   type UserRole,
 } from "../lib/store-data";
-import { categoryLabel, money, productDescription } from "../lib/i18n";
+import { categoryLabel, money, productDescription, productTitle } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
 import {
   availableStock,
-  reservedStock,
   useInventoryLevels,
 } from "../lib/inventory-client";
 import { useLanguage } from "./language";
@@ -49,6 +48,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
   const productImageMap = useProductImages();
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [added, setAdded] = useState(false);
+  const title = productTitle(product, language);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
   const price = applyPromoPrice(
@@ -60,7 +60,6 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
     { productId: product.id, brand: product.brand },
   );
   const availability = availableStock(variation, levels);
-  const reserved = reservedStock(variation, levels);
   const photo = productImages(product, productImageMap)[0];
   const isDiscounted = Boolean(price.hasPromo || price.discount);
   const badge = isDiscounted
@@ -103,7 +102,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
     >
       <div className="product-media-v3">
         <Link
-          aria-label={product.name}
+          aria-label={title}
           className={photo ? "product-photo real-photo" : "product-photo"}
           href={`/product/${product.id}`}
           style={photoStyle}
@@ -124,7 +123,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
           <small>{categoryLabel(product.category, language)}</small>
         </div>
         <Link className="product-title-v3" href={`/product/${product.id}`}>
-          {product.name}
+          {title}
         </Link>
         <p className="product-excerpt-v3">{productDescription(product, language)}</p>
 
@@ -156,11 +155,8 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
               </span>
             ) : null}
           </div>
-          <small className="reserve-note-v3">
-            {reserved} {t.reserved}
-          </small>
           <button
-            aria-label={`${t.addToCart}: ${product.name}`}
+            aria-label={`${t.addToCart}: ${title}`}
             disabled={availability === 0}
             onClick={addToCart}
             type="button"

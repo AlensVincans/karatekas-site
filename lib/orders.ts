@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { decrementInventory, restoreInventory } from "./inventory";
 import { roundMoney } from "./montonio";
+import { dbQuery, hasDatabase } from "../db/postgres";
 
 export type OrderPaymentMethod = "card" | "invoice" | "defer15";
 export type OrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled";
@@ -19,6 +20,13 @@ export type OrderShippingType =
   | "post_office"
   | "courier"
   | "self_pickup";
+
+export type StoreOrderStatus =
+  | "in_process"
+  | "paid"
+  | "shipped"
+  | "unpaid"
+  | "completed";
 
 export type OrderLine = {
   productId?: string;
@@ -69,6 +77,7 @@ export type StoreOrder = {
   invoiceDueAt?: string;
   paymentMethod: OrderPaymentMethod;
   paymentStatus: OrderPaymentStatus;
+  orderStatus?: StoreOrderStatus;
   noVat: boolean;
   language?: "ru" | "lv" | "en" | "et" | "lt";
   customer: OrderCustomer;
@@ -173,6 +182,14 @@ async function writeStore(store: OrderStore) {
 }
 
 export async function listOrders() {
+  if (hasDatabase()) {
+    const result = await dbQuery<OrderRow>(
+      "select * from orders where payment_status <> 'cancelled' order by created_at desc",
+    );
+
+    return result.rows.map(mapOrderRow);
+  }
+
   const store = await readStore();
 
   return store.orders
@@ -181,12 +198,27 @@ export async function listOrders() {
 }
 
 export async function getOrderById(id: string) {
+  if (hasDatabase()) {
+    const result = await dbQuery<OrderRow>("select * from orders where id = $1", [id]);
+
+    return result.rows[0] ? mapOrderRow(result.rows[0]) : null;
+  }
+
   const store = await readStore();
 
   return store.orders.find((order) => order.id === id) ?? null;
 }
 
 export async function getOrderByMerchantReference(merchantReference: string) {
+  if (hasDatabase()) {
+    const result = await dbQuery<OrderRow>(
+      "select * from orders where merchant_reference = $1",
+      [merchantReference],
+    );
+
+    return result.rows[0] ? mapOrderRow(result.rows[0]) : null;
+  }
+
   const store = await readStore();
 
   return (
@@ -196,6 +228,38 @@ export async function getOrderByMerchantReference(merchantReference: string) {
 }
 
 export async function createOrder(input: CreateOrderInput) {
+  if (hasDatabase()) {
+    const issuedAt = new Date();
+    const now = issuedAt.toISOString();
+    const stockAdjusted = await decrementInventory(input.lines);
+    const invoiceNumber = await nextInvoiceNumberDb(issuedAt);
+    const order: StoreOrder = {
+      ...input,
+      noVat: false,
+      id: orderId(),
+      invoiceNumber,
+      invoiceIssuedAt: now,
+      invoiceDueAt: invoiceDueAt({ ...input, noVat: false }, issuedAt),
+      paymentStatus: "pending",
+      orderStatus: input.paymentMethod === "card" ? "in_process" : "unpaid",
+      shippingStatus: input.shippingType === "self_pickup" ? "ready_for_pickup" : "pending",
+      shippingPrice: roundMoney(input.shippingPrice),
+      totals: {
+        ...input.totals,
+        subtotal: roundMoney(input.totals.subtotal),
+        vat: roundMoney(input.totals.vat),
+        shipping: roundMoney(input.totals.shipping),
+        total: roundMoney(input.totals.total),
+      },
+      stockAdjusted,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await insertOrderDb(order);
+    return order;
+  }
+
   const store = await readStore();
   const issuedAt = new Date();
   const now = issuedAt.toISOString();
@@ -231,6 +295,23 @@ export async function updateOrder(
   id: string,
   patch: Partial<Omit<StoreOrder, "id" | "createdAt">>,
 ): Promise<StoreOrder | null> {
+  if (hasDatabase()) {
+    const order = await getOrderById(id);
+
+    if (!order) {
+      return null;
+    }
+
+    const updated: StoreOrder = {
+      ...order,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await upsertOrderDb(updated);
+    return updated;
+  }
+
   const store = await readStore();
   let updated: StoreOrder | null = null;
 
@@ -269,6 +350,35 @@ export async function cancelPendingCardOrder(input: {
   id?: string;
   merchantReference?: string;
 }): Promise<StoreOrder | null> {
+  if (hasDatabase()) {
+    const order = input.id
+      ? await getOrderById(input.id)
+      : input.merchantReference
+        ? await getOrderByMerchantReference(input.merchantReference)
+        : null;
+
+    if (
+      !order ||
+      (input.merchantReference && order.merchantReference !== input.merchantReference) ||
+      order.paymentMethod !== "card" ||
+      order.paymentStatus !== "pending"
+    ) {
+      return null;
+    }
+
+    const stockRestored = order.stockAdjusted
+      ? await restoreInventory(order.lines)
+      : false;
+
+    return updateOrder(order.id, {
+      paymentStatus: "cancelled",
+      orderStatus: "unpaid",
+      shippingStatus: "failed",
+      shippingError: "Payment checkout was interrupted before completion.",
+      stockAdjusted: stockRestored ? false : order.stockAdjusted,
+    });
+  }
+
   if (!input.id && !input.merchantReference) {
     return null;
   }
@@ -315,4 +425,299 @@ export async function cancelPendingCardOrder(input: {
 
   await writeStore(store);
   return cancelled;
+}
+
+type OrderRow = {
+  id: string;
+  merchant_reference: string;
+  montonio_order_uuid: string | null;
+  payment_url: string | null;
+  invoice_number: string | null;
+  invoice_issued_at: Date | string | null;
+  invoice_due_at: Date | string | null;
+  payment_method: OrderPaymentMethod;
+  payment_status: OrderPaymentStatus;
+  order_status: StoreOrderStatus | null;
+  no_vat: boolean;
+  language: StoreOrder["language"] | null;
+  customer: OrderCustomer;
+  lines: OrderLine[];
+  totals: OrderTotals;
+  shipping_carrier: string;
+  shipping_method: string;
+  shipping_method_name: string;
+  shipping_type: OrderShippingType;
+  pickup_point_id: string | null;
+  pickup_point_name: string | null;
+  shipping_address: ShippingAddress | null;
+  shipping_price: string | number;
+  shipment_id: string | null;
+  carrier_shipment_id: string | null;
+  tracking_number: string | null;
+  tracking_link: string | null;
+  label_url: string | null;
+  label_file_id: string | null;
+  label_status: string | null;
+  shipping_status: OrderShippingStatus;
+  shipping_error: string | null;
+  stock_adjusted: boolean;
+  order_email_sent: boolean;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+function dateIso(value: Date | string | null | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function mapOrderRow(row: OrderRow): StoreOrder {
+  return {
+    id: row.id,
+    merchantReference: row.merchant_reference,
+    montonioOrderUuid: row.montonio_order_uuid ?? undefined,
+    paymentUrl: row.payment_url ?? undefined,
+    invoiceNumber: row.invoice_number ?? undefined,
+    invoiceIssuedAt: dateIso(row.invoice_issued_at),
+    invoiceDueAt: dateIso(row.invoice_due_at),
+    paymentMethod: row.payment_method,
+    paymentStatus: row.payment_status,
+    orderStatus: row.order_status ?? undefined,
+    noVat: false,
+    language: row.language ?? undefined,
+    customer: row.customer,
+    lines: row.lines,
+    totals: row.totals,
+    shippingCarrier: row.shipping_carrier,
+    shippingMethod: row.shipping_method,
+    shippingMethodName: row.shipping_method_name,
+    shippingType: row.shipping_type,
+    pickupPointId: row.pickup_point_id ?? undefined,
+    pickupPointName: row.pickup_point_name ?? undefined,
+    shippingAddress: row.shipping_address ?? undefined,
+    shippingPrice: Number(row.shipping_price),
+    shipmentId: row.shipment_id ?? undefined,
+    carrierShipmentId: row.carrier_shipment_id ?? undefined,
+    trackingNumber: row.tracking_number ?? undefined,
+    trackingLink: row.tracking_link ?? undefined,
+    labelUrl: row.label_url ?? undefined,
+    labelFileId: row.label_file_id ?? undefined,
+    labelStatus: row.label_status ?? undefined,
+    shippingStatus: row.shipping_status,
+    shippingError: row.shipping_error ?? undefined,
+    stockAdjusted: row.stock_adjusted,
+    orderEmailSent: row.order_email_sent,
+    createdAt: dateIso(row.created_at) ?? new Date().toISOString(),
+    updatedAt: dateIso(row.updated_at) ?? new Date().toISOString(),
+  };
+}
+
+async function nextInvoiceNumberDb(issuedAt: Date) {
+  const year = issuedAt.getFullYear();
+  const prefix = `KG-${year}-`;
+  const result = await dbQuery<{ max_number: number | null }>(
+    `select max(nullif(regexp_replace(invoice_number, '^${prefix}', ''), '')::integer) as max_number
+     from orders
+     where invoice_number like $1`,
+    [`${prefix}%`],
+  );
+  const next = Number(result.rows[0]?.max_number ?? 0) + 1;
+
+  return `${prefix}${String(next).padStart(5, "0")}`;
+}
+
+async function insertOrderDb(order: StoreOrder) {
+  await upsertOrderDb(order);
+  await dbQuery(
+    `insert into invoices (
+      id, order_id, invoice_number, issued_at, due_at, no_vat, total, currency, data
+    ) values ($1,$2,$3,$4,$5,false,$6,$7,$8::jsonb)
+    on conflict (invoice_number) do nothing`,
+    [
+      `inv-${order.id}`,
+      order.id,
+      order.invoiceNumber,
+      order.invoiceIssuedAt,
+      order.invoiceDueAt,
+      order.totals.total,
+      order.totals.currency,
+      JSON.stringify(order),
+    ],
+  );
+  await dbQuery(
+    `insert into payments (
+      id, order_id, provider, provider_payment_id, status, amount, currency, data
+    ) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+    on conflict (id) do update
+    set status = excluded.status, amount = excluded.amount, data = excluded.data, updated_at = now()`,
+    [
+      `pay-${order.id}`,
+      order.id,
+      order.paymentMethod === "card" ? "montonio" : "invoice",
+      order.montonioOrderUuid,
+      order.paymentStatus,
+      order.totals.total,
+      order.totals.currency,
+      JSON.stringify({ paymentMethod: order.paymentMethod }),
+    ],
+  );
+  await dbQuery(
+    `insert into shipping_shipments (
+      id, order_id, carrier, method, type, status, pickup_point_id,
+      pickup_point_name, address, price, tracking_number, tracking_link,
+      label_url, label_file_id, data
+    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15::jsonb)
+    on conflict (id) do update
+    set status = excluded.status,
+        tracking_number = excluded.tracking_number,
+        tracking_link = excluded.tracking_link,
+        label_url = excluded.label_url,
+        label_file_id = excluded.label_file_id,
+        data = excluded.data,
+        updated_at = now()`,
+    [
+      `ship-${order.id}`,
+      order.id,
+      order.shippingCarrier,
+      order.shippingMethod,
+      order.shippingType,
+      order.shippingStatus,
+      order.pickupPointId,
+      order.pickupPointName,
+      JSON.stringify(order.shippingAddress ?? null),
+      order.shippingPrice,
+      order.trackingNumber,
+      order.trackingLink,
+      order.labelUrl,
+      order.labelFileId,
+      JSON.stringify(order),
+    ],
+  );
+}
+
+async function upsertOrderDb(order: StoreOrder) {
+  await dbQuery(
+    `insert into orders (
+      id, merchant_reference, montonio_order_uuid, payment_url, invoice_number,
+      invoice_issued_at, invoice_due_at, payment_method, payment_status,
+      order_status, no_vat, language, customer, lines, totals,
+      shipping_carrier, shipping_method, shipping_method_name, shipping_type,
+      pickup_point_id, pickup_point_name, shipping_address, shipping_price,
+      shipment_id, carrier_shipment_id, tracking_number, tracking_link,
+      label_url, label_file_id, label_status, shipping_status, shipping_error,
+      stock_adjusted, order_email_sent, created_at, updated_at
+    ) values (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12::jsonb,$13::jsonb,$14::jsonb,
+      $15,$16,$17,$18,$19,$20,$21::jsonb,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35
+    )
+    on conflict (id) do update set
+      montonio_order_uuid = excluded.montonio_order_uuid,
+      payment_url = excluded.payment_url,
+      invoice_number = excluded.invoice_number,
+      invoice_issued_at = excluded.invoice_issued_at,
+      invoice_due_at = excluded.invoice_due_at,
+      payment_status = excluded.payment_status,
+      order_status = excluded.order_status,
+      customer = excluded.customer,
+      lines = excluded.lines,
+      totals = excluded.totals,
+      shipping_carrier = excluded.shipping_carrier,
+      shipping_method = excluded.shipping_method,
+      shipping_method_name = excluded.shipping_method_name,
+      shipping_type = excluded.shipping_type,
+      pickup_point_id = excluded.pickup_point_id,
+      pickup_point_name = excluded.pickup_point_name,
+      shipping_address = excluded.shipping_address,
+      shipping_price = excluded.shipping_price,
+      shipment_id = excluded.shipment_id,
+      carrier_shipment_id = excluded.carrier_shipment_id,
+      tracking_number = excluded.tracking_number,
+      tracking_link = excluded.tracking_link,
+      label_url = excluded.label_url,
+      label_file_id = excluded.label_file_id,
+      label_status = excluded.label_status,
+      shipping_status = excluded.shipping_status,
+      shipping_error = excluded.shipping_error,
+      stock_adjusted = excluded.stock_adjusted,
+      order_email_sent = excluded.order_email_sent,
+      updated_at = excluded.updated_at`,
+    [
+      order.id,
+      order.merchantReference,
+      order.montonioOrderUuid,
+      order.paymentUrl,
+      order.invoiceNumber,
+      order.invoiceIssuedAt,
+      order.invoiceDueAt,
+      order.paymentMethod,
+      order.paymentStatus,
+      order.orderStatus ?? "in_process",
+      order.language,
+      JSON.stringify(order.customer),
+      JSON.stringify(order.lines),
+      JSON.stringify(order.totals),
+      order.shippingCarrier,
+      order.shippingMethod,
+      order.shippingMethodName,
+      order.shippingType,
+      order.pickupPointId,
+      order.pickupPointName,
+      JSON.stringify(order.shippingAddress ?? null),
+      order.shippingPrice,
+      order.shipmentId,
+      order.carrierShipmentId,
+      order.trackingNumber,
+      order.trackingLink,
+      order.labelUrl,
+      order.labelFileId,
+      order.labelStatus,
+      order.shippingStatus,
+      order.shippingError,
+      Boolean(order.stockAdjusted),
+      Boolean(order.orderEmailSent),
+      order.createdAt,
+      order.updatedAt,
+    ],
+  );
+
+  await dbQuery(
+    `update payments
+     set provider_payment_id = $2,
+         status = $3,
+         amount = $4,
+         data = $5::jsonb,
+         updated_at = now()
+     where order_id = $1`,
+    [
+      order.id,
+      order.montonioOrderUuid,
+      order.paymentStatus,
+      order.totals.total,
+      JSON.stringify({ paymentMethod: order.paymentMethod }),
+    ],
+  );
+
+  await dbQuery(
+    `update shipping_shipments
+     set status = $2,
+         tracking_number = $3,
+         tracking_link = $4,
+         label_url = $5,
+         label_file_id = $6,
+         data = $7::jsonb,
+         updated_at = now()
+     where order_id = $1`,
+    [
+      order.id,
+      order.shippingStatus,
+      order.trackingNumber,
+      order.trackingLink,
+      order.labelUrl,
+      order.labelFileId,
+      JSON.stringify(order),
+    ],
+  );
 }

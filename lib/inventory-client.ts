@@ -98,12 +98,12 @@ export function reservedStock(
   variation: Variation,
   levels: ClientInventoryMap,
 ) {
-  return levels[variation.id]?.reserved ?? variation.stock.reserved;
+  return levels[variation.id]?.reserved ?? 0;
 }
 
 export function availableStock(
   variation: Variation,
   levels: ClientInventoryMap,
 ) {
-  return Math.max(0, physicalStock(variation, levels) - reservedStock(variation, levels));
+  return Math.max(0, physicalStock(variation, levels));
 }

@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useLanguage } from "../components/language";
 import { ProductCard } from "../components/product-card";
 import { PromoCarousel } from "../components/promo-carousel";
 import { useDemoSession } from "../components/session";
-import { categoryLabel } from "../lib/i18n";
+import { categoryLabel, productTitle } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
-import { available, categories, products, warehouseTotals } from "../lib/store-data";
+import {
+  available,
+  categories as seedCategories,
+  products as seedProducts,
+  type Product,
+} from "../lib/store-data";
 
 const copy = {
   ru: {
@@ -128,19 +133,40 @@ export default function Home() {
   const { language, t } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const productImageMap = useProductImages();
-  const totals = warehouseTotals();
-  const stockedProducts = products.filter((product) =>
+  const [homeProducts, setHomeProducts] = useState<Product[]>(seedProducts);
+  const homeCategories = useMemo(
+    () =>
+      Array.from(
+        new Set([...seedCategories, ...homeProducts.map((product) => product.category)]),
+      ).filter(Boolean),
+    [homeProducts],
+  );
+  const totals = useMemo(
+    () => ({
+      available: homeProducts.reduce(
+        (sum, product) =>
+          sum +
+          product.variations.reduce(
+            (variationSum, variation) => variationSum + available(variation.stock),
+            0,
+          ),
+        0,
+      ),
+    }),
+    [homeProducts],
+  );
+  const stockedProducts = homeProducts.filter((product) =>
     product.variations.some((variation) => available(variation.stock) > 0),
   );
-  const featured = categories
+  const featured = homeCategories
     .map((category) =>
-      products.find(
+      homeProducts.find(
         (product) =>
           product.category === category &&
           product.variations.some((variation) => available(variation.stock) > 0),
       ),
     )
-    .filter((product): product is (typeof products)[number] => Boolean(product))
+    .filter((product): product is Product => Boolean(product))
     .slice(0, 6);
   const bestSellers = [...stockedProducts]
     .sort(
@@ -150,15 +176,32 @@ export default function Home() {
     )
     .slice(0, 4);
   const heroProducts = bestSellers.slice(0, 3);
-  const heroProduct = heroProducts[0] ?? featured[0] ?? products[0];
-  const categoryTiles = categories.map((category) => {
+  const heroProduct = heroProducts[0] ?? featured[0] ?? homeProducts[0];
+  const categoryTiles = homeCategories.map((category) => {
     const product = stockedProducts.find((item) => item.category === category) ??
-      products.find((item) => item.category === category);
+      homeProducts.find((item) => item.category === category);
 
     return { category, product };
   });
 
-  function productPhotoStyle(product: (typeof products)[number] | undefined) {
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/products")
+      .then((response) => response.json())
+      .then((data: { products?: Product[] }) => {
+        if (!cancelled && Array.isArray(data.products) && data.products.length) {
+          setHomeProducts(data.products);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function productPhotoStyle(product: Product | undefined) {
     if (!product) {
       return undefined;
     }
@@ -186,7 +229,7 @@ export default function Home() {
           </div>
           <div className="hero-stats-v3">
             <div>
-              <strong>{products.length}</strong>
+              <strong>{homeProducts.length}</strong>
               <span>{t.products}</span>
             </div>
             <div>
@@ -205,7 +248,7 @@ export default function Home() {
             <span className="hero-main-image-v3" style={productPhotoStyle(heroProduct)} />
             <span className="hero-main-copy-v3">
               <small>{heroProduct.brand}</small>
-              <strong>{heroProduct.name}</strong>
+              <strong>{productTitle(heroProduct, language)}</strong>
               <em>{categoryLabel(heroProduct.category, language)}</em>
             </span>
           </Link>
@@ -213,7 +256,7 @@ export default function Home() {
             {heroProducts.slice(1).map((product) => (
               <Link className="hero-mini-product-v3" href={`/product/${product.id}`} key={product.id}>
                 <span style={productPhotoStyle(product)} />
-                <strong>{product.name}</strong>
+                <strong>{productTitle(product, language)}</strong>
               </Link>
             ))}
           </div>
@@ -235,7 +278,7 @@ export default function Home() {
             >
               <span className="category-tile-image-v3" style={productPhotoStyle(product)} />
               <span className="category-tile-copy-v3">
-                <small>{products.filter((item) => item.category === category).length} {c.items}</small>
+                <small>{homeProducts.filter((item) => item.category === category).length} {c.items}</small>
                 <strong>{categoryLabel(category, language)}</strong>
               </span>
             </Link>

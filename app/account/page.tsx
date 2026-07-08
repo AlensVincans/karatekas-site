@@ -28,6 +28,17 @@ const copy = {
     close: "Закрыть",
     invoice: "Счёт PDF",
     noOrders: "Заказов пока нет.",
+    b2bTitle: "Оптовый доступ",
+    b2bText: "Оптовый аккаунт подтверждает администратор. Отправьте данные фирмы, и мы проверим заявку.",
+    b2bPending: "Заявка на оптовый доступ отправлена и ожидает проверки.",
+    b2bApproved: "Оптовый доступ подтверждён.",
+    b2bRejected: "Заявка отклонена. Можно отправить новые данные после связи с администратором.",
+    companyName: "Название фирмы",
+    registrationNumber: "Регистрационный номер",
+    address: "Адрес",
+    phone: "Телефон",
+    sendRequest: "Отправить заявку",
+    requestSent: "Заявка отправлена.",
   },
   lv: {
     account: "Kabinet",
@@ -50,6 +61,17 @@ const copy = {
     close: "Aizvērt",
     invoice: "Rēķina PDF",
     noOrders: "Pasūtījumu vēl nav.",
+    b2bTitle: "Vairumtirdzniecības piekļuve",
+    b2bText: "B2B kontu apstiprina administrators. Nosūtiet uzņēmuma datus pārbaudei.",
+    b2bPending: "B2B pieprasījums nosūtīts un gaida pārbaudi.",
+    b2bApproved: "B2B piekļuve ir apstiprināta.",
+    b2bRejected: "Pieprasījums noraidīts. Pēc saziņas ar administratoru varat nosūtīt jaunus datus.",
+    companyName: "Uzņēmuma nosaukums",
+    registrationNumber: "Reģistrācijas numurs",
+    address: "Adrese",
+    phone: "Tālrunis",
+    sendRequest: "Nosūtīt pieprasījumu",
+    requestSent: "Pieprasījums nosūtīts.",
   },
   en: {
     account: "Account",
@@ -72,6 +94,17 @@ const copy = {
     close: "Close",
     invoice: "Invoice PDF",
     noOrders: "No orders yet.",
+    b2bTitle: "Wholesale access",
+    b2bText: "Wholesale accounts are approved by admin. Send company details for review.",
+    b2bPending: "Wholesale request is sent and waiting for review.",
+    b2bApproved: "Wholesale access is approved.",
+    b2bRejected: "Request was rejected. You can send updated details after contacting admin.",
+    companyName: "Company name",
+    registrationNumber: "Registration number",
+    address: "Address",
+    phone: "Phone",
+    sendRequest: "Send request",
+    requestSent: "Request sent.",
   },
   et: {
     account: "Konto",
@@ -94,6 +127,17 @@ const copy = {
     close: "Sulge",
     invoice: "Arve PDF",
     noOrders: "Tellimusi veel pole.",
+    b2bTitle: "Hulgimüügi ligipääs",
+    b2bText: "B2B konto kinnitab administraator. Saada ettevõtte andmed kontrolliks.",
+    b2bPending: "B2B taotlus on saadetud ja ootab ülevaatust.",
+    b2bApproved: "B2B ligipääs on kinnitatud.",
+    b2bRejected: "Taotlus lükati tagasi. Pärast administraatoriga ühendust võtmist saad saata uued andmed.",
+    companyName: "Ettevõtte nimi",
+    registrationNumber: "Registrikood",
+    address: "Aadress",
+    phone: "Telefon",
+    sendRequest: "Saada taotlus",
+    requestSent: "Taotlus saadetud.",
   },
   lt: {
     account: "Paskyra",
@@ -116,6 +160,17 @@ const copy = {
     close: "Uždaryti",
     invoice: "Sąskaita PDF",
     noOrders: "Užsakymų dar nėra.",
+    b2bTitle: "Didmeninė prieiga",
+    b2bText: "B2B paskyrą patvirtina administratorius. Atsiųskite įmonės duomenis patikrai.",
+    b2bPending: "B2B užklausa išsiųsta ir laukia peržiūros.",
+    b2bApproved: "B2B prieiga patvirtinta.",
+    b2bRejected: "Užklausa atmesta. Susisiekę su administratoriumi galite siųsti naujus duomenis.",
+    companyName: "Įmonės pavadinimas",
+    registrationNumber: "Registracijos numeris",
+    address: "Adresas",
+    phone: "Telefonas",
+    sendRequest: "Siųsti užklausą",
+    requestSent: "Užklausa išsiųsta.",
   },
 } as const;
 
@@ -151,6 +206,14 @@ export default function AccountPage() {
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [b2bFormOpen, setB2bFormOpen] = useState(false);
+  const [b2bStatus, setB2bStatus] = useState("");
+  const [b2bForm, setB2bForm] = useState({
+    companyName: session?.company ?? "",
+    registrationNumber: session?.vatNumber ?? "",
+    address: "",
+    phone: "",
+  });
 
   useEffect(() => {
     if (!session?.email) {
@@ -186,6 +249,32 @@ export default function AccountPage() {
     );
   }
 
+  async function submitB2BRequest() {
+    setB2bStatus("");
+
+    const response = await fetch("/api/b2b/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: session?.id,
+        email: session?.email,
+        ...b2bForm,
+      }),
+    });
+    const result = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      request?: unknown;
+    };
+
+    if (!response.ok) {
+      setB2bStatus(result.error || "Could not send request.");
+      return;
+    }
+
+    setB2bStatus(c.requestSent);
+    setB2bFormOpen(false);
+  }
+
   return (
     <section className="section-shell narrow">
       <span className="eyebrow">{c.account}</span>
@@ -216,6 +305,77 @@ export default function AccountPage() {
           </>
         ) : null}
       </div>
+      {session.role === "user" ? (
+        <div className="tool-panel">
+          <h3>{c.b2bTitle}</h3>
+          <p>{c.b2bText}</p>
+          {session.b2bRequest?.status === "pending" ? (
+            <p className="status-box">{c.b2bPending}</p>
+          ) : session.b2bRequest?.status === "approved" ? (
+            <p className="status-box">{c.b2bApproved}</p>
+          ) : session.b2bRequest?.status === "rejected" ? (
+            <p className="status-box">{c.b2bRejected}</p>
+          ) : null}
+          {session.b2bRequest?.status !== "pending" ? (
+            <>
+              <button
+                className="wide-button inline-button"
+                onClick={() => setB2bFormOpen((current) => !current)}
+                type="button"
+              >
+                {c.b2bTitle}
+              </button>
+              {b2bFormOpen ? (
+                <div className="admin-form-grid b2b-request-form">
+                  <label>
+                    {c.companyName}
+                    <input
+                      value={b2bForm.companyName}
+                      onChange={(event) =>
+                        setB2bForm((form) => ({ ...form, companyName: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.registrationNumber}
+                    <input
+                      value={b2bForm.registrationNumber}
+                      onChange={(event) =>
+                        setB2bForm((form) => ({
+                          ...form,
+                          registrationNumber: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.address}
+                    <input
+                      value={b2bForm.address}
+                      onChange={(event) =>
+                        setB2bForm((form) => ({ ...form, address: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {c.phone}
+                    <input
+                      value={b2bForm.phone}
+                      onChange={(event) =>
+                        setB2bForm((form) => ({ ...form, phone: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <button className="wide-button" onClick={submitB2BRequest} type="button">
+                    {c.sendRequest}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {b2bStatus ? <p className="status-box">{b2bStatus}</p> : null}
+        </div>
+      ) : null}
       <div className="tool-panel">
         <h3>{c.orders}</h3>
         {orders.length ? (

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { useLanguage } from "../../components/language";
 import { useDemoSession } from "../../components/session";
-import type { UserRole } from "../../lib/store-data";
 
 const copy = {
   ru: {
@@ -107,7 +106,6 @@ export default function RegisterPage() {
   const { register } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
-  const [role, setRole] = useState<Extract<UserRole, "user" | "b2b">>("user");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -116,8 +114,6 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    company: "",
-    vatNumber: "",
   });
 
   async function handleRegister() {
@@ -146,9 +142,7 @@ export default function RegisterPage() {
       lastName,
       email,
       password: form.password,
-      role,
-      company: form.company,
-      vatNumber: form.vatNumber,
+      role: "user",
     });
     setIsSubmitting(false);
     setMessage(result.ok ? c.success : result.message);
@@ -159,22 +153,7 @@ export default function RegisterPage() {
       <div className="auth-card">
         <span className="eyebrow">{c.eyebrow}</span>
         <h1>{c.title}</h1>
-        <div className="segmented-control">
-          <button
-            className={role === "user" ? "active" : ""}
-            onClick={() => setRole("user")}
-            type="button"
-          >
-            {c.regular}
-          </button>
-          <button
-            className={role === "b2b" ? "active" : ""}
-            onClick={() => setRole("b2b")}
-            type="button"
-          >
-            B2B
-          </button>
-        </div>
+        <p className="auth-hint strong">{c.regular}</p>
         <div className="auth-name-grid">
           <label>
             {c.firstName}
@@ -221,25 +200,6 @@ export default function RegisterPage() {
             onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
           />
         </label>
-        {role === "b2b" ? (
-          <>
-            <label>
-              {c.company}
-              <input
-                autoComplete="organization"
-                value={form.company}
-                onChange={(event) => setForm({ ...form, company: event.target.value })}
-              />
-            </label>
-            <label>
-              PVN / VAT
-              <input
-                value={form.vatNumber}
-                onChange={(event) => setForm({ ...form, vatNumber: event.target.value })}
-              />
-            </label>
-          </>
-        ) : null}
         <p className="auth-hint strong">{c.emailNote}</p>
         <input
           aria-hidden="true"

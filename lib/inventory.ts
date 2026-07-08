@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { products } from "./store-data";
+import { dbQuery, hasDatabase } from "../db/postgres";
 
 export type InventoryItem = {
   productId: string;
@@ -107,6 +108,41 @@ function mergeStock(variationId: string, overrides: Record<string, InventoryOver
 }
 
 export async function listInventory(): Promise<InventoryItem[]> {
+  if (hasDatabase()) {
+    await ensureStockSeeded();
+    const result = await dbQuery<{
+      variation_id: string;
+      product_id: string;
+      product_name: string;
+      brand: string;
+      category: string;
+      sku: string | null;
+      color: string | null;
+      size: string | null;
+      physical: number;
+      expected: number;
+    }>(
+      `select variation_id, product_id, product_name, brand, category, sku, color, size, physical, expected
+       from stock_levels
+       order by brand, product_name, size, color`,
+    );
+
+    return result.rows.map((row) => ({
+      productId: row.product_id,
+      productName: row.product_name,
+      brand: row.brand,
+      category: row.category,
+      variationId: row.variation_id,
+      sku: row.sku ?? "",
+      color: row.color ?? undefined,
+      size: row.size ?? undefined,
+      physical: Number(row.physical),
+      reserved: 0,
+      available: Math.max(0, Number(row.physical)),
+      expected: Number(row.expected),
+    }));
+  }
+
   const store = await readStore();
 
   return products.flatMap((product) =>
@@ -126,8 +162,8 @@ export async function listInventory(): Promise<InventoryItem[]> {
         color: variation.color,
         size: variation.size,
         physical,
-        reserved,
-        available: Math.max(0, physical - reserved),
+        reserved: 0,
+        available: Math.max(0, physical),
         expected,
       };
     }),
@@ -147,6 +183,36 @@ export async function updateInventoryLevel(
   variationId: string,
   patch: Partial<Pick<InventoryItem, "physical" | "reserved" | "expected">>,
 ) {
+  if (hasDatabase()) {
+    await ensureStockSeeded();
+
+    if (!baseItem(variationId)) {
+      return null;
+    }
+
+    const current = await dbQuery<{ physical: number; expected: number }>(
+      "select physical, expected from stock_levels where variation_id = $1",
+      [variationId],
+    );
+
+    if (!current.rows[0]) {
+      return null;
+    }
+
+    await dbQuery(
+      `update stock_levels
+       set physical = $2, expected = $3, updated_at = now()
+       where variation_id = $1`,
+      [
+        variationId,
+        normalizeQty(patch.physical ?? current.rows[0].physical),
+        normalizeQty(patch.expected ?? current.rows[0].expected),
+      ],
+    );
+
+    return inventoryLevelMap();
+  }
+
   if (!baseItem(variationId)) {
     return null;
   }
@@ -170,6 +236,33 @@ export async function updateInventoryLevel(
 }
 
 export async function decrementInventory(lines: InventoryAdjustmentLine[]) {
+  if (hasDatabase()) {
+    await ensureStockSeeded();
+    let changed = false;
+
+    for (const line of lines) {
+      if (!line.variationId) {
+        continue;
+      }
+
+      const quantity = normalizeQty(line.quantity);
+
+      if (quantity <= 0) {
+        continue;
+      }
+
+      const result = await dbQuery(
+        `update stock_levels
+         set physical = greatest(0, physical - $2), updated_at = now()
+         where variation_id = $1`,
+        [line.variationId, quantity],
+      );
+      changed = changed || Boolean(result.rowCount);
+    }
+
+    return changed;
+  }
+
   const store = await readStore();
   let changed = false;
 
@@ -207,6 +300,33 @@ export async function decrementInventory(lines: InventoryAdjustmentLine[]) {
 }
 
 export async function restoreInventory(lines: InventoryAdjustmentLine[]) {
+  if (hasDatabase()) {
+    await ensureStockSeeded();
+    let changed = false;
+
+    for (const line of lines) {
+      if (!line.variationId) {
+        continue;
+      }
+
+      const quantity = normalizeQty(line.quantity);
+
+      if (quantity <= 0) {
+        continue;
+      }
+
+      const result = await dbQuery(
+        `update stock_levels
+         set physical = physical + $2, updated_at = now()
+         where variation_id = $1`,
+        [line.variationId, quantity],
+      );
+      changed = changed || Boolean(result.rowCount);
+    }
+
+    return changed;
+  }
+
   const store = await readStore();
   let changed = false;
 
@@ -241,4 +361,67 @@ export async function restoreInventory(lines: InventoryAdjustmentLine[]) {
   }
 
   return changed;
+}
+
+let stockSeedPromise: Promise<void> | null = null;
+
+async function ensureStockSeeded() {
+  if (!hasDatabase()) {
+    return;
+  }
+
+  stockSeedPromise ??= seedStockLevels();
+  await stockSeedPromise;
+}
+
+async function seedStockLevels() {
+  for (const product of products) {
+    await dbQuery(
+      `insert into products (id, name, brand, category, description, data)
+       values ($1,$2,$3,$4,$5,$6::jsonb)
+       on conflict (id) do update
+       set name = excluded.name,
+           brand = excluded.brand,
+           category = excluded.category,
+           description = excluded.description,
+           data = excluded.data,
+           updated_at = now()`,
+      [
+        product.id,
+        product.name,
+        product.brand,
+        product.category,
+        product.description,
+        JSON.stringify(product),
+      ],
+    );
+
+    for (const variation of product.variations) {
+      await dbQuery(
+        `insert into stock_levels (
+          variation_id, product_id, product_name, brand, category, sku, color, size,
+          physical, expected, purchase, shipping, customs, vat_rate, fx, lots
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
+        on conflict (variation_id) do nothing`,
+        [
+          variation.id,
+          product.id,
+          product.name,
+          product.brand,
+          product.category,
+          variation.sku,
+          variation.color,
+          variation.size,
+          normalizeQty(variation.stock.physical),
+          normalizeQty(variation.stock.expected),
+          variation.stock.purchase,
+          variation.stock.shipping,
+          variation.stock.customs,
+          variation.stock.vatRate,
+          variation.stock.fx,
+          JSON.stringify(variation.stock.lots),
+        ],
+      );
+    }
+  }
 }

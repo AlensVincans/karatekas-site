@@ -40,14 +40,14 @@ function normalizeOrderInput(payload: OrderRequest): CreateOrderInput {
   });
   const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
   const shippingPrice = money(payload.shippingPrice);
-  const vat = payload.noVat ? 0 : money(payload.totals?.vat);
+  const vat = roundMoney(subtotal * 0.21);
 
   return {
     merchantReference: cleanText(payload.merchantReference, orderReference()),
     montonioOrderUuid: payload.montonioOrderUuid,
     paymentUrl: payload.paymentUrl,
     paymentMethod: payload.paymentMethod === "card" ? "card" : payload.paymentMethod === "defer15" ? "defer15" : "invoice",
-    noVat: Boolean(payload.noVat),
+    noVat: false,
     language: payload.language,
     customer: {
       name: cleanText(payload.customer?.name, "Karatekas customer"),
@@ -99,6 +99,10 @@ export async function POST(request: Request) {
 
   if (!input.lines.length || input.totals.total <= 0) {
     return Response.json({ error: "Cart is empty." }, { status: 400 });
+  }
+
+  if (input.shippingType === "parcel_machine" && !input.pickupPointId) {
+    return Response.json({ error: "Pickup point is required." }, { status: 400 });
   }
 
   const order = await createOrder(input);

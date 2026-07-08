@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { ProductDetail } from "../../../components/product-detail";
-import { findProduct, products } from "../../../lib/store-data";
+import { getProduct, listProducts } from "../../../lib/products-store";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const products = await listProducts();
+
   return products.map((product) => ({ id: product.id }));
 }
 
@@ -12,7 +14,7 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = findProduct(id);
+  const product = await getProduct(id);
 
   if (!product) {
     notFound();

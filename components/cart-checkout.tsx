@@ -4,13 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  findVariation,
   pricedVariation,
   type PaymentMethod,
+  products as seedProducts,
+  type Product,
 } from "../lib/store-data";
 import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
-import type { Language } from "../lib/i18n";
+import { productTitle, type Language } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
 import { useLanguage } from "./language";
 import { useDemoSession } from "./session";
@@ -106,6 +107,7 @@ async function cancelPendingMontonioOrder() {
         merchantReference: pending.merchantReference,
       }),
     });
+    return true;
   } finally {
     window.sessionStorage.removeItem(pendingMontonioOrderKey);
   }
@@ -494,6 +496,18 @@ function isPresent<T>(value: T | null | undefined): value is T {
   return value != null;
 }
 
+function findVariationInProducts(products: Product[], variationId: string) {
+  for (const product of products) {
+    const variation = product.variations.find((item) => item.id === variationId);
+
+    if (variation) {
+      return { product, variation };
+    }
+  }
+
+  return null;
+}
+
 function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
@@ -676,6 +690,7 @@ export function CartCheckout() {
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const totalsLabels = totalsCopy[language as keyof typeof totalsCopy] ?? totalsCopy.en;
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
+  const [checkoutProducts, setCheckoutProducts] = useState<Product[]>(seedProducts);
   const [shippingCountry, setShippingCountry] = useState<DeliveryCountry>("LV");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
     () => fallbackShippingMethods("LV"),
@@ -695,20 +710,51 @@ export function CartCheckout() {
     phoneNumber: "",
   });
   const [payment, setPayment] = useState<PaymentMethod>("card");
-  const [noVat, setNoVat] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    void cancelPendingMontonioOrder();
+    let cancelled = false;
+
+    fetch("/api/products")
+      .then((response) => response.json())
+      .then((data: { products?: Product[] }) => {
+        if (!cancelled && Array.isArray(data.products) && data.products.length) {
+          setCheckoutProducts(data.products);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    void cancelPendingMontonioOrder().then((cancelled) => {
+      if (cancelled) {
+        setIsSubmitting(false);
+        setStatus("");
+      }
+    });
 
     const cancelOnReturn = () => {
-      void cancelPendingMontonioOrder();
+      void cancelPendingMontonioOrder().then((cancelled) => {
+        if (cancelled) {
+          setIsSubmitting(false);
+          setStatus("");
+        }
+      });
     };
     const cancelOnVisible = () => {
       if (document.visibilityState === "visible") {
-        void cancelPendingMontonioOrder();
+        void cancelPendingMontonioOrder().then((cancelled) => {
+          if (cancelled) {
+            setIsSubmitting(false);
+            setStatus("");
+          }
+        });
       }
     };
 
@@ -818,7 +864,7 @@ export function CartCheckout() {
     () =>
       cart
         .map((line) => {
-          const found = findVariation(line.variationId);
+          const found = findVariationInProducts(checkoutProducts, line.variationId);
 
           if (!found) {
             return null;
@@ -841,7 +887,7 @@ export function CartCheckout() {
           };
         })
         .filter(isPresent),
-    [cart, levels, promoPrices, promoRules, role],
+    [cart, checkoutProducts, levels, promoPrices, promoRules, role],
   );
 
   const filteredPickupPoints = useMemo(() => {
@@ -866,7 +912,7 @@ export function CartCheckout() {
   }, [pickupPoints, pickupQuery]);
   const selectedPickupPoint = pickupPoints.find((point) => point.id === pickupPointId);
   const subtotal = lines.reduce((sum, line) => sum + line.total, 0);
-  const vat = noVat ? 0 : subtotal * 0.21;
+  const vat = subtotal * 0.21;
   const shippingPrice = selectedShippingMethod?.price ?? 0;
   const totalWithoutVat = subtotal + shippingPrice;
   const total = subtotal + vat + shippingPrice;
@@ -992,13 +1038,13 @@ export function CartCheckout() {
       lines: lines.map((line) => ({
         productId: line.product.id,
         variationId: line.variation.id,
-        productName: line.product.name,
+        productName: productTitle(line.product, language),
         variationName: line.variation.name,
         sku: line.variation.sku,
         quantity: line.qty,
         unitPrice: line.price.final,
       })),
-      noVat,
+      noVat: false,
       totals: {
         subtotal,
         vat,
@@ -1133,7 +1179,7 @@ export function CartCheckout() {
                     style={photoStyle}
                   />
                   <div className="cart-item-copy-v3">
-                    <strong>{line.product.name}</strong>
+                    <strong>{productTitle(line.product, language)}</strong>
                     <span>{line.variation.name} / {line.variation.sku}</span>
                     <small>{line.availability} {c.inStock}</small>
                   </div>
@@ -1334,11 +1380,6 @@ export function CartCheckout() {
             <span>Google Pay</span>
           </div>
         </div>
-
-        <label className="check-row vat-row-v3">
-          <input checked={noVat} onChange={(event) => setNoVat(event.target.checked)} type="checkbox" />
-          {c.noVat}
-        </label>
 
         <label className="check-row terms-row-v3">
           <input

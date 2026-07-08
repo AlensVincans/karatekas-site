@@ -16,7 +16,19 @@ function readLanguage(): Language {
   }
 
   const stored = window.localStorage.getItem(storageKey);
-  return isLanguage(stored) ? stored : defaultLanguage;
+
+  if (isLanguage(stored)) {
+    return stored;
+  }
+
+  const browserLanguages = window.navigator.languages?.length
+    ? window.navigator.languages
+    : [window.navigator.language];
+  const browserLanguage = browserLanguages
+    .map((value) => value?.slice(0, 2).toLowerCase())
+    .find(isLanguage);
+
+  return browserLanguage ?? defaultLanguage;
 }
 
 function serverLanguage(): Language {

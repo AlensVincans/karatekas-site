@@ -6,11 +6,23 @@ import { demoUsers, type DemoUser, type UserRole } from "../lib/store-data";
 const usersKey = "bc_registered_users";
 const sessionKey = "bc_session";
 const sessionChangeEvent = "bc-session-change";
+const demoUsersEnabled =
+  process.env.NEXT_PUBLIC_ENABLE_DEMO_USERS === "true" ||
+  (process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_ENABLE_DEMO_USERS !== "false");
 let browserHydrated = false;
 
 export type SessionUser = Omit<DemoUser, "password"> & {
   firstName?: string;
   lastName?: string;
+  b2bRequest?: {
+    id: string;
+    status: "pending" | "approved" | "rejected";
+    companyName: string;
+    registrationNumber: string;
+    address: string;
+    phone: string;
+  };
 };
 type StoredUser = DemoUser;
 
@@ -96,10 +108,14 @@ export function useDemoSession() {
 
   const allUsers = useMemo(() => {
     const unique = new Map<string, SessionUser>();
+    const demoSessionUsers = demoUsersEnabled ? demoUsers.map(withoutPassword) : [];
+    const storedSessionUsers = demoUsersEnabled
+      ? registeredUsers.map(withoutPassword)
+      : [];
 
     for (const user of [
-      ...demoUsers.map(withoutPassword),
-      ...registeredUsers.map(withoutPassword),
+      ...demoSessionUsers,
+      ...storedSessionUsers,
       ...serverUsers,
     ]) {
       unique.set(user.email.toLowerCase(), user);
@@ -122,10 +138,12 @@ export function useDemoSession() {
 
   async function login(email: string, password: string) {
     const normalizedEmail = email.trim().toLowerCase();
-    const localUser = [...demoUsers, ...registeredUsers].find(
-      (candidate) =>
-        candidate.email.toLowerCase() === normalizedEmail && candidate.password === password,
-    );
+    const localUser = demoUsersEnabled
+      ? [...demoUsers, ...registeredUsers].find(
+          (candidate) =>
+            candidate.email.toLowerCase() === normalizedEmail && candidate.password === password,
+        )
+      : undefined;
 
     if (localUser) {
       if (!localUser.emailConfirmed) {

@@ -2,14 +2,14 @@
 
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { useState } from "react";
-import { categoryLabel, colorLabel, money, productDescription } from "../lib/i18n";
+import { categoryLabel, colorLabel, money, productDescription, productTitle } from "../lib/i18n";
 import {
   pricedVariation,
   products,
   type Product,
 } from "../lib/store-data";
 import { productImages, useProductImages } from "../lib/product-media";
-import { availableStock, reservedStock, useInventoryLevels } from "../lib/inventory-client";
+import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
@@ -111,6 +111,7 @@ export function ProductDetail({ product }: { product: Product }) {
   const [variationId, setVariationId] = useState(product.variations[0].id);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [added, setAdded] = useState(false);
+  const title = productTitle(product, language);
   const variation =
     product.variations.find((item) => item.id === variationId) ?? product.variations[0];
   const activePrice = applyPromoPrice(
@@ -122,7 +123,6 @@ export function ProductDetail({ product }: { product: Product }) {
     { productId: product.id, brand: product.brand },
   );
   const availability = availableStock(variation, levels);
-  const reserved = reservedStock(variation, levels);
   const images = productImages(product, productImageMap);
   const activePhotoIndex = images[photoIndex] ? photoIndex : 0;
   const photo = images[activePhotoIndex];
@@ -232,7 +232,7 @@ export function ProductDetail({ product }: { product: Product }) {
         <aside className="pdp-buybox-v3">
           <div className="pdp-title-block-v3">
             <span className="kicker-v3">{product.brand}</span>
-            <h1>{product.name}</h1>
+            <h1>{title}</h1>
             <p>{productDescription(product, language)}</p>
           </div>
 
@@ -252,7 +252,6 @@ export function ProductDetail({ product }: { product: Product }) {
 
           <div className="pdp-sku-strip-v3">
             <span>SKU {variation.sku}</span>
-            <span>{reserved} {t.reserved}</span>
             <span>{variationTitle(variation, language)}</span>
           </div>
 

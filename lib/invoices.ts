@@ -19,11 +19,11 @@ function envText(name: string, fallback: string) {
 
 function sellerDetails(): SellerDetails {
   return {
-    name: envText("INVOICE_SELLER_NAME", "Karatekas"),
-    registrationNumber: envText("INVOICE_SELLER_REG_NO", "REG-NO-NOT-SET"),
-    vatNumber: envText("INVOICE_SELLER_VAT_NO", "VAT-NO-NOT-SET"),
-    address: envText("INVOICE_SELLER_ADDRESS", "Riga, Latvia"),
-    email: envText("INVOICE_SELLER_EMAIL", "orders@example.com"),
+    name: envText("INVOICE_SELLER_NAME", "BBK AUTO, SIA"),
+    registrationNumber: envText("INVOICE_SELLER_REG_NO", "40003924244"),
+    vatNumber: envText("INVOICE_SELLER_VAT_NO", "LV40003924244"),
+    address: envText("INVOICE_SELLER_ADDRESS", "Riga, Ilukstes iela 103 k-3 - 29, LV-1082"),
+    email: envText("INVOICE_SELLER_EMAIL", "info@karatekas.eu"),
     bank: envText("INVOICE_SELLER_BANK", ""),
     iban: envText("INVOICE_SELLER_IBAN", ""),
     swift: envText("INVOICE_SELLER_SWIFT", ""),
@@ -207,6 +207,13 @@ export function buildInvoicePdf(order: StoreOrder) {
       "Invoice issued without VAT. Add legal VAT exemption reference in seller settings if required.",
     );
   }
+
+  content += pdfLine(
+    46,
+    38,
+    "Rekins ir sagatavots elektroniski un ir derigs bez paraksta.",
+    9,
+  );
 
   return pdfDocument(content);
 }

@@ -11,12 +11,16 @@
     "start": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js start",
     "lint": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/eslint/bin/eslint.js . --ignore-pattern dist --ignore-pattern .next --ignore-pattern work",
     "typecheck": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/typescript/bin/tsc --noEmit --pretty false",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate-postgres.mjs"
   },
   "dependencies": {
+    "@types/pg": "^8.20.0",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "nodemailer": "^9.0.3",
+    "pg": "^8.16.3",
+    "pg": "^8.22.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

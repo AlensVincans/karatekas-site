@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   const lastName = clean(payload.lastName);
   const email = clean(payload.email).toLowerCase();
   const password = clean(payload.password);
-  const role = payload.role === "b2b" ? "b2b" : "user";
+  const role = "user";
 
   if (!firstName || !lastName || !email || !password) {
     return Response.json({ ok: false, error: "Fill first name, last name, email and password." }, { status: 400 });

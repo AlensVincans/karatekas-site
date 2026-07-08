@@ -84,13 +84,17 @@ export default async function PaymentReturnPage({
   }
 
   const copy = paymentStatusText(paymentStatus);
+  const clearCartScript =
+    paymentStatus?.toLowerCase() === "paid"
+      ? "try{localStorage.setItem('bc_cart','[]');window.dispatchEvent(new Event('storage'))}catch(e){}"
+      : "";
 
   return (
     <section className="payment-return-page">
       <script
         dangerouslySetInnerHTML={{
           __html:
-            "try{sessionStorage.removeItem('kg_pending_montonio_order')}catch(e){}",
+            `try{sessionStorage.removeItem('kg_pending_montonio_order')}catch(e){}${clearCartScript}`,
         }}
       />
       <div className={`payment-return-card ${copy.tone}`}>

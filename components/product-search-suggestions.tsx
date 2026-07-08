@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type CSSProperties } from "react";
-import { categoryLabel, productDescription } from "../lib/i18n";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { categoryLabel, productDescription, productTitle } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
-import { products, type Product } from "../lib/store-data";
+import { products as seedProducts, type Product } from "../lib/store-data";
 import { useLanguage } from "./language";
 
 function matchesProduct(product: Product, query: string, language: ReturnType<typeof useLanguage>["language"]) {
   const haystack = [
     product.name,
+    productTitle(product, language),
     product.brand,
     product.category,
     categoryLabel(product.category, language),
@@ -34,16 +35,35 @@ export function ProductSearchSuggestions({
 }) {
   const { language } = useLanguage();
   const productImageMap = useProductImages();
+  const [searchProducts, setSearchProducts] = useState<Product[]>(seedProducts);
   const normalizedQuery = query.trim().toLowerCase();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/products")
+      .then((response) => response.json())
+      .then((data: { products?: Product[] }) => {
+        if (!cancelled && Array.isArray(data.products) && data.products.length) {
+          setSearchProducts(data.products);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const suggestions = useMemo(() => {
     if (!normalizedQuery) {
       return [];
     }
 
-    return products
+    return searchProducts
       .filter((product) => matchesProduct(product, normalizedQuery, language))
       .slice(0, 6);
-  }, [language, normalizedQuery]);
+  }, [language, normalizedQuery, searchProducts]);
 
   if (!suggestions.length) {
     return null;
@@ -72,7 +92,7 @@ export function ProductSearchSuggestions({
               style={photoStyle}
             />
             <span>
-              <strong>{product.name}</strong>
+              <strong>{productTitle(product, language)}</strong>
               <small>
                 {product.brand} / {categoryLabel(product.category, language)}
               </small>

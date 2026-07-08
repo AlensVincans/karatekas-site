@@ -145,7 +145,7 @@ function buildLineItems(payload: CheckoutPayload) {
     productLines.reduce((sum, line) => sum + line.finalPrice * line.quantity, 0),
   );
   const deliveryPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
-  const vat = payload.noVat ? 0 : positiveMoney(payload.totals?.vat);
+  const vat = roundMoney(subtotal * 0.21);
   const lineItems = [...productLines];
 
   if (deliveryPrice > 0) {
@@ -242,11 +242,16 @@ export async function POST(request: Request) {
   const orderLines = checkoutLines(payload);
   const subtotal = roundMoney(orderLines.reduce((sum, line) => sum + line.total, 0));
   const shippingPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
-  const vat = payload.noVat ? 0 : positiveMoney(payload.totals?.vat);
+  const vat = roundMoney(subtotal * 0.21);
+
+  if (shippingType(payload) === "parcel_machine" && !payload.shipping?.pickupPointId) {
+    return Response.json({ error: "Pickup point is required." }, { status: 400 });
+  }
+
   const localOrder = await createOrder({
     merchantReference: reference,
     paymentMethod: "card",
-    noVat: Boolean(payload.noVat),
+    noVat: false,
     language: localeFor(payload.language),
     customer: {
       name,

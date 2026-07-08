@@ -2,8 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { categories, pricedVariation, products, type Product, type UserRole } from "../lib/store-data";
-import { categoryLabel, productDescription } from "../lib/i18n";
+import {
+  categories as seedCategories,
+  pricedVariation,
+  products as seedProducts,
+  type Product,
+  type UserRole,
+} from "../lib/store-data";
+import { categoryLabel, productDescription, productTitle } from "../lib/i18n";
 import {
   applyPromoPrice,
   usePromoPrices,
@@ -109,7 +115,11 @@ function defaultCatalogParams() {
   };
 }
 
-function readCatalogParams(brands: string[], params: Pick<URLSearchParams, "get">) {
+function readCatalogParams(
+  brands: string[],
+  categoryOptions: string[],
+  params: Pick<URLSearchParams, "get">,
+) {
   const category = params.get("category");
   const brand = params.get("brand");
   const sort = params.get("sort");
@@ -122,7 +132,7 @@ function readCatalogParams(brands: string[], params: Pick<URLSearchParams, "get"
 
   return {
     query: params.get("q") ?? "",
-    category: category && categories.some((item) => item === category) ? category : allValue,
+    category: category && categoryOptions.some((item) => item === category) ? category : allValue,
     brand: brand && brands.some((item) => item === brand) ? brand : allValue,
     promoOnly: params.get("promo") === "1",
     sort: normalizedSort,
@@ -198,9 +208,17 @@ export function CatalogBrowser() {
   const searchParamString = searchParams.toString();
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(seedProducts);
+  const catalogCategories = useMemo(
+    () =>
+      Array.from(
+        new Set([...seedCategories, ...catalogProducts.map((product) => product.category)]),
+      ).filter(Boolean),
+    [catalogProducts],
+  );
   const brands = useMemo(
-    () => Array.from(new Set(products.map((product) => product.brand))),
-    [],
+    () => Array.from(new Set(catalogProducts.map((product) => product.brand))).sort(),
+    [catalogProducts],
   );
   const [paramsReady, setParamsReady] = useState(false);
   const [query, setQuery] = useState(defaultCatalogParams().query);
@@ -213,7 +231,28 @@ export function CatalogBrowser() {
   const syncingSearchRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const params = readCatalogParams(brands, new URLSearchParams(searchParamString));
+    let cancelled = false;
+
+    fetch("/api/products")
+      .then((response) => response.json())
+      .then((data: { products?: Product[] }) => {
+        if (!cancelled && Array.isArray(data.products) && data.products.length) {
+          setCatalogProducts(data.products);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = readCatalogParams(
+      brands,
+      catalogCategories,
+      new URLSearchParams(searchParamString),
+    );
     syncingSearchRef.current = searchParamString;
     const timer = window.setTimeout(() => {
       setQuery(params.query);
@@ -230,7 +269,7 @@ export function CatalogBrowser() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [brands, searchParamString]);
+  }, [brands, catalogCategories, searchParamString]);
 
   useEffect(() => {
     if (!paramsReady || syncingSearchRef.current != null) {
@@ -277,7 +316,7 @@ export function CatalogBrowser() {
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return products.filter((product) => {
+    return catalogProducts.filter((product) => {
       const categoryMatch = category === allValue || product.category === category;
       const brandMatch = brand === allValue || product.brand === brand;
       const promoMatch =
@@ -286,6 +325,7 @@ export function CatalogBrowser() {
         !normalizedQuery ||
         [
           product.name,
+          productTitle(product, language),
           product.brand,
           product.category,
           categoryLabel(product.category, language),
@@ -298,7 +338,7 @@ export function CatalogBrowser() {
 
       return categoryMatch && brandMatch && promoMatch && textMatch;
     });
-  }, [brand, category, language, promoOnly, promoPrices, promoRules, query, role]);
+  }, [brand, catalogProducts, category, language, promoOnly, promoPrices, promoRules, query, role]);
   const visibleProducts = useMemo(() => {
     const next = [...filteredProducts];
 
@@ -360,7 +400,7 @@ export function CatalogBrowser() {
             }}
           >
             <option value={allValue}>{t.all}</option>
-            {categories.map((item) => (
+            {catalogCategories.map((item) => (
               <option key={item} value={item}>
                 {categoryLabel(item, language)}
               </option>
@@ -453,7 +493,7 @@ export function CatalogBrowser() {
           >
             {t.all}
           </button>
-          {categories.map((item) => (
+          {catalogCategories.map((item) => (
             <button
               className={category === item ? "active" : ""}
               key={item}

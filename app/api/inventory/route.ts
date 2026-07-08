@@ -9,7 +9,6 @@ export const runtime = "nodejs";
 type InventoryPatch = {
   variationId?: string;
   physical?: number;
-  reserved?: number;
   expected?: number;
 };
 
@@ -35,7 +34,6 @@ export async function PATCH(request: Request) {
 
   const levels = await updateInventoryLevel(payload.variationId, {
     physical: payload.physical,
-    reserved: payload.reserved,
     expected: payload.expected,
   });
 

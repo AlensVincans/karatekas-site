@@ -1,16 +1,16 @@
 import type { Product } from "./store-data";
 
 export const languages = [
-  { code: "ru", label: "RU", name: "Русский" },
   { code: "lv", label: "LV", name: "Latviešu" },
   { code: "en", label: "EN", name: "English" },
+  { code: "ru", label: "RU", name: "Русский" },
   { code: "et", label: "ET", name: "Eesti" },
   { code: "lt", label: "LT", name: "Lietuvių" },
 ] as const;
 
 export type Language = (typeof languages)[number]["code"];
 
-export const defaultLanguage: Language = "ru";
+export const defaultLanguage: Language = "lv";
 
 export const dictionary = {
   ru: {
@@ -474,26 +474,122 @@ export function colorLabel(color: string | undefined, language: Language) {
   return colorLabels[language][color] ?? color;
 }
 
+const productNameGlossary: Record<Exclude<Language, "en">, Array<[RegExp, string]>> = {
+  ru: [
+    [/\bKarate Gi\b/gi, "кимоно для карате"],
+    [/\bKimono\b/gi, "кимоно"],
+    [/\bGi\b/gi, "кимоно"],
+    [/\bBelt\b/gi, "пояс"],
+    [/\bBelts\b/gi, "пояса"],
+    [/\bGloves\b/gi, "перчатки"],
+    [/\bFoot Protector\b/gi, "защита стопы"],
+    [/\bShin Guard\b/gi, "защита голени"],
+    [/\bBody Protector\b/gi, "защита корпуса"],
+    [/\bChest Guard\b/gi, "защита груди"],
+    [/\bHead Guard\b/gi, "шлем"],
+    [/\bMouth Guard\b/gi, "капа"],
+    [/\bHelmet\b/gi, "шлем"],
+    [/\bKick Pad\b/gi, "макивара"],
+    [/\bTarget\b/gi, "мишень"],
+    [/\bBag\b/gi, "мешок"],
+    [/\bProtector\b/gi, "защита"],
+    [/\bProtection\b/gi, "защита"],
+  ],
+  lv: [
+    [/\bKarate Gi\b/gi, "karatē kimono"],
+    [/\bKimono\b/gi, "kimono"],
+    [/\bGi\b/gi, "kimono"],
+    [/\bBelt\b/gi, "josta"],
+    [/\bBelts\b/gi, "jostas"],
+    [/\bGloves\b/gi, "cimdi"],
+    [/\bFoot Protector\b/gi, "pēdas aizsargs"],
+    [/\bShin Guard\b/gi, "apakšstilba aizsargs"],
+    [/\bBody Protector\b/gi, "ķermeņa aizsargs"],
+    [/\bChest Guard\b/gi, "krūšu aizsargs"],
+    [/\bHead Guard\b/gi, "galvas aizsargs"],
+    [/\bMouth Guard\b/gi, "mutes aizsargs"],
+    [/\bHelmet\b/gi, "ķivere"],
+    [/\bKick Pad\b/gi, "sitienu spilvens"],
+    [/\bTarget\b/gi, "mērķis"],
+    [/\bBag\b/gi, "maiss"],
+    [/\bProtector\b/gi, "aizsargs"],
+    [/\bProtection\b/gi, "aizsardzība"],
+  ],
+  et: [
+    [/\bKarate Gi\b/gi, "karate gi"],
+    [/\bKimono\b/gi, "kimono"],
+    [/\bBelt\b/gi, "vöö"],
+    [/\bBelts\b/gi, "vööd"],
+    [/\bGloves\b/gi, "kindad"],
+    [/\bFoot Protector\b/gi, "jalakaitse"],
+    [/\bShin Guard\b/gi, "säärekaitse"],
+    [/\bBody Protector\b/gi, "kehakaitse"],
+    [/\bChest Guard\b/gi, "rinnakaitse"],
+    [/\bHead Guard\b/gi, "peakaitse"],
+    [/\bMouth Guard\b/gi, "hambakaitse"],
+    [/\bHelmet\b/gi, "kiiver"],
+    [/\bKick Pad\b/gi, "löögipadi"],
+    [/\bTarget\b/gi, "sihtmärk"],
+    [/\bBag\b/gi, "kott"],
+    [/\bProtector\b/gi, "kaitse"],
+    [/\bProtection\b/gi, "kaitse"],
+  ],
+  lt: [
+    [/\bKarate Gi\b/gi, "karatė kimono"],
+    [/\bKimono\b/gi, "kimono"],
+    [/\bGi\b/gi, "kimono"],
+    [/\bBelt\b/gi, "diržas"],
+    [/\bBelts\b/gi, "diržai"],
+    [/\bGloves\b/gi, "pirštinės"],
+    [/\bFoot Protector\b/gi, "pėdos apsauga"],
+    [/\bShin Guard\b/gi, "blauzdos apsauga"],
+    [/\bBody Protector\b/gi, "kūno apsauga"],
+    [/\bChest Guard\b/gi, "krūtinės apsauga"],
+    [/\bHead Guard\b/gi, "galvos apsauga"],
+    [/\bMouth Guard\b/gi, "dantų kapa"],
+    [/\bHelmet\b/gi, "šalmas"],
+    [/\bKick Pad\b/gi, "smūgių pagalvė"],
+    [/\bTarget\b/gi, "taikinys"],
+    [/\bBag\b/gi, "maišas"],
+    [/\bProtector\b/gi, "apsauga"],
+    [/\bProtection\b/gi, "apsauga"],
+  ],
+};
+
+export function productTitle(product: Product, language: Language) {
+  if (language === "en") {
+    return product.name;
+  }
+
+  const translated = productNameGlossary[language]?.reduce(
+    (name, [pattern, replacement]) => name.replace(pattern, replacement),
+    product.name,
+  );
+
+  return (translated || product.name).replace(/\s+/g, " ").trim();
+}
+
 export function productDescription(product: Product, language: Language) {
   const category = categoryLabel(product.category, language).toLowerCase();
+  const title = productTitle(product, language);
 
   if (language === "lv") {
-    return `${product.name} ${product.brand}: ${category} treniņiem, sacensībām un klubu iepirkumiem.`;
+    return `${title} ${product.brand}: ${category} treniņiem, sacensībām un klubu iepirkumiem.`;
   }
 
   if (language === "en") {
-    return `${product.name} by ${product.brand}: ${category} for training, competition and club orders.`;
+    return `${title} by ${product.brand}: ${category} for training, competition and club orders.`;
   }
 
   if (language === "et") {
-    return `${product.name} ${product.brand}: ${category} treeninguteks, võistlusteks ja klubitellimusteks.`;
+    return `${title} ${product.brand}: ${category} treeninguteks, võistlusteks ja klubitellimusteks.`;
   }
 
   if (language === "lt") {
-    return `${product.name} ${product.brand}: ${category} treniruotėms, varžyboms ir klubų užsakymams.`;
+    return `${title} ${product.brand}: ${category} treniruotėms, varžyboms ir klubų užsakymams.`;
   }
 
-  return `${product.name} ${product.brand}: ${category} для тренировок, соревнований и клубных закупок.`;
+  return `${title} ${product.brand}: ${category} для тренировок, соревнований и клубных закупок.`;
 }
 
 export function money(value: number, language: Language) {
