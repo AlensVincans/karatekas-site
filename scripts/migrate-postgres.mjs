@@ -15,9 +15,15 @@ function databaseUrl() {
     throw new Error("DATABASE_URL is required to run PostgreSQL migrations.");
   }
 
-  return /[?&]sslmode=/i.test(value)
+  let url = /[?&]sslmode=/i.test(value)
     ? value
     : `${value}${value.includes("?") ? "&" : "?"}sslmode=require`;
+
+  if (!/[?&]uselibpqcompat=/i.test(url)) {
+    url = `${url}${url.includes("?") ? "&" : "?"}uselibpqcompat=true`;
+  }
+
+  return url;
 }
 
 async function main() {

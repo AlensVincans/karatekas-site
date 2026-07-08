@@ -9,17 +9,21 @@ function databaseUrl() {
 }
 
 function connectionString() {
-  const value = databaseUrl();
+  let value = databaseUrl();
 
   if (!value) {
     return "";
   }
 
-  if (/[?&]sslmode=/i.test(value)) {
-    return value;
+  if (!/[?&]sslmode=/i.test(value)) {
+    value = `${value}${value.includes("?") ? "&" : "?"}sslmode=require`;
   }
 
-  return `${value}${value.includes("?") ? "&" : "?"}sslmode=require`;
+  if (!/[?&]uselibpqcompat=/i.test(value)) {
+    value = `${value}${value.includes("?") ? "&" : "?"}uselibpqcompat=true`;
+  }
+
+  return value;
 }
 
 export function hasDatabase() {

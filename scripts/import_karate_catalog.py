@@ -5,7 +5,6 @@ import html
 import json
 import re
 import shutil
-import sqlite3
 import sys
 import urllib.parse
 from collections import Counter, defaultdict
@@ -20,8 +19,6 @@ EXCEL_SOURCE = Path(r"C:/Users/alenv/Downloads/Sajt_karatekas kihon_price_list.x
 WOO_SOURCE = Path(r"C:/Users/alenv/Downloads/wc-product-export-23-6-2026-1782247894297.csv")
 UPLOADS_ROOT = Path(r"C:/Users/alenv/Downloads/uploads")
 PRODUCT_IMAGE_DIR = ROOT / "public" / "product-images"
-SCHEMA = ROOT / "data" / "products.schema.sql"
-DB_PATH = ROOT / "data" / "products.sqlite"
 TS_PATH = ROOT / "lib" / "karate-products.ts"
 KNOWN_BRANDS = {
     "Arawaza",
@@ -439,46 +436,6 @@ def import_woo_items() -> list[dict[str, Any]]:
     return items
 
 
-def write_sqlite(items: list[dict[str, Any]]) -> None:
-    if DB_PATH.exists():
-        DB_PATH.unlink()
-    conn = sqlite3.connect(DB_PATH)
-    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
-    conn.executemany(
-        """
-        INSERT INTO catalog_items (
-          source_sheet, brand, product_group, sku, title, description, stock,
-          size, colour, club_price, retail_price, image_1, image_2, image_3,
-          image_4, active, imported_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            (
-                item["source_sheet"],
-                item["brand"],
-                item["product_group"],
-                item["sku"],
-                item["title"],
-                item["description"],
-                item["stock"],
-                item["size"],
-                item["colour"],
-                item["club_price"],
-                item["retail_price"],
-                item["images"][0] if len(item["images"]) > 0 else "",
-                item["images"][1] if len(item["images"]) > 1 else "",
-                item["images"][2] if len(item["images"]) > 2 else "",
-                item["images"][3] if len(item["images"]) > 3 else "",
-                1,
-                item["imported_at"],
-            )
-            for item in items
-        ],
-    )
-    conn.commit()
-    conn.close()
-
-
 def build_products(items: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
     visible_items = [
         item
@@ -608,19 +565,17 @@ def import_rows() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
 
 if __name__ == "__main__":
     all_items, woo_items = import_rows()
-    write_sqlite(all_items)
     categories, products = build_products(woo_items)
     write_ts(categories, products)
     print(
         json.dumps(
             {
-                "sqlite_rows": len(all_items),
+                "imported_rows": len(all_items),
                 "woocommerce_rows": len(woo_items),
                 "products": len(products),
                 "categories": categories,
                 "brands": sorted({item["brand"] for item in woo_items}),
                 "images_copied_to": str(PRODUCT_IMAGE_DIR),
-                "db": str(DB_PATH),
                 "ts": str(TS_PATH),
             },
             ensure_ascii=False,
