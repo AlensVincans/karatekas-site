@@ -3276,14 +3276,25 @@ textarea {
   border-radius: 8px;
 }
 
+:root {
+  --site-header-height: 82px;
+}
+
 .site-header-v2 {
   background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid var(--v3-line);
   backdrop-filter: blur(16px);
   box-shadow: 0 10px 30px rgba(20, 16, 12, 0.06);
-  position: sticky;
+  left: 0;
+  position: fixed;
+  right: 0;
   top: 0;
-  z-index: 120;
+  width: 100%;
+  z-index: 1000;
+}
+
+.site-header-v2 + main {
+  padding-top: var(--site-header-height);
 }
 
 .service-strip-v2 {
@@ -5206,6 +5217,10 @@ textarea {
 }
 
 @media (max-width: 980px) {
+  :root {
+    --site-header-height: 72px;
+  }
+
   main {
     min-height: calc(100vh - 94px);
   }
