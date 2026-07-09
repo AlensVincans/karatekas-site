@@ -86,7 +86,7 @@ export default async function PaymentReturnPage({
   const copy = paymentStatusText(paymentStatus);
   const clearCartScript =
     paymentStatus?.toLowerCase() === "paid"
-      ? "try{localStorage.setItem('bc_cart','[]');window.dispatchEvent(new Event('storage'))}catch(e){}"
+      ? "try{localStorage.setItem('bc_cart','[]');window.dispatchEvent(new Event('storage'));window.dispatchEvent(new Event('bc-cart-change'))}catch(e){}"
       : "";
 
   return (

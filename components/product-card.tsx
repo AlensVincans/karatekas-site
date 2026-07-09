@@ -14,14 +14,9 @@ import {
   availableStock,
   useInventoryLevels,
 } from "../lib/inventory-client";
+import { readCartLines, writeCartLines } from "../lib/cart-client";
 import { useLanguage } from "./language";
 import { VariationPicker } from "./variation-picker";
-
-type CartLine = {
-  productId: string;
-  variationId: string;
-  qty: number;
-};
 
 const cardCopy = {
   ru: { sale: "Акция", inStock: "В наличии", order: "Под заказ", promo: "Промо" },
@@ -30,14 +25,6 @@ const cardCopy = {
   et: { sale: "Soodus", inStock: "Laos", order: "Tellimisel", promo: "Promo" },
   lt: { sale: "Akcija", inStock: "Sandėlyje", order: "Pagal užsakymą", promo: "Promo" },
 } as const;
-
-function readCart() {
-  try {
-    return JSON.parse(window.localStorage.getItem("bc_cart") ?? "[]") as CartLine[];
-  } catch {
-    return [];
-  }
-}
 
 export function ProductCard({ product, role }: { product: Product; role: UserRole }) {
   const { language, t } = useLanguage();
@@ -77,7 +64,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
       } as CSSProperties);
 
   function addToCart() {
-    const cart = readCart();
+    const cart = readCartLines();
     const found = cart.find(
       (item) => item.productId === product.id && item.variationId === variation.id,
     );
@@ -87,7 +74,7 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
         )
       : [...cart, { productId: product.id, variationId: variation.id, qty: 1 }];
 
-    window.localStorage.setItem("bc_cart", JSON.stringify(next));
+    writeCartLines(next);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1400);
   }

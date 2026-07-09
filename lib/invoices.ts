@@ -4,6 +4,7 @@ type SellerDetails = {
   name: string;
   registrationNumber: string;
   vatNumber: string;
+  website: string;
   address: string;
   email: string;
   bank: string;
@@ -22,6 +23,7 @@ function sellerDetails(): SellerDetails {
     name: envText("INVOICE_SELLER_NAME", "BBK AUTO, SIA"),
     registrationNumber: envText("INVOICE_SELLER_REG_NO", "40003924244"),
     vatNumber: envText("INVOICE_SELLER_VAT_NO", "LV40003924244"),
+    website: envText("INVOICE_SELLER_WEBSITE", "Karatekas.eu"),
     address: envText("INVOICE_SELLER_ADDRESS", "Riga, Ilukstes iela 103 k-3 - 29, LV-1082"),
     email: envText("INVOICE_SELLER_EMAIL", "info@karatekas.eu"),
     bank: envText("INVOICE_SELLER_BANK", ""),
@@ -121,6 +123,8 @@ export function buildInvoicePdf(order: StoreOrder) {
   y -= 16;
   content += pdfLine(46, y, seller.name);
   content += pdfLine(310, y, order.customer.company || order.customer.name);
+  y -= 14;
+  content += pdfLine(46, y, seller.website);
   y -= 14;
   content += pdfLine(46, y, `Reg. No.: ${seller.registrationNumber}`);
   content += pdfLine(310, y, `Email: ${order.customer.email}`);

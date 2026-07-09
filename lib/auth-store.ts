@@ -212,6 +212,106 @@ export async function listPublicUsers() {
   return [...demoUsers.map(publicDemoUser), ...store.users.map(publicUser)];
 }
 
+export async function setUserB2BAccess(input: {
+  email: string;
+  enabled: boolean;
+  adminNote?: string;
+}) {
+  const email = normalizeEmail(input.email);
+
+  if (!hasDatabase()) {
+    const store = await readStore();
+    let updated: PublicUser | null = null;
+
+    store.users = store.users.map((user) => {
+      if (user.email.toLowerCase() !== email) {
+        return user;
+      }
+
+      const next: AuthUser = {
+        ...user,
+        role: input.enabled ? "b2b" : "user",
+        creditLimit: input.enabled ? user.creditLimit ?? 2500 : undefined,
+        paymentTerms: input.enabled ? ["card", "invoice", "defer15"] : ["card"],
+        updatedAt: new Date().toISOString(),
+      };
+
+      updated = publicUser(next);
+      return next;
+    });
+
+    if (updated) {
+      await writeStore(store);
+    }
+
+    return updated;
+  }
+
+  const result = await dbQuery<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    name: string;
+    email: string;
+    role: UserRole;
+    company: string | null;
+    vat_number: string | null;
+    credit_limit: string | null;
+    payment_terms: PaymentMethod[];
+    email_confirmed: boolean;
+  }>(
+    `update users
+     set role = $2,
+         credit_limit = $3,
+         payment_terms = $4::jsonb,
+         updated_at = now()
+     where lower(email) = lower($1)
+     returning id, first_name, last_name, name, email, role, company, vat_number,
+       credit_limit, payment_terms, email_confirmed`,
+    [
+      email,
+      input.enabled ? "b2b" : "user",
+      input.enabled ? 2500 : null,
+      JSON.stringify(input.enabled ? ["card", "invoice", "defer15"] : ["card"]),
+    ],
+  );
+
+  const user = result.rows[0];
+
+  if (!user) {
+    return null;
+  }
+
+  if (!input.enabled) {
+    await dbQuery(
+      `update b2b_requests
+       set status = 'rejected',
+           admin_note = $2,
+           updated_at = now()
+       where lower(email) = lower($1) and status in ('pending', 'approved')`,
+      [email, input.adminNote?.trim() || "B2B access removed by admin."],
+    );
+  }
+
+  const requests = await listB2BRequests();
+  const request = requests.find((item) => item.email.toLowerCase() === email);
+
+  return {
+    id: user.id,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    company: user.company ?? undefined,
+    vatNumber: user.vat_number ?? undefined,
+    creditLimit: user.credit_limit ? Number(user.credit_limit) : undefined,
+    paymentTerms: user.payment_terms,
+    emailConfirmed: user.email_confirmed,
+    b2bRequest: request,
+  };
+}
+
 export async function registerAuthUser(input: RegisterUserInput) {
   if (input.role === "b2b") {
     return { ok: false as const, error: "B2B accounts are approved by administrator after request." };

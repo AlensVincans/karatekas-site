@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { defaultLanguage, dictionary, languages, type Language } from "../lib/i18n";
 
 const storageKey = "kg_language";
@@ -63,7 +63,24 @@ export function useLanguage() {
 export function LanguageSelect() {
   const { language, setLanguage } = useLanguage();
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const activeLanguage = languages.find((item) => item.code === language) ?? languages[0];
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [open]);
 
   function chooseLanguage(next: Language) {
     setLanguage(next);
@@ -71,7 +88,11 @@ export function LanguageSelect() {
   }
 
   return (
-    <div className={open ? "language-switch open" : "language-switch"} aria-label="Language">
+    <div
+      className={open ? "language-switch open" : "language-switch"}
+      aria-label="Language"
+      ref={rootRef}
+    >
       <button
         aria-expanded={open}
         aria-label="Language"

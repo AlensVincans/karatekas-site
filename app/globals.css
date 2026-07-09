@@ -1880,6 +1880,18 @@ td span {
   padding: 10px;
 }
 
+.order-line-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.order-line-head .table-action {
+  min-height: 30px;
+  padding: 0 9px;
+}
+
 .order-edit-grid {
   display: grid;
   gap: 10px;
@@ -3267,9 +3279,11 @@ textarea {
 .site-header-v2 {
   background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid var(--v3-line);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(20, 16, 12, 0.06);
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 120;
 }
 
 .service-strip-v2 {
@@ -3423,6 +3437,24 @@ textarea {
 .site-header-v2 .account-chip span {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
+}
+
+.cart-link-v2 {
+  position: relative;
+}
+
+.cart-count-badge {
+  align-items: center;
+  background: var(--v3-accent);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 950;
+  justify-content: center;
+  min-height: 20px;
+  min-width: 20px;
+  padding: 0 6px;
 }
 
 .language-switch {
@@ -4077,6 +4109,10 @@ textarea {
   gap: 26px;
   padding-bottom: clamp(42px, 6vw, 82px);
   padding-top: clamp(28px, 5vw, 64px);
+}
+
+.catalog-page-compact-v3 {
+  padding-top: clamp(16px, 3vw, 32px);
 }
 
 .catalog-hero-v3 {

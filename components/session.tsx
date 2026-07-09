@@ -78,11 +78,23 @@ export function useDemoSession() {
   const [serverUsers, setServerUsers] = useState<SessionUser[]>([]);
 
   function refreshServerUsers() {
-    fetch("/api/auth/users")
+    return fetch("/api/auth/users")
       .then((response) => response.json())
       .then((data: { users?: SessionUser[] }) => {
         if (Array.isArray(data.users)) {
           setServerUsers(data.users);
+
+          const currentSession = readSession();
+          const freshSession = currentSession
+            ? data.users.find(
+                (user) => user.email.toLowerCase() === currentSession.email.toLowerCase(),
+              )
+            : undefined;
+
+          if (freshSession) {
+            setSession(freshSession);
+            window.localStorage.setItem(sessionKey, JSON.stringify(freshSession));
+          }
         }
       })
       .catch(() => undefined);
@@ -232,5 +244,6 @@ export function useDemoSession() {
     login,
     register,
     logout,
+    refreshUsers: refreshServerUsers,
   };
 }

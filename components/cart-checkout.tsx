@@ -13,14 +13,9 @@ import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
 import { productTitle, type Language } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
+import { readCartLines, writeCartLines, type CartLine } from "../lib/cart-client";
 import { useLanguage } from "./language";
 import { useDemoSession } from "./session";
-
-type CartLine = {
-  productId: string;
-  variationId: string;
-  qty: number;
-};
 
 type ShippingType =
   | "parcel_machine"
@@ -485,11 +480,7 @@ const copy = {
 } as const;
 
 function readCart() {
-  try {
-    return JSON.parse(window.localStorage.getItem("bc_cart") ?? "[]") as CartLine[];
-  } catch {
-    return [];
-  }
+  return readCartLines();
 }
 
 function isPresent<T>(value: T | null | undefined): value is T {
@@ -927,7 +918,7 @@ export function CartCheckout() {
           );
 
     setCart(next);
-    window.localStorage.setItem("bc_cart", JSON.stringify(next));
+    writeCartLines(next);
   }
 
   function updateAddress(patch: Partial<ShippingAddress>) {
@@ -1111,7 +1102,7 @@ export function CartCheckout() {
           throw new Error(data.error || c.paymentError);
         }
 
-        window.localStorage.setItem("bc_cart", "[]");
+        writeCartLines([]);
         setCart([]);
         setStatus(
           `${payment === "defer15" ? c.deferStatus : c.invoiceStatus} ${data.order.id}`,

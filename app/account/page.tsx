@@ -201,13 +201,16 @@ type AccountOrder = {
 };
 
 export default function AccountPage() {
-  const { session } = useDemoSession();
+  const { session, refreshUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [b2bFormOpen, setB2bFormOpen] = useState(false);
   const [b2bStatus, setB2bStatus] = useState("");
+  const [localB2BStatus, setLocalB2BStatus] = useState<
+    "pending" | "approved" | "rejected" | ""
+  >("");
   const [b2bForm, setB2bForm] = useState({
     companyName: session?.company ?? "",
     registrationNumber: session?.vatNumber ?? "",
@@ -236,6 +239,10 @@ export default function AccountPage() {
       cancelled = true;
     };
   }, [session?.email]);
+
+  useEffect(() => {
+    setLocalB2BStatus(session?.b2bRequest?.status ?? "");
+  }, [session?.b2bRequest?.status]);
 
   if (!session) {
     return (
@@ -267,13 +274,25 @@ export default function AccountPage() {
     };
 
     if (!response.ok) {
+      if (response.status === 409) {
+        setLocalB2BStatus("pending");
+        setB2bFormOpen(false);
+        setB2bStatus(c.b2bPending);
+        await refreshUsers();
+        return;
+      }
+
       setB2bStatus(result.error || "Could not send request.");
       return;
     }
 
+    setLocalB2BStatus("pending");
     setB2bStatus(c.requestSent);
     setB2bFormOpen(false);
+    await refreshUsers();
   }
+
+  const b2bRequestStatus = localB2BStatus || session.b2bRequest?.status;
 
   return (
     <section className="section-shell narrow">
@@ -309,14 +328,14 @@ export default function AccountPage() {
         <div className="tool-panel">
           <h3>{c.b2bTitle}</h3>
           <p>{c.b2bText}</p>
-          {session.b2bRequest?.status === "pending" ? (
+          {b2bRequestStatus === "pending" ? (
             <p className="status-box">{c.b2bPending}</p>
-          ) : session.b2bRequest?.status === "approved" ? (
+          ) : b2bRequestStatus === "approved" ? (
             <p className="status-box">{c.b2bApproved}</p>
-          ) : session.b2bRequest?.status === "rejected" ? (
+          ) : b2bRequestStatus === "rejected" ? (
             <p className="status-box">{c.b2bRejected}</p>
           ) : null}
-          {session.b2bRequest?.status !== "pending" ? (
+          {b2bRequestStatus !== "pending" ? (
             <>
               <button
                 className="wide-button inline-button"

@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { cartChangeEvent, cartItemCount, readCartLines } from "../lib/cart-client";
 import { LanguageSelect, useLanguage } from "./language";
 import { ProductSearchSuggestions } from "./product-search-suggestions";
 import { useDemoSession } from "./session";
@@ -59,7 +60,23 @@ export function StoreHeader() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const isAdmin = session?.role === "admin";
+
+  useEffect(() => {
+    function syncCartCount() {
+      setCartCount(cartItemCount(readCartLines()));
+    }
+
+    syncCartCount();
+    window.addEventListener("storage", syncCartCount);
+    window.addEventListener(cartChangeEvent, syncCartCount);
+
+    return () => {
+      window.removeEventListener("storage", syncCartCount);
+      window.removeEventListener(cartChangeEvent, syncCartCount);
+    };
+  }, []);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -147,6 +164,7 @@ export function StoreHeader() {
           <Link className="cart-link-v2" href="/cart" aria-label={t.navCart}>
             <CartIcon />
             <span>{t.navCart}</span>
+            {cartCount ? <strong className="cart-count-badge">{cartCount}</strong> : null}
           </Link>
           {userActions("desktop")}
           <button

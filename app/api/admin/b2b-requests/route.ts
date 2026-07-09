@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 type ReviewPayload = {
   id?: string;
   status?: "approved" | "rejected";
+  approved?: boolean;
   adminNote?: string;
 };
 
@@ -21,7 +22,15 @@ export async function PATCH(request: Request) {
     return Response.json({ ok: false, error: "Invalid B2B review payload." }, { status: 400 });
   }
 
-  if (!payload.id || (payload.status !== "approved" && payload.status !== "rejected")) {
+  const status =
+    payload.status ??
+    (typeof payload.approved === "boolean"
+      ? payload.approved
+        ? "approved"
+        : "rejected"
+      : undefined);
+
+  if (!payload.id || (status !== "approved" && status !== "rejected")) {
     return Response.json(
       { ok: false, error: "Request id and final status are required." },
       { status: 400 },
@@ -30,7 +39,7 @@ export async function PATCH(request: Request) {
 
   const b2bRequest = await reviewB2BRequest({
     id: payload.id,
-    status: payload.status,
+    status,
     adminNote: payload.adminNote,
   });
 

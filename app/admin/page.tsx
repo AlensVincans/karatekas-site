@@ -55,6 +55,14 @@ type AdminProduct = {
 
 type OrderPayment = "invoice15" | "card" | "invoice";
 type OrderStatus = "in_process" | "paid" | "shipped" | "unpaid" | "completed";
+type OrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled";
+type OrderShippingStatus =
+  | "pending"
+  | "ready_for_pickup"
+  | "ready_to_ship"
+  | "shipment_created"
+  | "label_created"
+  | "failed";
 
 type OrderRow = {
   id: string;
@@ -69,16 +77,20 @@ type OrderRow = {
   shippingPrice?: number;
   payment: OrderPayment;
   status: OrderStatus;
-  paymentStatus?: string;
+  paymentStatus?: OrderPaymentStatus;
   shippingMethodName?: string;
   pickupPointName?: string;
+  pickupPointId?: string;
+  shippingMethod?: string;
   shippingAddress?: Record<string, string | undefined>;
-  shippingStatus?: string;
+  shippingStatus?: OrderShippingStatus;
   trackingNumber?: string;
   trackingLink?: string;
   labelUrl?: string;
   labelFileId?: string;
   lines?: Array<{
+    productId?: string;
+    variationId?: string;
     productName: string;
     variationName?: string;
     sku?: string;
@@ -103,14 +115,18 @@ type ApiOrder = {
     vat?: number;
     shipping?: number;
     total?: number;
+    currency?: "EUR";
   };
+  shippingPrice?: number;
   paymentMethod?: "card" | "invoice" | "defer15";
-  paymentStatus?: string;
+  paymentStatus?: OrderPaymentStatus;
   orderStatus?: OrderStatus;
+  shippingMethod?: string;
   shippingMethodName?: string;
   pickupPointName?: string;
+  pickupPointId?: string;
   shippingAddress?: Record<string, string | undefined>;
-  shippingStatus?: string;
+  shippingStatus?: OrderShippingStatus;
   trackingNumber?: string;
   trackingLink?: string;
   labelUrl?: string;
@@ -119,6 +135,15 @@ type ApiOrder = {
 };
 
 const orderStatuses: OrderStatus[] = ["in_process", "paid", "shipped", "unpaid", "completed"];
+const paymentStatuses: OrderPaymentStatus[] = ["pending", "paid", "failed", "cancelled"];
+const shippingStatuses: OrderShippingStatus[] = [
+  "pending",
+  "ready_for_pickup",
+  "ready_to_ship",
+  "shipment_created",
+  "label_created",
+  "failed",
+];
 const emptyStockItems: ClientInventoryItem[] = [];
 
 const copy = {
@@ -530,6 +555,90 @@ const adminExtraCopy = {
   },
 } as const;
 
+const b2bAccessActionLabels = {
+  ru: { remove: "Убрать B2B-доступ" },
+  lv: { remove: "Noņemt B2B piekļuvi" },
+  en: { remove: "Remove B2B access" },
+  et: { remove: "Eemalda B2B ligipääs" },
+  lt: { remove: "Pašalinti B2B prieigą" },
+} as const;
+
+const paymentStatusLabels = {
+  ru: {
+    pending: "ожидает оплаты",
+    paid: "оплачен",
+    failed: "ошибка оплаты",
+    cancelled: "отменён",
+  },
+  lv: {
+    pending: "gaida apmaksu",
+    paid: "apmaksāts",
+    failed: "maksājuma kļūda",
+    cancelled: "atcelts",
+  },
+  en: {
+    pending: "pending",
+    paid: "paid",
+    failed: "payment failed",
+    cancelled: "cancelled",
+  },
+  et: {
+    pending: "ootab makset",
+    paid: "makstud",
+    failed: "makse ebaõnnestus",
+    cancelled: "tühistatud",
+  },
+  lt: {
+    pending: "laukia apmokėjimo",
+    paid: "apmokėta",
+    failed: "mokėjimo klaida",
+    cancelled: "atšaukta",
+  },
+} as const satisfies Record<string, Record<OrderPaymentStatus, string>>;
+
+const shippingStatusLabels = {
+  ru: {
+    pending: "ожидает обработки",
+    ready_for_pickup: "готов к самовывозу",
+    ready_to_ship: "готов к отправке",
+    shipment_created: "отправка создана",
+    label_created: "этикетка создана",
+    failed: "ошибка доставки",
+  },
+  lv: {
+    pending: "gaida apstrādi",
+    ready_for_pickup: "gatavs saņemšanai",
+    ready_to_ship: "gatavs nosūtīšanai",
+    shipment_created: "sūtījums izveidots",
+    label_created: "etiķete izveidota",
+    failed: "piegādes kļūda",
+  },
+  en: {
+    pending: "pending",
+    ready_for_pickup: "ready for pickup",
+    ready_to_ship: "ready to ship",
+    shipment_created: "shipment created",
+    label_created: "label created",
+    failed: "shipping failed",
+  },
+  et: {
+    pending: "ootab töötlemist",
+    ready_for_pickup: "valmis kättesaamiseks",
+    ready_to_ship: "valmis saatmiseks",
+    shipment_created: "saadetis loodud",
+    label_created: "silt loodud",
+    failed: "tarne viga",
+  },
+  lt: {
+    pending: "laukiama apdorojimo",
+    ready_for_pickup: "paruošta atsiimti",
+    ready_to_ship: "paruošta siųsti",
+    shipment_created: "siunta sukurta",
+    label_created: "etiketė sukurta",
+    failed: "pristatymo klaida",
+  },
+} as const satisfies Record<string, Record<OrderShippingStatus, string>>;
+
 type CopyText = (typeof copy)[keyof typeof copy];
 
 const initialOrders: OrderRow[] = [];
@@ -547,7 +656,7 @@ function statusFromApiOrder(order: ApiOrder): OrderStatus {
     return "paid";
   }
 
-  if (order.paymentStatus === "unpaid" || order.paymentStatus === "cancelled") {
+  if (order.paymentStatus === "cancelled" || order.paymentStatus === "failed") {
     return "unpaid";
   }
 
@@ -585,7 +694,9 @@ function mapApiOrder(order: ApiOrder): OrderRow {
     payment: paymentFromApiOrder(order),
     status: statusFromApiOrder(order),
     paymentStatus: order.paymentStatus,
+    shippingMethod: order.shippingMethod,
     shippingMethodName: order.pickupPointName || order.shippingMethodName,
+    pickupPointId: order.pickupPointId,
     pickupPointName: order.pickupPointName,
     shippingAddress: order.shippingAddress,
     shippingStatus: order.shippingStatus,
@@ -842,6 +953,27 @@ function formatOrderDate(value: string | undefined, language: Parameters<typeof 
   }).format(date);
 }
 
+function roundAdminMoney(value: number) {
+  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
+function recalculateOrderTotals(
+  lines: NonNullable<OrderRow["lines"]>,
+  shippingPrice = 0,
+) {
+  const subtotal = roundAdminMoney(lines.reduce((sum, line) => sum + line.total, 0));
+  const vat = roundAdminMoney(subtotal * 0.21);
+  const shipping = roundAdminMoney(shippingPrice);
+
+  return {
+    subtotal,
+    vat,
+    shipping,
+    total: roundAdminMoney(subtotal + vat + shipping),
+    currency: "EUR" as const,
+  };
+}
+
 function ProductForm({
   product,
   c,
@@ -1089,10 +1221,19 @@ function ProductForm({
 }
 
 export default function AdminPage() {
-  const { session, allUsers } = useDemoSession();
+  const { session, allUsers, refreshUsers } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const extra = adminExtraCopy[language as keyof typeof adminExtraCopy] ?? adminExtraCopy.en;
+  const b2bAccessLabels =
+    b2bAccessActionLabels[language as keyof typeof b2bAccessActionLabels] ??
+    b2bAccessActionLabels.en;
+  const paymentLabels =
+    paymentStatusLabels[language as keyof typeof paymentStatusLabels] ??
+    paymentStatusLabels.en;
+  const shippingLabels =
+    shippingStatusLabels[language as keyof typeof shippingStatusLabels] ??
+    shippingStatusLabels.en;
   const dateLabel = adminDateLabels[language as keyof typeof adminDateLabels] ?? adminDateLabels.en;
   const {
     items: inventoryItems,
@@ -1535,6 +1676,47 @@ export default function AdminPage() {
     await updateOrderPatch(orderId, { orderStatus: status });
   }
 
+  async function removeOrderLine(order: OrderRow, lineIndex: number) {
+    const currentLines = order.lines ?? [];
+
+    if (currentLines.length <= 1) {
+      return;
+    }
+
+    const nextLines = currentLines.filter((_, index) => index !== lineIndex);
+    const nextTotals = recalculateOrderTotals(nextLines, order.shippingPrice ?? 0);
+
+    setOrders((items) =>
+      items.map((item) =>
+        item.id === order.id
+          ? {
+              ...item,
+              lines: nextLines,
+              subtotal: nextTotals.subtotal,
+              vat: nextTotals.vat,
+              shippingPrice: nextTotals.shipping,
+              total: nextTotals.total,
+            }
+          : item,
+      ),
+    );
+    await updateOrderPatch(order.id, {
+      lines: nextLines,
+      totals: nextTotals,
+      shippingPrice: nextTotals.shipping,
+    });
+  }
+
+  async function updateOrderPickup(order: OrderRow, value: string) {
+    const pickupPointName = value.trim();
+
+    await updateOrderPatch(order.id, {
+      pickupPointName: pickupPointName || undefined,
+      shippingMethodName: pickupPointName || order.shippingMethodName,
+      shippingMethod: pickupPointName || order.shippingMethod,
+    });
+  }
+
   async function reviewB2BRequest(user: SessionUser, approved: boolean) {
     if (!user.b2bRequest) {
       return;
@@ -1544,7 +1726,10 @@ export default function AdminPage() {
       const response = await fetch("/api/admin/b2b-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user.b2bRequest.id, approved }),
+        body: JSON.stringify({
+          id: user.b2bRequest.id,
+          status: approved ? "approved" : "rejected",
+        }),
       });
 
       if (!response.ok) {
@@ -1552,7 +1737,26 @@ export default function AdminPage() {
       }
 
       setAdminActionStatus(extra.actionSaved);
-      window.setTimeout(() => window.location.reload(), 450);
+      await refreshUsers();
+    } catch {
+      setAdminActionStatus(extra.actionFailed);
+    }
+  }
+
+  async function setClientB2BAccess(user: SessionUser, enabled: boolean) {
+    try {
+      const response = await fetch("/api/auth/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, b2bEnabled: enabled }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Client update failed.");
+      }
+
+      setAdminActionStatus(extra.actionSaved);
+      await refreshUsers();
     } catch {
       setAdminActionStatus(extra.actionFailed);
     }
@@ -2083,6 +2287,18 @@ export default function AdminPage() {
                   <strong>{selectedClient.vatNumber ?? "-"}</strong>
                 </div>
 
+                {selectedClient.role === "b2b" ? (
+                  <div className="admin-inline-actions">
+                    <button
+                      className="table-action danger"
+                      onClick={() => void setClientB2BAccess(selectedClient, false)}
+                      type="button"
+                    >
+                      {b2bAccessLabels.remove}
+                    </button>
+                  </div>
+                ) : null}
+
                 {selectedClient.b2bRequest ? (
                   <div className="b2b-request-box">
                     <span className="eyebrow">{extra.b2bRequest}</span>
@@ -2261,10 +2477,13 @@ export default function AdminPage() {
                       <span>{order.email ?? "-"}</span>
                     </td>
                     <td>{money(order.total, language)}</td>
-                    <td>{c.payments[order.payment]}</td>
+                    <td>
+                      {c.payments[order.payment]}
+                      <span>{order.paymentStatus ? paymentLabels[order.paymentStatus] : "-"}</span>
+                    </td>
                     <td>
                       {order.shippingMethodName ?? "-"}
-                      <span>{order.shippingStatus ?? "-"}</span>
+                      <span>{order.shippingStatus ? shippingLabels[order.shippingStatus] : "-"}</span>
                     </td>
                     <td>
                       {order.trackingLink ? (
@@ -2322,7 +2541,18 @@ export default function AdminPage() {
                             <div className="order-line-list">
                               {(order.lines ?? []).map((line, index) => (
                                 <div className="order-line-item" key={`${order.id}-${index}`}>
-                                  <strong>{line.productName}</strong>
+                                  <div className="order-line-head">
+                                    <strong>{line.productName}</strong>
+                                    {(order.lines?.length ?? 0) > 1 ? (
+                                      <button
+                                        className="table-action danger"
+                                        onClick={() => void removeOrderLine(order, index)}
+                                        type="button"
+                                      >
+                                        {c.delete}
+                                      </button>
+                                    ) : null}
+                                  </div>
                                   <span>
                                     {[line.variationName, line.sku]
                                       .filter(Boolean)
@@ -2354,19 +2584,20 @@ export default function AdminPage() {
                             </p>
                             <div className="order-edit-grid">
                               <label>
-                                Payment
+                                {c.payment}
                                 <select
                                   value={order.paymentStatus ?? "pending"}
                                   onChange={(event) =>
                                     void updateOrderPatch(order.id, {
-                                      paymentStatus: event.target.value,
+                                      paymentStatus: event.target.value as OrderPaymentStatus,
                                     })
                                   }
                                 >
-                                  <option value="pending">pending</option>
-                                  <option value="paid">paid</option>
-                                  <option value="failed">failed</option>
-                                  <option value="cancelled">cancelled</option>
+                                  {paymentStatuses.map((status) => (
+                                    <option key={status} value={status}>
+                                      {paymentLabels[status]}
+                                    </option>
+                                  ))}
                                 </select>
                               </label>
                               <label>
@@ -2375,17 +2606,23 @@ export default function AdminPage() {
                                   value={order.shippingStatus ?? "pending"}
                                   onChange={(event) =>
                                     void updateOrderPatch(order.id, {
-                                      shippingStatus: event.target.value,
+                                      shippingStatus: event.target.value as OrderShippingStatus,
                                     })
                                   }
                                 >
-                                  <option value="pending">pending</option>
-                                  <option value="ready_for_pickup">ready_for_pickup</option>
-                                  <option value="ready_to_ship">ready_to_ship</option>
-                                  <option value="shipment_created">shipment_created</option>
-                                  <option value="label_created">label_created</option>
-                                  <option value="failed">failed</option>
+                                  {shippingStatuses.map((status) => (
+                                    <option key={status} value={status}>
+                                      {shippingLabels[status]}
+                                    </option>
+                                  ))}
                                 </select>
+                              </label>
+                              <label>
+                                {c.shipping}
+                                <input
+                                  defaultValue={order.pickupPointName ?? order.shippingMethodName ?? ""}
+                                  onBlur={(event) => void updateOrderPickup(order, event.target.value)}
+                                />
                               </label>
                               <label>
                                 {c.tracking}

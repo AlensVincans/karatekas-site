@@ -11,16 +11,11 @@ import {
 import { productImages, useProductImages } from "../lib/product-media";
 import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
+import { readCartLines, writeCartLines } from "../lib/cart-client";
 import { useLanguage } from "./language";
 import { ProductCard } from "./product-card";
 import { useDemoSession } from "./session";
 import { VariationPicker } from "./variation-picker";
-
-type CartLine = {
-  productId: string;
-  variationId: string;
-  qty: number;
-};
 
 const copy = {
   ru: {
@@ -79,14 +74,6 @@ const copy = {
     completeKit: "Užbaikite komplektą",
   },
 } as const;
-
-function readCart() {
-  try {
-    return JSON.parse(window.localStorage.getItem("bc_cart") ?? "[]") as CartLine[];
-  } catch {
-    return [];
-  }
-}
 
 function variationTitle(
   variation: Product["variations"][number],
@@ -166,7 +153,7 @@ export function ProductDetail({ product }: { product: Product }) {
   }
 
   function addToCart() {
-    const cart = readCart();
+    const cart = readCartLines();
     const found = cart.find(
       (item) => item.productId === product.id && item.variationId === variation.id,
     );
@@ -176,7 +163,7 @@ export function ProductDetail({ product }: { product: Product }) {
         )
       : [...cart, { productId: product.id, variationId: variation.id, qty: 1 }];
 
-    window.localStorage.setItem("bc_cart", JSON.stringify(next));
+    writeCartLines(next);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1400);
   }
