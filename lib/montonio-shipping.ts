@@ -83,6 +83,7 @@ type MontonioLabelFile = {
 
 const productionShippingApiBase = "https://shipping.montonio.com/api/v2";
 const sandboxShippingApiBase = "https://sandbox-shipping.montonio.com/api/v2";
+const publicContractPricesApi = "https://shipping.montonio.com/api/v2/contract-prices";
 const defaultCountry = "LV";
 
 const carrierNames: Record<string, string> = {
@@ -123,7 +124,7 @@ const fallbackMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 3.49,
+    price: 2.2,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -137,7 +138,7 @@ const fallbackMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 4.9,
+    price: 2.09,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -151,7 +152,7 @@ const fallbackMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 4.9,
+    price: 1.95,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -165,7 +166,7 @@ const fallbackMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 2.99,
+    price: 1.99,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -179,7 +180,7 @@ const fallbackMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "post_office",
     subtype: "postOffice",
-    price: 5.6,
+    price: 1.99,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -193,7 +194,7 @@ const fallbackMethods: ShippingMethodOption[] = [
     type: "courier",
     shippingType: "courier",
     subtype: "standard",
-    price: 8.5,
+    price: 6.38,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -203,32 +204,42 @@ const fallbackMethods: ShippingMethodOption[] = [
 const manualShippingPrices: Record<string, Record<string, number>> = {
   LV: {
     "self:self_pickup": 0,
-    "omniva:parcel_machine": 3.49,
-    "dpd:parcel_machine": 4.9,
-    "smartposti:parcel_machine": 4.9,
-    "unisend:parcel_machine": 2.99,
-    "latvijas_pasts:post_office": 5.6,
-    "dpd:courier": 8.5,
+    "omniva:parcel_machine": 2.2,
+    "dpd:parcel_machine": 2.09,
+    "smartposti:parcel_machine": 1.95,
+    "unisend:parcel_machine": 1.99,
+    "latvijas_pasts:parcel_machine": 1.99,
+    "latvijas_pasts:post_office": 1.99,
+    "dpd:courier": 6.38,
   },
   LT: {
     "self:self_pickup": 0,
-    "omniva:parcel_machine": 5.45,
-    "dpd:parcel_machine": 5.45,
-    "smartposti:parcel_machine": 5.45,
-    "unisend:parcel_machine": 5.45,
-    "latvijas_pasts:post_office": 5.45,
-    "dpd:courier": 8.39,
+    "omniva:parcel_machine": 4,
+    "dpd:parcel_machine": 4.5,
+    "smartposti:parcel_machine": 3.95,
+    "unisend:parcel_machine": 3,
+    "latvijas_pasts:parcel_machine": 4,
+    "latvijas_pasts:post_office": 4,
+    "dpd:courier": 5.5,
   },
   EE: {
     "self:self_pickup": 0,
-    "omniva:parcel_machine": 5.45,
-    "dpd:parcel_machine": 5.45,
-    "smartposti:parcel_machine": 5.45,
-    "unisend:parcel_machine": 5.45,
-    "latvijas_pasts:post_office": 5.45,
-    "dpd:courier": 8.39,
+    "omniva:parcel_machine": 4,
+    "dpd:parcel_machine": 4.5,
+    "smartposti:parcel_machine": 3.95,
+    "unisend:parcel_machine": 3,
+    "latvijas_pasts:parcel_machine": 4,
+    "latvijas_pasts:post_office": 4,
+    "dpd:courier": 5.5,
   },
 };
+
+type PublicContractPrice = {
+  pricePerParcel?: number;
+  currency?: string;
+};
+
+const publicPriceCache = new Map<string, { expiresAt: number; price: number | undefined }>();
 
 function env() {
   return process.env;
@@ -504,6 +515,119 @@ export function fallbackShippingMethods(countryCode = defaultCountry) {
   }));
 }
 
+function publicCarrierCode(carrierCode: string) {
+  const normalized = normalizeCarrierCode(carrierCode);
+
+  if (normalized === "smartposti") {
+    return "smartpost";
+  }
+
+  if (normalized === "latvijas_pasts") {
+    return "latvian_post";
+  }
+
+  return normalized;
+}
+
+function publicShippingMethod(shippingType: OrderShippingType) {
+  if (shippingType === "courier") {
+    return "courier";
+  }
+
+  if (
+    shippingType === "parcel_machine" ||
+    shippingType === "parcel_shop" ||
+    shippingType === "post_office"
+  ) {
+    return "pickupPoint";
+  }
+
+  return undefined;
+}
+
+async function publicContractPriceFor(
+  method: ShippingMethodOption,
+  countryCode = defaultCountry,
+) {
+  if (method.shippingType === "self_pickup") {
+    return undefined;
+  }
+
+  const shippingMethod = publicShippingMethod(method.shippingType);
+
+  if (!shippingMethod) {
+    return undefined;
+  }
+
+  const source = cleanText(env().MONTONIO_SHIPPING_SOURCE_COUNTRY, defaultCountry).toUpperCase();
+  const destination = countryCode.trim().toUpperCase() || defaultCountry;
+  const carrierCode = publicCarrierCode(method.carrierCode);
+  const cacheKey = `${carrierCode}:${shippingMethod}:${source}:${destination}`;
+  const cached = publicPriceCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    return cached.price;
+  }
+
+  const url = new URL(
+    cleanText(env().MONTONIO_CONTRACT_PRICES_URL, publicContractPricesApi),
+  );
+  url.searchParams.set("carrierCode", carrierCode);
+  url.searchParams.set("shippingMethod", shippingMethod);
+  url.searchParams.set("source", source);
+  url.searchParams.set("destination", destination);
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+    const prices = (await response.json().catch(() => [])) as PublicContractPrice[];
+
+    if (!response.ok || !Array.isArray(prices)) {
+      throw new Error("Montonio contract prices request failed.");
+    }
+
+    const parsedPrices = prices
+      .filter((price) => price.currency === "EUR" || !price.currency)
+      .map((price) => Number(price.pricePerParcel))
+      .filter((price) => Number.isFinite(price) && price > 0);
+    const price = parsedPrices.length
+      ? roundMoney(Math.min(...parsedPrices))
+      : undefined;
+
+    publicPriceCache.set(cacheKey, {
+      expiresAt: now + 10 * 60 * 1000,
+      price,
+    });
+
+    return price;
+  } catch {
+    publicPriceCache.set(cacheKey, {
+      expiresAt: now + 60 * 1000,
+      price: undefined,
+    });
+    return undefined;
+  }
+}
+
+async function withPublicContractPrices(
+  methods: ShippingMethodOption[],
+  countryCode = defaultCountry,
+) {
+  const priced = await Promise.all(
+    methods.map(async (method) => {
+      const price = await publicContractPriceFor(method, countryCode);
+
+      return typeof price === "number"
+        ? { ...method, price, source: "montonio" as const }
+        : method;
+    }),
+  );
+
+  return priced;
+}
+
 function withSelfPickup(methods: ShippingMethodOption[], countryCode = defaultCountry) {
   const selfPickup = fallbackShippingMethods(countryCode).find(
     (method) => method.shippingType === "self_pickup",
@@ -518,7 +642,7 @@ function withSelfPickup(methods: ShippingMethodOption[], countryCode = defaultCo
 
 export async function getShippingMethods(countryCode = defaultCountry) {
   if (env().MONTONIO_SHIPPING_USE_API?.trim().toLowerCase() !== "true") {
-    return fallbackShippingMethods(countryCode);
+    return withPublicContractPrices(fallbackShippingMethods(countryCode), countryCode);
   }
 
   try {
@@ -526,9 +650,12 @@ export async function getShippingMethods(countryCode = defaultCountry) {
       await shippingRequest<MontonioShippingMethodResponse>("/shipping-methods");
     const methods = normalizeMethods(data, countryCode);
 
-    return methods.length ? withSelfPickup(methods, countryCode) : fallbackShippingMethods(countryCode);
+    return withPublicContractPrices(
+      methods.length ? withSelfPickup(methods, countryCode) : fallbackShippingMethods(countryCode),
+      countryCode,
+    );
   } catch {
-    return fallbackShippingMethods(countryCode);
+    return withPublicContractPrices(fallbackShippingMethods(countryCode), countryCode);
   }
 }
 

@@ -240,10 +240,6 @@ export default function AccountPage() {
     };
   }, [session?.email]);
 
-  useEffect(() => {
-    setLocalB2BStatus(session?.b2bRequest?.status ?? "");
-  }, [session?.b2bRequest?.status]);
-
   if (!session) {
     return (
       <section className="section-shell narrow">
@@ -292,7 +288,7 @@ export default function AccountPage() {
     await refreshUsers();
   }
 
-  const b2bRequestStatus = localB2BStatus || session.b2bRequest?.status;
+  const b2bRequestStatus = session.b2bRequest?.status ?? localB2BStatus;
 
   return (
     <section className="section-shell narrow">

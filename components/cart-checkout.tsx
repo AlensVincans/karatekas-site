@@ -131,7 +131,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 3.49,
+    price: 2.2,
     currency: "EUR",
     available: true,
   },
@@ -144,7 +144,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 4.9,
+    price: 2.09,
     currency: "EUR",
     available: true,
   },
@@ -157,7 +157,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 4.9,
+    price: 1.95,
     currency: "EUR",
     available: true,
   },
@@ -170,7 +170,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "parcel_machine",
     subtype: "parcelMachine",
-    price: 2.99,
+    price: 1.99,
     currency: "EUR",
     available: true,
   },
@@ -183,7 +183,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     type: "pickupPoint",
     shippingType: "post_office",
     subtype: "postOffice",
-    price: 5.6,
+    price: 1.99,
     currency: "EUR",
     available: true,
   },
@@ -196,7 +196,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     type: "courier",
     shippingType: "courier",
     subtype: "standard",
-    price: 8.5,
+    price: 6.38,
     currency: "EUR",
     available: true,
   },
@@ -205,30 +205,33 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
 const manualShippingPrices: Record<DeliveryCountry, Record<string, number>> = {
   LV: {
     "self:self_pickup": 0,
-    "omniva:parcel_machine": 3.49,
-    "dpd:parcel_machine": 4.9,
-    "smartposti:parcel_machine": 4.9,
-    "unisend:parcel_machine": 2.99,
-    "latvijas_pasts:post_office": 5.6,
-    "dpd:courier": 8.5,
+    "omniva:parcel_machine": 2.2,
+    "dpd:parcel_machine": 2.09,
+    "smartposti:parcel_machine": 1.95,
+    "unisend:parcel_machine": 1.99,
+    "latvijas_pasts:parcel_machine": 1.99,
+    "latvijas_pasts:post_office": 1.99,
+    "dpd:courier": 6.38,
   },
   LT: {
     "self:self_pickup": 0,
-    "omniva:parcel_machine": 5.45,
-    "dpd:parcel_machine": 5.45,
-    "smartposti:parcel_machine": 5.45,
-    "unisend:parcel_machine": 5.45,
-    "latvijas_pasts:post_office": 5.45,
-    "dpd:courier": 8.39,
+    "omniva:parcel_machine": 4,
+    "dpd:parcel_machine": 4.5,
+    "smartposti:parcel_machine": 3.95,
+    "unisend:parcel_machine": 3,
+    "latvijas_pasts:parcel_machine": 4,
+    "latvijas_pasts:post_office": 4,
+    "dpd:courier": 5.5,
   },
   EE: {
     "self:self_pickup": 0,
-    "omniva:parcel_machine": 5.45,
-    "dpd:parcel_machine": 5.45,
-    "smartposti:parcel_machine": 5.45,
-    "unisend:parcel_machine": 5.45,
-    "latvijas_pasts:post_office": 5.45,
-    "dpd:courier": 8.39,
+    "omniva:parcel_machine": 4,
+    "dpd:parcel_machine": 4.5,
+    "smartposti:parcel_machine": 3.95,
+    "unisend:parcel_machine": 3,
+    "latvijas_pasts:parcel_machine": 4,
+    "latvijas_pasts:post_office": 4,
+    "dpd:courier": 5.5,
   },
 };
 
@@ -630,11 +633,11 @@ function carrierIcon(method: ShippingMethodOption) {
     .toLowerCase();
 
   if (method.shippingType === "self_pickup" || carrierText.includes("self")) {
-    return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.webp" };
+    return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.webp?v=20260710" };
   }
 
   if (method.shippingType === "courier") {
-    return { alt: "Courier", className: "courier", src: "/shipping-logos/courier.webp" };
+    return { alt: "Courier", className: "courier", src: "/shipping-logos/courier.webp?v=20260710" };
   }
 
   if (carrierText.includes("dpd")) {
@@ -1234,10 +1237,10 @@ export function CartCheckout() {
                     <Image
                       alt={icon.alt}
                       className="carrier-logo"
-                      height={44}
+                      height={52}
                       src={icon.src}
                       unoptimized
-                      width={76}
+                      width={82}
                     />
                   </span>
                   <span className="shipping-option-copy">
