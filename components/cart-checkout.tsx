@@ -696,11 +696,11 @@ export function CartCheckout() {
   const [pickupLoading, setPickupLoading] = useState(false);
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
     streetAddress: "",
-    locality: "Riga",
-    region: "Riga",
+    locality: "",
+    region: "",
     postalCode: "",
-    country: "LV",
-    phoneCountryCode: "371",
+    country: "",
+    phoneCountryCode: "",
     phoneNumber: "",
   });
   const [payment, setPayment] = useState<PaymentMethod>("card");
@@ -929,7 +929,6 @@ export function CartCheckout() {
   }
 
   function updateShippingCountry(country: DeliveryCountry) {
-    const details = deliveryCountries.find((item) => item.code === country);
     const fallbackMethods = fallbackShippingMethods(country);
 
     setShippingCountry(country);
@@ -941,13 +940,15 @@ export function CartCheckout() {
     );
     setPickupQuery("");
     setPickupPointId("");
-    setShippingAddress((address) => ({
-      ...address,
-      country,
-      locality: details?.locality ?? address.locality,
-      region: details?.region ?? address.region,
-      phoneCountryCode: details?.phoneCode ?? address.phoneCountryCode,
-    }));
+    setShippingAddress({
+      streetAddress: "",
+      locality: "",
+      region: "",
+      postalCode: "",
+      country: "",
+      phoneCountryCode: "",
+      phoneNumber: "",
+    });
   }
 
   function validateShipping() {
@@ -1285,38 +1286,44 @@ export function CartCheckout() {
           ) : null}
 
           {selectedShippingMethod?.type === "courier" ? (
-            <div className="courier-address">
-              <strong>{c.courierAddress}</strong>
-              <input
-                placeholder={c.street}
-                value={shippingAddress.streetAddress}
-                onChange={(event) => updateAddress({ streetAddress: event.target.value })}
-              />
-              <div className="address-grid">
+            <div className="courier-address courier-address-v2">
+              <div className="courier-address-head-v2">
+                <strong>{c.courierAddress}</strong>
+                <span>{shippingLabels(language).countries[shippingCountry]}</span>
+              </div>
+              <div className="courier-address-grid-v2">
+                <input
+                  className="courier-field-wide-v2"
+                  placeholder={c.street}
+                  value={shippingAddress.streetAddress}
+                  onChange={(event) => updateAddress({ streetAddress: event.target.value })}
+                />
                 <input
                   placeholder={c.city}
                   value={shippingAddress.locality}
                   onChange={(event) => updateAddress({ locality: event.target.value })}
                 />
                 <input
-                  placeholder={c.region}
-                  value={shippingAddress.region}
-                  onChange={(event) => updateAddress({ region: event.target.value })}
-                />
-              </div>
-              <div className="address-grid">
-                <input
                   placeholder={c.postalCode}
                   value={shippingAddress.postalCode}
                   onChange={(event) => updateAddress({ postalCode: event.target.value })}
                 />
                 <input
-                  placeholder={c.country}
-                  value={shippingAddress.country}
-                  onChange={(event) => updateAddress({ country: event.target.value.toUpperCase() })}
+                  placeholder={c.region}
+                  value={shippingAddress.region}
+                  onChange={(event) => updateAddress({ region: event.target.value })}
                 />
-              </div>
-              <div className="address-grid phone-grid">
+                <select
+                  value={shippingAddress.country}
+                  onChange={(event) => updateAddress({ country: event.target.value })}
+                >
+                  <option value="">{c.country}</option>
+                  {deliveryCountries.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {shippingLabels(language).countries[country.code]}
+                    </option>
+                  ))}
+                </select>
                 <input
                   placeholder={c.phoneCountry}
                   value={shippingAddress.phoneCountryCode}
@@ -1325,6 +1332,7 @@ export function CartCheckout() {
                   }
                 />
                 <input
+                  className="courier-field-wide-v2"
                   placeholder={c.phone}
                   value={shippingAddress.phoneNumber}
                   onChange={(event) =>

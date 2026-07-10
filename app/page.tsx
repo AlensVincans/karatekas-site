@@ -48,15 +48,12 @@ const copy = {
     sale: "Скидочные товары",
     bestKicker: "Покупают чаще всего",
     bestTitle: "Хиты магазина по реальным заказам",
-    bestFallback: "Пока заказов мало, показываем самые доступные товары на складе.",
+    bestFallback: "Подборка доступных товаров, которые удобно добавить в заказ уже сейчас.",
     bestText:
-      "Этот блок обновляется по истории заказов и помогает быстро найти позиции, которые чаще всего берут для тренировок и клубных закупок.",
+      "Популярные позиции для тренировок, соревнований и клубных закупок.",
     newKicker: "Новинки",
     newTitle: "Свежие поступления и недавно добавленные товары",
     newText: "Быстрый доступ к новым позициям каталога без перегруза главной страницы.",
-    buildKicker: "Конструктор покупки",
-    buildTitle: "Соберите комплект под задачу",
-    buildText: "Не нужно угадывать с разделом: выберите сценарий и сразу откройте нужные товары.",
     categoriesKicker: "Категории",
     categoriesTitle: "Быстрый вход в каталог",
     categoriesText: "Короткие пути к основным разделам экипировки.",
@@ -76,11 +73,6 @@ const copy = {
       ["Безопасная оплата", "Карта, 3D Secure, Apple Pay, Google Pay и счета для клубов."],
       ["B2B условия", "После подтверждения клуб видит закупочные цены и может оформлять счета."],
     ],
-    kitCards: [
-      ["Для первого кимоно", "Размеры для детей и взрослых, базовые модели и белые пояса.", "/catalog?category=Kimono"],
-      ["Защита для спарринга", "Перчатки, футы, жилеты и шлемы для тренировок и стартов.", "/catalog?category=Protective%20Equipment"],
-      ["Пояса и аксессуары", "То, что часто забывают добавить к основному заказу.", "/catalog?category=Belts"],
-    ],
   },
   lv: {
     promo: "Akcijas",
@@ -92,15 +84,12 @@ const copy = {
     sale: "Akcijas preces",
     bestKicker: "Visbiežāk pērk",
     bestTitle: "Veikala hiti pēc reāliem pasūtījumiem",
-    bestFallback: "Kamēr pasūtījumu vēl ir maz, rādām noliktavā pieejamākās preces.",
+    bestFallback: "Atlasītas pieejamās preces, ko var ērti pievienot pasūtījumam jau tagad.",
     bestText:
-      "Bloks tiek atjaunots pēc pasūtījumu vēstures un palīdz ātri atrast populārākās treniņu un klubu pirkumu preces.",
+      "Populāras preces treniņiem, sacensībām un klubu iepirkumiem.",
     newKicker: "Jaunumi",
     newTitle: "Jaunākās preces katalogā",
     newText: "Ātra piekļuve svaigi pievienotām pozīcijām bez pārslogotas sākumlapas.",
-    buildKicker: "Pirkuma konstruktors",
-    buildTitle: "Sakārtojiet komplektu pēc vajadzības",
-    buildText: "Izvēlieties scenāriju un uzreiz atveriet pareizās preces.",
     categoriesKicker: "Kategorijas",
     categoriesTitle: "Ātrā ieeja katalogā",
     categoriesText: "Īsi ceļi uz galvenajām ekipējuma sadaļām.",
@@ -120,11 +109,6 @@ const copy = {
       ["Droša apmaksa", "Karte, 3D Secure, Apple Pay, Google Pay un rēķini klubiem."],
       ["B2B nosacījumi", "Pēc apstiprināšanas klubs redz iepirkuma cenas un var saņemt rēķinus."],
     ],
-    kitCards: [
-      ["Pirmajam kimono", "Izmēri bērniem un pieaugušajiem, bāzes modeļi un baltās jostas.", "/catalog?category=Kimono"],
-      ["Sparinga aizsargi", "Cimdi, kāju aizsargi, vestes un ķiveres treniņiem.", "/catalog?category=Protective%20Equipment"],
-      ["Jostas un aksesuāri", "Mazās lietas, ko bieži pievieno galvenajam pasūtījumam.", "/catalog?category=Belts"],
-    ],
   },
   en: {
     promo: "Offers",
@@ -136,15 +120,12 @@ const copy = {
     sale: "Sale products",
     bestKicker: "Most bought",
     bestTitle: "Store best sellers from real orders",
-    bestFallback: "While order history is still light, we show the strongest in-stock products.",
+    bestFallback: "A curated set of available products ready to add to your order.",
     bestText:
-      "This section updates from order history, helping customers find the products most often bought for training and club orders.",
+      "Popular picks for training, competition and club purchasing.",
     newKicker: "New arrivals",
     newTitle: "Freshly added equipment",
     newText: "A clean route to the latest catalog positions without overloading the storefront.",
-    buildKicker: "Shopping builder",
-    buildTitle: "Build a kit by use case",
-    buildText: "Pick the scenario and jump straight into the right product set.",
     categoriesKicker: "Categories",
     categoriesTitle: "Quick catalog entry",
     categoriesText: "Short paths into the main equipment groups.",
@@ -164,11 +145,6 @@ const copy = {
       ["Secure checkout", "Card payments, 3D Secure, Apple Pay, Google Pay and club invoices."],
       ["B2B terms", "Approved clubs see wholesale prices and can place invoice orders."],
     ],
-    kitCards: [
-      ["First karate gi", "Kids and adult sizes, entry models and white belts.", "/catalog?category=Kimono"],
-      ["Sparring protection", "Gloves, foot guards, body protectors and helmets for training.", "/catalog?category=Protective%20Equipment"],
-      ["Belts and extras", "The small things that often belong in the main order.", "/catalog?category=Belts"],
-    ],
   },
   et: {
     promo: "Pakkumised",
@@ -180,15 +156,12 @@ const copy = {
     sale: "Soodustusega tooted",
     bestKicker: "Enim ostetud",
     bestTitle: "Poe hitid päris tellimuste põhjal",
-    bestFallback: "Kuni tellimuste ajalugu on väike, näitame tugevaima laoseisuga tooteid.",
+    bestFallback: "Valik saadaval tooteid, mida saab kohe tellimusse lisada.",
     bestText:
-      "See blokk uueneb tellimuste ajaloo järgi ja aitab leida kõige sagedamini ostetud treeningu- ja klubitooteid.",
+      "Populaarsed valikud treeninguks, võistlusteks ja klubitellimusteks.",
     newKicker: "Uued tooted",
     newTitle: "Värskelt lisatud varustus",
     newText: "Kiire tee uusimate kataloogitoodeteni ilma avalehte üle koormamata.",
-    buildKicker: "Ostukonstruktor",
-    buildTitle: "Koosta komplekt vajaduse järgi",
-    buildText: "Vali stsenaarium ja liigu kohe õigesse tootevalikusse.",
     categoriesKicker: "Kategooriad",
     categoriesTitle: "Kiire sisenemine kataloogi",
     categoriesText: "Lühiteed peamistesse varustuse rühmadesse.",
@@ -208,11 +181,6 @@ const copy = {
       ["Turvaline makse", "Kaardid, 3D Secure, Apple Pay, Google Pay ja klubiarved."],
       ["B2B tingimused", "Kinnitatud klubid näevad hulgihindu ja saavad tellida arvega."],
     ],
-    kitCards: [
-      ["Esimene karate gi", "Laste ja täiskasvanute suurused, baasmudelid ja valged vööd.", "/catalog?category=Kimono"],
-      ["Sparringukaitsed", "Kindad, jalakaitsed, vestid ja kiivrid treeninguks.", "/catalog?category=Protective%20Equipment"],
-      ["Vööd ja lisad", "Väikesed asjad, mis käivad sageli põhitellimusega kaasa.", "/catalog?category=Belts"],
-    ],
   },
   lt: {
     promo: "Akcijos",
@@ -224,15 +192,12 @@ const copy = {
     sale: "Akcijų prekės",
     bestKicker: "Dažniausiai perkama",
     bestTitle: "Parduotuvės hitai pagal tikrus užsakymus",
-    bestFallback: "Kol užsakymų istorija dar nedidelė, rodome geriausiai sandėlyje prieinamas prekes.",
+    bestFallback: "Atrinktos sandėlyje esančios prekės, kurias patogu pridėti prie užsakymo.",
     bestText:
-      "Šis blokas atsinaujina pagal užsakymų istoriją ir padeda rasti dažniausiai treniruotėms bei klubams perkamas prekes.",
+      "Populiarūs pasirinkimai treniruotėms, varžyboms ir klubų pirkimams.",
     newKicker: "Naujienos",
     newTitle: "Naujausiai pridėta įranga",
     newText: "Greitas kelias į naujausias katalogo pozicijas neperkraunant pagrindinio puslapio.",
-    buildKicker: "Pirkimo konstruktorius",
-    buildTitle: "Sudėkite komplektą pagal poreikį",
-    buildText: "Pasirinkite scenarijų ir iškart atidarykite tinkamas prekes.",
     categoriesKicker: "Kategorijos",
     categoriesTitle: "Greita įeiga į katalogą",
     categoriesText: "Trumpi keliai į pagrindines įrangos grupes.",
@@ -251,11 +216,6 @@ const copy = {
       ["Kokybiška įranga", "Prekės treniruotėms, varžyboms ir klubų užsakymams."],
       ["Saugus apmokėjimas", "Kortelės, 3D Secure, Apple Pay, Google Pay ir sąskaitos klubams."],
       ["B2B sąlygos", "Patvirtinti klubai mato didmenines kainas ir gali užsakyti pagal sąskaitą."],
-    ],
-    kitCards: [
-      ["Pirmam kimono", "Dydžiai vaikams ir suaugusiesiems, baziniai modeliai ir balti diržai.", "/catalog?category=Kimono"],
-      ["Sparingo apsaugos", "Pirštinės, pėdų apsaugos, liemenės ir šalmai treniruotėms.", "/catalog?category=Protective%20Equipment"],
-      ["Diržai ir priedai", "Maži dalykai, kuriuos dažnai verta pridėti prie pagrindinio užsakymo.", "/catalog?category=Belts"],
     ],
   },
 } as const;
@@ -379,7 +339,7 @@ export default function Home() {
   const productImageMap = useProductImages();
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
-  const [homeProducts, setHomeProducts] = useState<Product[]>(seedProducts);
+  const [homeProducts, setHomeProducts] = useState<Product[]>([]);
   const [merchandising, setMerchandising] = useState<HomeMerchandising>(emptyMerchandising);
   const [productTab, setProductTab] = useState<"new" | "best" | "top">("new");
 
@@ -506,11 +466,19 @@ export default function Home() {
     fetch("/api/products")
       .then((response) => response.json())
       .then((data: { products?: Product[] }) => {
-        if (!cancelled && Array.isArray(data.products) && data.products.length) {
-          setHomeProducts(data.products);
+        if (!cancelled) {
+          setHomeProducts(
+            Array.isArray(data.products) && data.products.length
+              ? data.products
+              : seedProducts,
+          );
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          setHomeProducts(seedProducts);
+        }
+      });
 
     fetch("/api/home-merchandising")
       .then((response) => response.json())
@@ -640,23 +608,6 @@ export default function Home() {
               promoRules={promoRules}
               role={role}
             />
-          ))}
-        </div>
-      </section>
-
-      <section className="home-kit-builder-v5">
-        <div className="kit-builder-copy-v5">
-          <span className="kicker-v3">{c.buildKicker}</span>
-          <h2>{c.buildTitle}</h2>
-          <p>{c.buildText}</p>
-        </div>
-        <div className="kit-builder-grid-v5">
-          {c.kitCards.map(([title, text, href], index) => (
-            <Link className="kit-builder-card-v5" href={href} key={title}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <strong>{title}</strong>
-              <p>{text}</p>
-            </Link>
           ))}
         </div>
       </section>

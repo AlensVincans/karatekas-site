@@ -435,11 +435,6 @@ export function CatalogBrowser() {
           />
             {t.discountedOnly}
         </label>
-        <div className="account-note">
-          {role === "b2b" || role === "admin"
-            ? t.b2bActive
-            : t.retailActive}
-        </div>
       </aside>
       <section className="catalog-shelf-v3 catalog-results" aria-label={t.navCatalog}>
         <div className="catalog-toolbar-v3">

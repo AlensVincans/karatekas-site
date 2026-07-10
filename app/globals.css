@@ -7290,3 +7290,107 @@ textarea {
     min-height: 250px;
   }
 }
+
+/* Final storefront polish overrides */
+.home-promo-top-v5 .promo-carousel {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(14, 11, 8, 0.14);
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  width: 100%;
+}
+
+.home-promo-top-v5 .promo-image-banner {
+  aspect-ratio: 1920 / 600;
+  background-color: #f7f4ef;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  display: block;
+  min-height: 0;
+  width: 100%;
+}
+
+.home-promo-top-v5 .promo-carousel-actions.image-actions:empty {
+  display: none;
+}
+
+.courier-address-v2 {
+  background: #fff;
+  border: 1px solid #eadfd4;
+  border-radius: 8px;
+  gap: 14px;
+  padding: 14px;
+}
+
+.courier-address-head-v2 {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.courier-address-head-v2 strong {
+  font-size: 14px;
+}
+
+.courier-address-head-v2 span {
+  background: #f8f2ec;
+  border: 1px solid #eadfd4;
+  border-radius: 999px;
+  color: #685e55;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.courier-address-grid-v2 {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.courier-address-grid-v2 input,
+.courier-address-grid-v2 select {
+  background: #fffdfb;
+  border: 1px solid #e5d8cd;
+  border-radius: 8px;
+  color: #111;
+  min-height: 46px;
+  padding: 0 12px;
+}
+
+.courier-address-grid-v2 input:focus,
+.courier-address-grid-v2 select:focus {
+  border-color: var(--v3-accent);
+  box-shadow: 0 0 0 3px rgba(245, 92, 24, 0.12);
+  outline: 0;
+}
+
+.courier-field-wide-v2 {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .home-promo-top-v5 .promo-image-banner {
+    aspect-ratio: 16 / 7;
+  }
+
+  .courier-address-head-v2 {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .courier-address-grid-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .courier-field-wide-v2 {
+    grid-column: auto;
+  }
+}

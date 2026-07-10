@@ -184,7 +184,6 @@ const copy = {
     cancel: "Отмена",
     close: "Закрыть",
     editProduct: "Редактирование товара",
-    saveHint: "Изменения применяются в этой демо-админке сразу.",
     product: "Товар",
     name: "Название",
     description: "Описание",
@@ -289,7 +288,6 @@ const copy = {
     cancel: "Atcelt",
     close: "Aizvērt",
     editProduct: "Preces rediģēšana",
-    saveHint: "Izmaiņas šajā demo administrācijā tiek piemērotas uzreiz.",
     product: "Prece",
     name: "Nosaukums",
     description: "Apraksts",
@@ -394,7 +392,6 @@ const copy = {
     cancel: "Cancel",
     close: "Close",
     editProduct: "Edit product",
-    saveHint: "Changes are applied immediately in this demo admin.",
     product: "Product",
     name: "Name",
     description: "Description",
@@ -1985,7 +1982,6 @@ export default function AdminPage() {
                           }
                           footer={
                             <>
-                              <span className="quiet">{c.saveHint}</span>
                               <button
                                 className="table-action"
                                 onClick={() => setEditProductId(null)}
