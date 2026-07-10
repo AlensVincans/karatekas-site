@@ -33,11 +33,21 @@ export function PromoCarousel() {
       <div className="promo-carousel-actions image-actions">
         {hasMany ? (
           <>
-            <button onClick={previous} type="button" aria-label="Previous banner">
-              {"<"}
+            <button
+              className="promo-arrow-button promo-arrow-button-prev"
+              onClick={previous}
+              type="button"
+              aria-label="Previous banner"
+            >
+              {"‹"}
             </button>
-            <button onClick={next} type="button" aria-label="Next banner">
-              {">"}
+            <button
+              className="promo-arrow-button promo-arrow-button-next"
+              onClick={next}
+              type="button"
+              aria-label="Next banner"
+            >
+              {"›"}
             </button>
           </>
         ) : null}

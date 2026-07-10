@@ -7320,6 +7320,82 @@ textarea {
   display: none;
 }
 
+.home-promo-top-v5 .promo-carousel-actions.image-actions {
+  align-items: center;
+  bottom: auto;
+  display: flex;
+  inset: 0;
+  justify-content: space-between;
+  opacity: 0;
+  padding: 0 clamp(10px, 1.5vw, 18px);
+  pointer-events: none;
+  position: absolute;
+  right: auto;
+  transition: opacity 0.18s ease;
+}
+
+.home-promo-top-v5 .promo-carousel:hover .promo-carousel-actions.image-actions,
+.home-promo-top-v5 .promo-carousel:focus-within .promo-carousel-actions.image-actions {
+  opacity: 1;
+}
+
+.home-promo-top-v5 .promo-carousel-actions.image-actions button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  color: #111;
+  display: inline-flex;
+  font-size: 30px;
+  font-weight: 700;
+  height: clamp(38px, 4vw, 52px);
+  justify-content: center;
+  line-height: 1;
+  padding: 0 0 3px;
+  pointer-events: auto;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease,
+    opacity 0.18s ease;
+  width: clamp(38px, 4vw, 52px);
+}
+
+.home-promo-top-v5 .promo-carousel-actions.image-actions button:hover,
+.home-promo-top-v5 .promo-carousel-actions.image-actions button:focus-visible {
+  background: rgba(255, 255, 255, 0.88);
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+.catalog-grid-loading-v3 {
+  align-content: start;
+}
+
+.catalog-card-skeleton-v3 {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent),
+    #f4eee8;
+  background-size: 220% 100%, 100% 100%;
+  border: 1px solid #e8ddd2;
+  border-radius: 8px;
+  display: block;
+  min-height: 520px;
+  overflow: hidden;
+  position: relative;
+  animation: catalogSkeletonPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes catalogSkeletonPulse {
+  0% {
+    background-position: 120% 0, 0 0;
+  }
+
+  100% {
+    background-position: -120% 0, 0 0;
+  }
+}
+
 .courier-address-v2 {
   background: #fff;
   border: 1px solid #eadfd4;

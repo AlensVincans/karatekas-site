@@ -34,6 +34,7 @@ const copy = {
     results: "результатов",
     allEquipment: "Вся экипировка для карате",
     sort: "Сортировка",
+    loading: "Загружаем товары",
     featured: "Рекомендуемые",
     priceAsc: "Сначала дешевле",
     priceDesc: "Сначала дороже",
@@ -47,6 +48,7 @@ const copy = {
     results: "rezultāti",
     allEquipment: "Viss karatē ekipējums",
     sort: "Kārtošana",
+    loading: "Ielādējam preces",
     featured: "Ieteiktie",
     priceAsc: "Cena augoši",
     priceDesc: "Cena dilstoši",
@@ -60,6 +62,7 @@ const copy = {
     results: "results",
     allEquipment: "All karate equipment",
     sort: "Sort",
+    loading: "Loading products",
     featured: "Featured",
     priceAsc: "Price low to high",
     priceDesc: "Price high to low",
@@ -73,6 +76,7 @@ const copy = {
     results: "tulemust",
     allEquipment: "Kogu karate varustus",
     sort: "Sorteeri",
+    loading: "Laadime tooteid",
     featured: "Soovitatud",
     priceAsc: "Hind kasvavalt",
     priceDesc: "Hind kahanevalt",
@@ -86,6 +90,7 @@ const copy = {
     results: "rezultatai",
     allEquipment: "Visa karatė įranga",
     sort: "Rikiavimas",
+    loading: "Įkeliamos prekės",
     featured: "Rekomenduojami",
     priceAsc: "Kaina didėjančiai",
     priceDesc: "Kaina mažėjančiai",
@@ -208,7 +213,8 @@ export function CatalogBrowser() {
   const searchParamString = searchParams.toString();
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>(seedProducts);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [productsReady, setProductsReady] = useState(false);
   const catalogCategories = useMemo(
     () =>
       Array.from(
@@ -236,11 +242,21 @@ export function CatalogBrowser() {
     fetch("/api/products")
       .then((response) => response.json())
       .then((data: { products?: Product[] }) => {
-        if (!cancelled && Array.isArray(data.products) && data.products.length) {
-          setCatalogProducts(data.products);
+        if (!cancelled) {
+          setCatalogProducts(
+            Array.isArray(data.products) && data.products.length
+              ? data.products
+              : seedProducts,
+          );
+          setProductsReady(true);
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          setCatalogProducts(seedProducts);
+          setProductsReady(true);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -248,6 +264,10 @@ export function CatalogBrowser() {
   }, []);
 
   useEffect(() => {
+    if (!productsReady) {
+      return;
+    }
+
     const params = readCatalogParams(
       brands,
       catalogCategories,
@@ -269,7 +289,7 @@ export function CatalogBrowser() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [brands, catalogCategories, searchParamString]);
+  }, [brands, catalogCategories, productsReady, searchParamString]);
 
   useEffect(() => {
     if (!paramsReady || syncingSearchRef.current != null) {
@@ -362,6 +382,7 @@ export function CatalogBrowser() {
   const firstProductIndex = (safePage - 1) * pageSize;
   const paginatedProducts = visibleProducts.slice(firstProductIndex, firstProductIndex + pageSize);
   const pageButtons = paginationPages(safePage, pageCount);
+  const isCatalogLoading = !productsReady || !paramsReady;
   const catalogGridStyle = {
     "--catalog-desktop-min-height": `${Math.ceil(pageSize / 3) * 640}px`,
     "--catalog-tablet-min-height": `${Math.ceil(pageSize / 2) * 610}px`,
@@ -439,7 +460,9 @@ export function CatalogBrowser() {
       <section className="catalog-shelf-v3 catalog-results" aria-label={t.navCatalog}>
         <div className="catalog-toolbar-v3">
           <div className="catalog-result-copy-v3">
-            <span>{visibleProducts.length} {c.results}</span>
+            <span>
+              {isCatalogLoading ? c.loading : `${visibleProducts.length} ${c.results}`}
+            </span>
             <strong>
               {category === allValue ? c.allEquipment : categoryLabel(category, language)}
             </strong>
@@ -503,7 +526,17 @@ export function CatalogBrowser() {
           ))}
         </div>
 
-        {visibleProducts.length ? (
+        {isCatalogLoading ? (
+          <div
+            aria-label={c.loading}
+            className="product-grid product-grid-v3 catalog-grid-v3 catalog-grid-loading-v3"
+            style={catalogGridStyle}
+          >
+            {Array.from({ length: Math.min(pageSize, 12) }, (_, index) => (
+              <span className="catalog-card-skeleton-v3" key={index} />
+            ))}
+          </div>
+        ) : visibleProducts.length ? (
           <>
             <div className="product-grid product-grid-v3 catalog-grid-v3" style={catalogGridStyle}>
               {paginatedProducts.map((product) => (
