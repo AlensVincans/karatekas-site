@@ -79,6 +79,14 @@ type MontonioLabelFile = {
   id?: string;
   status?: string;
   labelFileUrl?: string | null;
+  url?: string | null;
+  fileUrl?: string | null;
+  downloadUrl?: string | null;
+  file?: {
+    url?: string | null;
+    labelFileUrl?: string | null;
+    downloadUrl?: string | null;
+  } | null;
 };
 
 const productionShippingApiBase = "https://shipping.montonio.com/api/v2";
@@ -247,6 +255,114 @@ function env() {
 
 function cleanText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function envText(keys: string[], fallback: string) {
+  for (const key of keys) {
+    const value = env()[key]?.trim();
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
+const countryPhoneCodes: Record<string, string> = {
+  EE: "372",
+  LT: "370",
+  LV: "371",
+};
+
+function countryCode(value: unknown, fallback = defaultCountry) {
+  return cleanText(value, fallback).toUpperCase();
+}
+
+function phoneCodeFor(country: string) {
+  return countryPhoneCodes[countryCode(country)] ?? countryPhoneCodes[defaultCountry];
+}
+
+function splitContactName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length <= 1) {
+    return { firstName: name, lastName: "-" };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function compactPhone(country: string, phoneCountryCode: string, phoneNumber: string) {
+  const code = cleanText(phoneCountryCode, phoneCodeFor(country)).replace(/\D/g, "");
+  const number = cleanText(phoneNumber, "").replace(/[^\d+]/g, "");
+
+  if (!number) {
+    return "";
+  }
+
+  if (number.startsWith("+")) {
+    return number;
+  }
+
+  if (code && number.startsWith(code)) {
+    return `+${number}`;
+  }
+
+  return code ? `+${code}${number}` : number;
+}
+
+type ShippingContactAddress = {
+  name: string;
+  companyName?: string;
+  streetAddress: string;
+  locality: string;
+  region: string;
+  postalCode: string;
+  country: string;
+  phoneCountryCode: string;
+  phoneNumber: string;
+  email: string;
+};
+
+function shippingContactAddress(input: ShippingContactAddress) {
+  const country = countryCode(input.country);
+  const name = cleanText(input.name, input.companyName || "Karatekas");
+  const companyName = cleanText(input.companyName, "");
+  const streetAddress = cleanText(input.streetAddress, "Online store");
+  const locality = cleanText(input.locality, "Riga");
+  const region = cleanText(input.region, locality);
+  const postalCode = cleanText(input.postalCode, "LV-1001");
+  const phoneCountryCode = cleanText(input.phoneCountryCode, phoneCodeFor(country));
+  const phoneNumber = cleanText(input.phoneNumber, "");
+  const phone = compactPhone(country, phoneCountryCode, phoneNumber);
+  const { firstName, lastName } = splitContactName(name);
+
+  return {
+    name,
+    fullName: name,
+    firstName,
+    lastName,
+    companyName,
+    company: companyName,
+    streetAddress,
+    addressLine1: streetAddress,
+    locality,
+    city: locality,
+    region,
+    state: region,
+    postalCode,
+    zipCode: postalCode,
+    country,
+    countryCode: country,
+    phoneCountryCode,
+    phoneNumber,
+    phone,
+    email: cleanText(input.email, "info@karatekas.eu"),
+  };
 }
 
 function normalizeCarrierCode(carrier: string) {
@@ -735,36 +851,86 @@ async function resolveCourierServiceId(order: StoreOrder) {
 }
 
 function senderAddress() {
-  return {
-    name: cleanText(env().MONTONIO_SHIPPER_NAME, "Karatekas"),
-    companyName: cleanText(env().MONTONIO_SHIPPER_COMPANY, "Karatekas"),
-    streetAddress: cleanText(env().MONTONIO_ADDRESS_LINE1, "Online store"),
-    locality: cleanText(env().MONTONIO_LOCALITY, "Riga"),
-    region: cleanText(env().MONTONIO_REGION, "Riga"),
-    postalCode: cleanText(env().MONTONIO_POSTAL_CODE, "LV-1001"),
-    country: cleanText(env().MONTONIO_COUNTRY, defaultCountry),
-    phoneCountryCode: cleanText(env().MONTONIO_SHIPPER_PHONE_COUNTRY_CODE, "371"),
-    phoneNumber: cleanText(env().MONTONIO_SHIPPER_PHONE_NUMBER, "20000000"),
-    email: cleanText(env().MONTONIO_SHIPPER_EMAIL, "support@example.com"),
-  };
+  const country = countryCode(
+    envText(
+      [
+        "MONTONIO_SHIPPER_COUNTRY",
+        "MONTONIO_SHIPPING_SENDER_COUNTRY",
+        "MONTONIO_COUNTRY",
+      ],
+      defaultCountry,
+    ),
+  );
+
+  return shippingContactAddress({
+    name: envText(
+      ["MONTONIO_SHIPPER_NAME", "MONTONIO_SHIPPING_SENDER_NAME"],
+      "Karatekas.eu",
+    ),
+    companyName: envText(
+      ["MONTONIO_SHIPPER_COMPANY", "MONTONIO_SHIPPING_SENDER_COMPANY"],
+      "BBK Auto SIA",
+    ),
+    streetAddress: envText(
+      [
+        "MONTONIO_SHIPPER_ADDRESS_LINE1",
+        "MONTONIO_SHIPPING_SENDER_ADDRESS_LINE1",
+        "MONTONIO_ADDRESS_LINE1",
+      ],
+      "Online store",
+    ),
+    locality: envText(
+      ["MONTONIO_SHIPPER_LOCALITY", "MONTONIO_SHIPPING_SENDER_LOCALITY", "MONTONIO_LOCALITY"],
+      "Riga",
+    ),
+    region: envText(
+      ["MONTONIO_SHIPPER_REGION", "MONTONIO_SHIPPING_SENDER_REGION", "MONTONIO_REGION"],
+      "Riga",
+    ),
+    postalCode: envText(
+      [
+        "MONTONIO_SHIPPER_POSTAL_CODE",
+        "MONTONIO_SHIPPING_SENDER_POSTAL_CODE",
+        "MONTONIO_POSTAL_CODE",
+      ],
+      "LV-1001",
+    ),
+    country,
+    phoneCountryCode: envText(
+      [
+        "MONTONIO_SHIPPER_PHONE_COUNTRY_CODE",
+        "MONTONIO_SHIPPING_SENDER_PHONE_COUNTRY_CODE",
+      ],
+      phoneCodeFor(country),
+    ),
+    phoneNumber: envText(
+      ["MONTONIO_SHIPPER_PHONE_NUMBER", "MONTONIO_SHIPPING_SENDER_PHONE_NUMBER"],
+      "20000000",
+    ),
+    email: envText(
+      ["MONTONIO_SHIPPER_EMAIL", "MONTONIO_SHIPPING_SENDER_EMAIL", "SMTP_FROM"],
+      "info@karatekas.eu",
+    ),
+  });
 }
 
 function receiverAddress(order: StoreOrder) {
   const address = order.shippingAddress ?? {};
   const name = cleanText(address.name || order.customer.name, "Karatekas customer");
+  const country = countryCode(address.country, defaultCountry);
 
-  return {
+  return shippingContactAddress({
     name,
     companyName: cleanText(address.companyName || order.customer.company, ""),
     streetAddress: cleanText(address.streetAddress, order.pickupPointName || "Pickup point"),
     locality: cleanText(address.locality, "Riga"),
-    region: cleanText(address.region, "Riga"),
+    region: cleanText(address.region, address.locality || "Riga"),
     postalCode: cleanText(address.postalCode, "LV-1001"),
-    country: cleanText(address.country, defaultCountry),
-    phoneCountryCode: cleanText(address.phoneCountryCode, "371"),
+    country,
+    phoneCountryCode: cleanText(address.phoneCountryCode, phoneCodeFor(country)),
     phoneNumber: cleanText(address.phoneNumber, "20000000"),
     email: cleanText(address.email || order.customer.email, "customer@example.com"),
-  };
+  });
 }
 
 function shipmentProducts(order: StoreOrder) {
@@ -818,7 +984,10 @@ export async function createShipmentForOrder(order: StoreOrder) {
 }
 
 export async function createLabelForShipment(shipmentId: string) {
-  const pageSize = cleanText(env().MONTONIO_LABEL_PAGE_SIZE, "A4").toUpperCase();
+  const pageSize = envText(
+    ["MONTONIO_LABEL_PAGE_SIZE", "MONTONIO_SHIPPING_LABEL_PAGE_SIZE", "MONTONIO_LABEL_FORMAT"],
+    "A6",
+  ).toUpperCase();
   const labelsPerPage =
     Number(env().MONTONIO_LABELS_PER_PAGE?.trim()) ||
     1;
@@ -833,11 +1002,21 @@ export async function createLabelForShipment(shipmentId: string) {
     }),
   });
 
+  const labelUrl =
+    data.labelFileUrl ||
+    data.url ||
+    data.fileUrl ||
+    data.downloadUrl ||
+    data.file?.labelFileUrl ||
+    data.file?.url ||
+    data.file?.downloadUrl ||
+    undefined;
+
   return {
     labelFileId: data.id,
-    labelUrl: data.labelFileUrl || undefined,
+    labelUrl,
     labelStatus: data.status,
-    shippingStatus: data.labelFileUrl ? ("label_created" as const) : ("shipment_created" as const),
+    shippingStatus: labelUrl ? ("label_created" as const) : ("shipment_created" as const),
   };
 }
 

@@ -5,8 +5,9 @@ import { defaultLanguage, dictionary, languages, type Language } from "../lib/i1
 
 const storageKey = "kg_language";
 const changeEvent = "kg-language-change";
+const cookieMaxAge = 60 * 60 * 24 * 365;
 
-function isLanguage(value: string | null): value is Language {
+function isLanguage(value: string | null | undefined): value is Language {
   return languages.some((language) => language.code === value);
 }
 
@@ -19,6 +20,15 @@ function readLanguage(): Language {
 
   if (isLanguage(stored)) {
     return stored;
+  }
+
+  const cookieLanguage = document.cookie
+    .split(";")
+    .map((part) => part.trim().split("="))
+    .find(([name]) => name === storageKey)?.[1];
+
+  if (isLanguage(cookieLanguage)) {
+    return cookieLanguage;
   }
 
   const browserLanguages = window.navigator.languages?.length
@@ -50,6 +60,7 @@ export function useLanguage() {
 
   function setLanguage(next: Language) {
     window.localStorage.setItem(storageKey, next);
+    document.cookie = `${storageKey}=${next}; path=/; max-age=${cookieMaxAge}; SameSite=Lax`;
     window.dispatchEvent(new CustomEvent(changeEvent, { detail: next }));
   }
 

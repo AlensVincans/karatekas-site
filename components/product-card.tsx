@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   pricedVariation,
   type Product,
@@ -33,11 +33,17 @@ export function ProductCard({ product, role }: { product: Product; role: UserRol
   const promoRules = usePromoRules();
   const { levels } = useInventoryLevels();
   const productImageMap = useProductImages();
-  const [variationId, setVariationId] = useState(product.variations[0].id);
+  const firstAvailableVariation = useMemo(
+    () =>
+      product.variations.find((item) => availableStock(item, levels) > 0) ??
+      product.variations[0],
+    [levels, product.variations],
+  );
+  const [variationId, setVariationId] = useState(firstAvailableVariation.id);
   const [added, setAdded] = useState(false);
   const title = productTitle(product, language);
   const variation =
-    product.variations.find((item) => item.id === variationId) ?? product.variations[0];
+    product.variations.find((item) => item.id === variationId) ?? firstAvailableVariation;
   const price = applyPromoPrice(
     pricedVariation(product, variation, role),
     variation.id,

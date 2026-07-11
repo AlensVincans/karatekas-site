@@ -3,6 +3,11 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
+  availableStock,
+  useInventoryLevels,
+  type ClientInventoryMap,
+} from "../lib/inventory-client";
+import {
   categories as seedCategories,
   pricedVariation,
   products as seedProducts,
@@ -23,7 +28,7 @@ import { ProductSearchSuggestions } from "./product-search-suggestions";
 import { useDemoSession } from "./session";
 
 const allValue = "__all";
-type SortMode = "featured" | "price-asc" | "price-desc" | "name";
+type SortMode = "popular" | "price-asc" | "price-desc" | "name";
 const defaultPageSize = 24;
 const pageSizeOptions = [12, 24, 48, 96] as const;
 
@@ -35,7 +40,7 @@ const copy = {
     allEquipment: "Вся экипировка для карате",
     sort: "Сортировка",
     loading: "Загружаем товары",
-    featured: "Рекомендуемые",
+    popular: "Популярные",
     priceAsc: "Сначала дешевле",
     priceDesc: "Сначала дороже",
     name: "Название",
@@ -49,7 +54,7 @@ const copy = {
     allEquipment: "Viss karatē ekipējums",
     sort: "Kārtošana",
     loading: "Ielādējam preces",
-    featured: "Ieteiktie",
+    popular: "Populārākie",
     priceAsc: "Cena augoši",
     priceDesc: "Cena dilstoši",
     name: "Nosaukums",
@@ -63,7 +68,7 @@ const copy = {
     allEquipment: "All karate equipment",
     sort: "Sort",
     loading: "Loading products",
-    featured: "Featured",
+    popular: "Popular",
     priceAsc: "Price low to high",
     priceDesc: "Price high to low",
     name: "Name",
@@ -77,7 +82,7 @@ const copy = {
     allEquipment: "Kogu karate varustus",
     sort: "Sorteeri",
     loading: "Laadime tooteid",
-    featured: "Soovitatud",
+    popular: "Populaarsed",
     priceAsc: "Hind kasvavalt",
     priceDesc: "Hind kahanevalt",
     name: "Nimi",
@@ -91,7 +96,7 @@ const copy = {
     allEquipment: "Visa karatė įranga",
     sort: "Rikiavimas",
     loading: "Įkeliamos prekės",
-    featured: "Rekomenduojami",
+    popular: "Populiariausios",
     priceAsc: "Kaina didėjančiai",
     priceDesc: "Kaina mažėjančiai",
     name: "Pavadinimas",
@@ -114,7 +119,7 @@ function defaultCatalogParams() {
     category: allValue,
     brand: allValue,
     promoOnly: false,
-    sort: "featured" as SortMode,
+    sort: "popular" as SortMode,
     page: 1,
     pageSize: defaultPageSize,
   };
@@ -129,9 +134,9 @@ function readCatalogParams(
   const brand = params.get("brand");
   const sort = params.get("sort");
   const normalizedSort: SortMode =
-    sort === "price-asc" || sort === "price-desc" || sort === "name" || sort === "featured"
+    sort === "price-asc" || sort === "price-desc" || sort === "name" || sort === "popular"
       ? sort
-      : "featured";
+      : "popular";
   const page = Math.max(1, Number(params.get("page")) || 1);
   const pageSize = Number(params.get("perPage"));
 
@@ -188,6 +193,28 @@ function lowestProductPrice(
   );
 }
 
+function productAvailability(product: Product, levels: ClientInventoryMap) {
+  return product.variations.reduce(
+    (sum, variation) => sum + availableStock(variation, levels),
+    0,
+  );
+}
+
+function compareInStockFirst(
+  left: Product,
+  right: Product,
+  levels: ClientInventoryMap,
+) {
+  const leftHasStock = productAvailability(left, levels) > 0;
+  const rightHasStock = productAvailability(right, levels) > 0;
+
+  if (leftHasStock === rightHasStock) {
+    return 0;
+  }
+
+  return leftHasStock ? -1 : 1;
+}
+
 function paginationPages(currentPage: number, pageCount: number) {
   if (pageCount <= 3) {
     return Array.from({ length: pageCount }, (_, index) => index + 1);
@@ -213,8 +240,11 @@ export function CatalogBrowser() {
   const searchParamString = searchParams.toString();
   const promoPrices = usePromoPrices();
   const promoRules = usePromoRules();
+  const { levels } = useInventoryLevels();
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [productsReady, setProductsReady] = useState(false);
+  const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
+  const [salesReady, setSalesReady] = useState(false);
   const catalogCategories = useMemo(
     () =>
       Array.from(
@@ -255,6 +285,28 @@ export function CatalogBrowser() {
         if (!cancelled) {
           setCatalogProducts(seedProducts);
           setProductsReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/home-merchandising")
+      .then((response) => response.json())
+      .then((data: { bestSellerCounts?: Record<string, number> }) => {
+        if (!cancelled) {
+          setSalesCounts(data.bestSellerCounts ?? {});
+          setSalesReady(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSalesReady(true);
         }
       });
 
@@ -314,7 +366,7 @@ export function CatalogBrowser() {
       params.set("promo", "1");
     }
 
-    if (sort !== "featured") {
+    if (sort !== "popular") {
       params.set("sort", sort);
     }
 
@@ -363,11 +415,29 @@ export function CatalogBrowser() {
     const next = [...filteredProducts];
 
     if (sort === "name") {
-      return next.sort((left, right) => left.name.localeCompare(right.name));
+      return next.sort(
+        (left, right) =>
+          compareInStockFirst(left, right, levels) ||
+          left.name.localeCompare(right.name),
+      );
+    }
+
+    if (sort === "popular") {
+      return next.sort(
+        (left, right) =>
+          compareInStockFirst(left, right, levels) ||
+          (salesCounts[right.id] ?? 0) - (salesCounts[left.id] ?? 0),
+      );
     }
 
     if (sort === "price-asc" || sort === "price-desc") {
       return next.sort((left, right) => {
+        const availabilitySort = compareInStockFirst(left, right, levels);
+
+        if (availabilitySort) {
+          return availabilitySort;
+        }
+
         const leftPrice = lowestProductPrice(left, role, promoPrices, promoRules);
         const rightPrice = lowestProductPrice(right, role, promoPrices, promoRules);
 
@@ -376,13 +446,13 @@ export function CatalogBrowser() {
     }
 
     return next;
-  }, [filteredProducts, promoPrices, promoRules, role, sort]);
+  }, [filteredProducts, levels, promoPrices, promoRules, role, salesCounts, sort]);
   const pageCount = Math.max(1, Math.ceil(visibleProducts.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const firstProductIndex = (safePage - 1) * pageSize;
   const paginatedProducts = visibleProducts.slice(firstProductIndex, firstProductIndex + pageSize);
   const pageButtons = paginationPages(safePage, pageCount);
-  const isCatalogLoading = !productsReady || !paramsReady;
+  const isCatalogLoading = !productsReady || !paramsReady || (sort === "popular" && !salesReady);
   const catalogGridStyle = {
     "--catalog-desktop-min-height": `${Math.ceil(pageSize / 3) * 640}px`,
     "--catalog-tablet-min-height": `${Math.ceil(pageSize / 2) * 610}px`,
@@ -476,7 +546,7 @@ export function CatalogBrowser() {
                 setPage(1);
               }}
             >
-              <option value="featured">{c.featured}</option>
+              <option value="popular">{c.popular}</option>
               <option value="price-asc">{c.priceAsc}</option>
               <option value="price-desc">{c.priceDesc}</option>
               <option value="name">{c.name}</option>

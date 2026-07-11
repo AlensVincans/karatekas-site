@@ -3,25 +3,21 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useLanguage } from "../components/language";
+import { ProductCard } from "../components/product-card";
 import { PromoCarousel } from "../components/promo-carousel";
 import { useDemoSession } from "../components/session";
-import { categoryLabel, money, productTitle, type Language } from "../lib/i18n";
+import { categoryLabel } from "../lib/i18n";
+import {
+  availableStock,
+  useInventoryLevels,
+  type ClientInventoryMap,
+} from "../lib/inventory-client";
 import { productImages, useProductImages } from "../lib/product-media";
 import {
-  available,
   categories as seedCategories,
   products as seedProducts,
-  pricedVariation,
   type Product,
-  type UserRole,
 } from "../lib/store-data";
-import {
-  applyPromoPrice,
-  usePromoPrices,
-  usePromoRules,
-  type PromoPriceMap,
-  type PromoRule,
-} from "../lib/promotions";
 
 type HomeMerchandising = {
   bestSellerIds: string[];
@@ -264,71 +260,10 @@ const featuredTitleCopy = {
   lt: "Atrinktos prekės",
 } as const;
 
-function productStock(product: Product) {
+function productStock(product: Product, levels: ClientInventoryMap) {
   return product.variations.reduce(
-    (sum, variation) => sum + available(variation.stock),
+    (sum, variation) => sum + availableStock(variation, levels),
     0,
-  );
-}
-
-function preferredVariation(product: Product) {
-  return (
-    product.variations.find((variation) => available(variation.stock) > 0) ??
-    product.variations[0]
-  );
-}
-
-function HomeProductTile({
-  product,
-  role,
-  language,
-  imageStyle,
-  badge,
-  promoPrices,
-  promoRules,
-}: {
-  product: Product;
-  role: UserRole;
-  language: Language;
-  imageStyle?: CSSProperties;
-  badge?: string;
-  promoPrices: PromoPriceMap;
-  promoRules: PromoRule[];
-}) {
-  const tabText = productTabCopy[language] ?? productTabCopy.en;
-  const variation = preferredVariation(product);
-  if (!variation) {
-    return null;
-  }
-
-  const price = applyPromoPrice(
-    pricedVariation(product, variation, role),
-    variation.id,
-    role,
-    promoPrices,
-    promoRules,
-    { productId: product.id, brand: product.brand },
-  );
-  const isSale = Boolean(price.hasPromo || price.discount);
-
-  return (
-    <Link className="home-product-tile-v5" href={`/product/${product.id}`}>
-      <span className="home-product-image-v5" style={imageStyle}>
-        <span className="home-product-badges-v5">
-          {badge ? <span>{badge}</span> : null}
-          {isSale ? <span className="sale">{tabText.sale}</span> : null}
-        </span>
-      </span>
-      <span className="home-product-meta-v5">{categoryLabel(product.category, language)}</span>
-      <strong>{productTitle(product, language)}</strong>
-      <span className="home-product-price-v5">
-        {price.compareAt ? (
-          <em>{money(price.compareAt, language)}</em>
-        ) : null}
-        <b>{money(price.final, language)}</b>
-      </span>
-      <span className="home-product-action-v5">{tabText.view}</span>
-    </Link>
   );
 }
 
@@ -336,9 +271,8 @@ export default function Home() {
   const { role } = useDemoSession();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
+  const { levels } = useInventoryLevels();
   const productImageMap = useProductImages();
-  const promoPrices = usePromoPrices();
-  const promoRules = usePromoRules();
   const [homeProducts, setHomeProducts] = useState<Product[]>([]);
   const [merchandising, setMerchandising] = useState<HomeMerchandising>(emptyMerchandising);
   const [productTab, setProductTab] = useState<"new" | "best" | "top">("new");
@@ -357,25 +291,30 @@ export default function Home() {
   );
 
   const stockedProducts = useMemo(
-    () => homeProducts.filter((product) => productStock(product) > 0),
-    [homeProducts],
+    () => homeProducts.filter((product) => productStock(product, levels) > 0),
+    [homeProducts, levels],
+  );
+  const stockedProductIds = useMemo(
+    () => new Set(stockedProducts.map((product) => product.id)),
+    [stockedProducts],
   );
 
   const totals = useMemo(
     () => ({
-      available: homeProducts.reduce((sum, product) => sum + productStock(product), 0),
+      available: homeProducts.reduce((sum, product) => sum + productStock(product, levels), 0),
       brands: new Set(homeProducts.map((product) => product.brand).filter(Boolean)).size,
     }),
-    [homeProducts],
+    [homeProducts, levels],
   );
 
   function productsByIds(ids: string[], fallback: Product[], limit: number) {
     const picked = ids
       .map((id) => productMap.get(id))
       .filter((product): product is Product => Boolean(product));
-    const seen = new Set(picked.map((product) => product.id));
+    const stockedPicked = picked.filter((product) => stockedProductIds.has(product.id));
+    const seen = new Set(stockedPicked.map((product) => product.id));
     const filled = [
-      ...picked,
+      ...stockedPicked,
       ...fallback.filter((product) => !seen.has(product.id)),
     ];
 
@@ -383,13 +322,16 @@ export default function Home() {
   }
 
   const stockFallback = useMemo(
-    () => [...stockedProducts].sort((left, right) => productStock(right) - productStock(left)),
-    [stockedProducts],
+    () =>
+      [...stockedProducts].sort(
+        (left, right) => productStock(right, levels) - productStock(left, levels),
+      ),
+    [levels, stockedProducts],
   );
   const bestSellers = productsByIds(merchandising.bestSellerIds, stockFallback, 8);
   const newProducts = productsByIds(
     merchandising.newProductIds,
-    [...homeProducts].reverse(),
+    [...stockedProducts].reverse(),
     12,
   );
   const recommendedProducts = useMemo(
@@ -397,11 +339,11 @@ export default function Home() {
       [...stockedProducts]
         .sort(
           (left, right) =>
-            productStock(right) + right.variations.length * 3 -
-            (productStock(left) + left.variations.length * 3),
+            productStock(right, levels) + right.variations.length * 3 -
+            (productStock(left, levels) + left.variations.length * 3),
         )
         .slice(0, 12),
-    [stockedProducts],
+    [levels, stockedProducts],
   );
   const tabLabels = productTabCopy[language as keyof typeof productTabCopy] ?? productTabCopy.en;
   const clubCta = clubCtaCopy[language as keyof typeof clubCtaCopy] ?? clubCtaCopy.en;
@@ -590,24 +532,9 @@ export default function Home() {
             </button>
           ))}
         </div>
-        <div className="home-product-mosaic-v5">
-          {activeProducts.slice(0, 10).map((product) => (
-            <HomeProductTile
-              badge={
-                productTab === "new"
-                  ? tabLabels.new
-                  : productTab === "best"
-                    ? tabLabels.best
-                    : undefined
-              }
-              imageStyle={productPhotoStyle(product)}
-              key={product.id}
-              language={language}
-              product={product}
-              promoPrices={promoPrices}
-              promoRules={promoRules}
-              role={role}
-            />
+        <div className="home-product-mosaic-v5 home-product-card-grid-v5">
+          {activeProducts.slice(0, 8).map((product) => (
+            <ProductCard key={product.id} product={product} role={role} />
           ))}
         </div>
       </section>

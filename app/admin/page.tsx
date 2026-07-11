@@ -178,6 +178,8 @@ const copy = {
     physicalStock: "Физический остаток",
     availableStock: "Доступно",
     search: "Поиск по названию, бренду, SKU, цвету или размеру",
+    clientSearch: "Поиск клиента по имени, email, компании или B2B-заявке",
+    allBrands: "Все бренды",
     addProduct: "Добавить товар",
     addProductTitle: "Новый товар",
     saveProduct: "Сохранить товар",
@@ -282,6 +284,8 @@ const copy = {
     physicalStock: "Fiziskais atlikums",
     availableStock: "Pieejams",
     search: "Meklēt pēc nosaukuma, zīmola, SKU, krāsas vai izmēra",
+    clientSearch: "Meklēt klientu pēc vārda, email, uzņēmuma vai B2B pieprasījuma",
+    allBrands: "Visi zīmoli",
     addProduct: "Pievienot preci",
     addProductTitle: "Jauna prece",
     saveProduct: "Saglabāt preci",
@@ -386,6 +390,8 @@ const copy = {
     physicalStock: "Physical stock",
     availableStock: "Available",
     search: "Search by name, brand, SKU, color or size",
+    clientSearch: "Search client by name, email, company or B2B request",
+    allBrands: "All brands",
     addProduct: "Add product",
     addProductTitle: "New product",
     saveProduct: "Save product",
@@ -1250,6 +1256,8 @@ export default function AdminPage() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [selectedClientEmail, setSelectedClientEmail] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [productBrandFilter, setProductBrandFilter] = useState("");
+  const [clientQuery, setClientQuery] = useState("");
   const [activeStockBrand, setActiveStockBrand] = useState("");
   const [stockQuery, setStockQuery] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
@@ -1288,30 +1296,54 @@ export default function AdminPage() {
   const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
 
-    if (!normalized) {
-      return adminProducts;
-    }
-
     return adminProducts.filter((product) =>
-      [
-        product.name,
-        product.brand,
-        product.category,
-        product.description,
-        product.variations.map((variation) =>
-          [variation.sku, variation.color, variation.size].join(" "),
-        ).join(" "),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalized),
+      (!productBrandFilter || product.brand === productBrandFilter) &&
+      (!normalized ||
+        [
+          product.name,
+          product.brand,
+          product.category,
+          product.description,
+          product.variations.map((variation) =>
+            [variation.sku, variation.color, variation.size].join(" "),
+          ).join(" "),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalized)),
     );
-  }, [adminProducts, query]);
+  }, [adminProducts, productBrandFilter, query]);
   const brandOptions = useMemo(
     () =>
       Array.from(new Set(adminProducts.map((product) => product.brand).filter(Boolean))).sort(),
     [adminProducts],
   );
+  const filteredClients = useMemo(() => {
+    const normalized = clientQuery.trim().toLowerCase();
+
+    if (!normalized) {
+      return allUsers;
+    }
+
+    return allUsers.filter((user) =>
+      [
+        user.name,
+        user.email,
+        user.role,
+        user.company,
+        user.vatNumber,
+        user.b2bRequest?.companyName,
+        user.b2bRequest?.registrationNumber,
+        user.b2bRequest?.address,
+        user.b2bRequest?.phone,
+        user.b2bRequest?.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [allUsers, clientQuery]);
   const stockGroups = useMemo(() => {
     const groups = inventoryItems.reduce<Record<string, ClientInventoryItem[]>>(
       (result, item) => {
@@ -1830,6 +1862,18 @@ export default function AdminPage() {
             <button className="primary-link" onClick={openAddForm} type="button">
               {c.addProduct}
             </button>
+            <select
+              className="admin-filter-select"
+              value={productBrandFilter}
+              onChange={(event) => setProductBrandFilter(event.target.value)}
+            >
+              <option value="">{c.allBrands}</option>
+              {brandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand}
+                </option>
+              ))}
+            </select>
             <input
               className="admin-search"
               placeholder={c.search}
@@ -2225,8 +2269,16 @@ export default function AdminPage() {
       ) : null}
 
       {tab === "clients" ? (
-        <div className="admin-client-layout">
+        <div className={selectedClient ? "admin-client-layout" : "admin-client-layout single"}>
           <div className="table-wrap admin-table">
+            <div className="client-list-tools">
+              <input
+                className="admin-search"
+                placeholder={c.clientSearch}
+                value={clientQuery}
+                onChange={(event) => setClientQuery(event.target.value)}
+              />
+            </div>
             <table>
               <thead>
                 <tr>
@@ -2238,7 +2290,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {allUsers.map((user) => (
+                {filteredClients.map((user) => (
                   <tr
                     className={
                       selectedClient?.email === user.email ? "clickable-row active" : "clickable-row"
@@ -2261,105 +2313,101 @@ export default function AdminPage() {
             </table>
           </div>
 
-          <aside className="admin-client-card">
-            {selectedClient ? (
-              <>
-                <span className="eyebrow">{extra.clientDetails}</span>
-                <h3>{selectedClient.name}</h3>
-                <div className="client-data-grid">
-                  <span>Email</span>
-                  <strong>{selectedClient.email}</strong>
-                  <span>{c.type}</span>
-                  <strong>
-                    {selectedClient.role === "b2b"
-                      ? "B2B"
-                      : selectedClient.role === "admin"
-                        ? "Admin"
-                        : "B2C"}
-                  </strong>
-                  <span>{c.company}</span>
-                  <strong>{selectedClient.company ?? "-"}</strong>
-                  <span>PVN / VAT</span>
-                  <strong>{selectedClient.vatNumber ?? "-"}</strong>
+          {selectedClient ? (
+            <aside className="admin-client-card">
+              <span className="eyebrow">{extra.clientDetails}</span>
+              <h3>{selectedClient.name}</h3>
+              <div className="client-data-grid">
+                <span>Email</span>
+                <strong>{selectedClient.email}</strong>
+                <span>{c.type}</span>
+                <strong>
+                  {selectedClient.role === "b2b"
+                    ? "B2B"
+                    : selectedClient.role === "admin"
+                      ? "Admin"
+                      : "B2C"}
+                </strong>
+                <span>{c.company}</span>
+                <strong>{selectedClient.company ?? "-"}</strong>
+                <span>PVN / VAT</span>
+                <strong>{selectedClient.vatNumber ?? "-"}</strong>
+              </div>
+
+              {selectedClient.role === "b2b" ? (
+                <div className="admin-inline-actions">
+                  <button
+                    className="table-action danger"
+                    onClick={() => void setClientB2BAccess(selectedClient, false)}
+                    type="button"
+                  >
+                    {b2bAccessLabels.remove}
+                  </button>
                 </div>
+              ) : null}
 
-                {selectedClient.role === "b2b" ? (
-                  <div className="admin-inline-actions">
-                    <button
-                      className="table-action danger"
-                      onClick={() => void setClientB2BAccess(selectedClient, false)}
-                      type="button"
-                    >
-                      {b2bAccessLabels.remove}
-                    </button>
+              {selectedClient.b2bRequest ? (
+                <div className="b2b-request-box">
+                  <span className="eyebrow">{extra.b2bRequest}</span>
+                  <strong>{selectedClient.b2bRequest.status}</strong>
+                  <div className="client-data-grid">
+                    <span>{extra.companyName}</span>
+                    <strong>{selectedClient.b2bRequest.companyName}</strong>
+                    <span>{extra.registrationNumber}</span>
+                    <strong>{selectedClient.b2bRequest.registrationNumber}</strong>
+                    <span>{extra.address}</span>
+                    <strong>{selectedClient.b2bRequest.address}</strong>
+                    <span>{extra.phone}</span>
+                    <strong>{selectedClient.b2bRequest.phone}</strong>
                   </div>
-                ) : null}
-
-                {selectedClient.b2bRequest ? (
-                  <div className="b2b-request-box">
-                    <span className="eyebrow">{extra.b2bRequest}</span>
-                    <strong>{selectedClient.b2bRequest.status}</strong>
-                    <div className="client-data-grid">
-                      <span>{extra.companyName}</span>
-                      <strong>{selectedClient.b2bRequest.companyName}</strong>
-                      <span>{extra.registrationNumber}</span>
-                      <strong>{selectedClient.b2bRequest.registrationNumber}</strong>
-                      <span>{extra.address}</span>
-                      <strong>{selectedClient.b2bRequest.address}</strong>
-                      <span>{extra.phone}</span>
-                      <strong>{selectedClient.b2bRequest.phone}</strong>
-                    </div>
-                    {selectedClient.b2bRequest.status === "pending" ? (
-                      <div className="admin-inline-actions">
-                        <button
-                          className="wide-button inline-button"
-                          onClick={() => void reviewB2BRequest(selectedClient, true)}
-                          type="button"
-                        >
-                          {extra.approve}
-                        </button>
-                        <button
-                          className="table-action danger"
-                          onClick={() => void reviewB2BRequest(selectedClient, false)}
-                          type="button"
-                        >
-                          {extra.reject}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="client-orders-list">
-                  <h4>{extra.pastOrders}</h4>
-                  {selectedClientOrders.length ? (
-                    selectedClientOrders.map((order) => (
+                  {selectedClient.b2bRequest.status === "pending" ? (
+                    <div className="admin-inline-actions">
                       <button
-                        className="client-order-row"
-                        key={order.id}
-                        onClick={() => {
-                          setTab("orders");
-                          setExpandedOrderId(order.id);
-                        }}
+                        className="wide-button inline-button"
+                        onClick={() => void reviewB2BRequest(selectedClient, true)}
                         type="button"
                       >
-                        <span>
-                          {order.invoiceNumber ?? order.id}
-                          <small>{formatOrderDate(order.createdAt, language)}</small>
-                        </span>
-                        <strong>{money(order.total, language)}</strong>
+                        {extra.approve}
                       </button>
-                    ))
-                  ) : (
-                    <p className="empty-state">{extra.noOrders}</p>
-                  )}
+                      <button
+                        className="table-action danger"
+                        onClick={() => void reviewB2BRequest(selectedClient, false)}
+                        type="button"
+                      >
+                        {extra.reject}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-              </>
-            ) : (
-              <p className="empty-state">{extra.selectClient}</p>
-            )}
-            {adminActionStatus ? <p className="status-box">{adminActionStatus}</p> : null}
-          </aside>
+              ) : null}
+
+              <div className="client-orders-list">
+                <h4>{extra.pastOrders}</h4>
+                {selectedClientOrders.length ? (
+                  selectedClientOrders.map((order) => (
+                    <button
+                      className="client-order-row"
+                      key={order.id}
+                      onClick={() => {
+                        setTab("orders");
+                        setExpandedOrderId(order.id);
+                      }}
+                      type="button"
+                    >
+                      <span>
+                        {order.invoiceNumber ?? order.id}
+                        <small>{formatOrderDate(order.createdAt, language)}</small>
+                      </span>
+                      <strong>{money(order.total, language)}</strong>
+                    </button>
+                  ))
+                ) : (
+                  <p className="empty-state">{extra.noOrders}</p>
+                )}
+              </div>
+              {adminActionStatus ? <p className="status-box">{adminActionStatus}</p> : null}
+            </aside>
+          ) : null}
         </div>
       ) : null}
 
