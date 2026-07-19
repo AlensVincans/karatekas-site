@@ -5972,6 +5972,22 @@ textarea {
   width: 100%;
 }
 
+.checkout-panel-v3 .select-placeholder-v3 {
+  color: #9a9188;
+}
+
+.checkout-panel-v3 .select-placeholder-v3 option {
+  color: var(--v3-black);
+}
+
+.country-select-shell-v3 {
+  display: block;
+}
+
+.admin-loading-state {
+  margin: 0;
+}
+
 .pickup-selector select {
   overflow: hidden;
   text-overflow: ellipsis;

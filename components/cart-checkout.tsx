@@ -28,6 +28,8 @@ type ShippingType =
   | "courier"
   | "self_pickup";
 type DeliveryCountry = "LV" | "LT" | "EE";
+type SelectedDeliveryCountry = "" | DeliveryCountry;
+const defaultDeliveryCountry: DeliveryCountry = "LV";
 
 type ShippingMethodOption = {
   id: string;
@@ -249,6 +251,10 @@ function fallbackShippingMethods(country: DeliveryCountry) {
       manualShippingPrices.LV[`${method.carrierCode}:${method.shippingType}`] ??
       method.price,
   }));
+}
+
+function effectiveDeliveryCountry(country: SelectedDeliveryCountry): DeliveryCountry {
+  return country || defaultDeliveryCountry;
 }
 
 const deliveryCountries: Array<{
@@ -704,11 +710,13 @@ export function CartCheckout() {
   const totalsLabels = totalsCopy[language as keyof typeof totalsCopy] ?? totalsCopy.en;
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
   const [checkoutProducts, setCheckoutProducts] = useState<Product[]>(seedProducts);
-  const [shippingCountry, setShippingCountry] = useState<DeliveryCountry>("LV");
+  const [shippingCountry, setShippingCountry] = useState<SelectedDeliveryCountry>("");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
-    () => fallbackShippingMethods("LV"),
+    () => fallbackShippingMethods(defaultDeliveryCountry),
   );
-  const [shippingId, setShippingId] = useState(() => fallbackShippingMethods("LV")[0].id);
+  const [shippingId, setShippingId] = useState(
+    () => fallbackShippingMethods(defaultDeliveryCountry)[0].id,
+  );
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [pickupPointId, setPickupPointId] = useState("");
   const [pickupQuery, setPickupQuery] = useState("");
@@ -726,6 +734,7 @@ export function CartCheckout() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const activeShippingCountry = effectiveDeliveryCountry(shippingCountry);
 
   useEffect(() => {
     let cancelled = false;
@@ -785,7 +794,7 @@ export function CartCheckout() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`/api/shipping/montonio/methods?country=${shippingCountry}`)
+    fetch(`/api/shipping/montonio/methods?country=${activeShippingCountry}`)
       .then((response) => response.json())
       .then((data: { methods?: ShippingMethodOption[] }) => {
         if (cancelled || !data.methods?.length) {
@@ -807,7 +816,7 @@ export function CartCheckout() {
       })
       .catch(() => {
         if (!cancelled) {
-          const fallbackMethods = fallbackShippingMethods(shippingCountry);
+          const fallbackMethods = fallbackShippingMethods(activeShippingCountry);
           setShippingMethods(fallbackMethods);
         }
       });
@@ -815,12 +824,12 @@ export function CartCheckout() {
     return () => {
       cancelled = true;
     };
-  }, [shippingCountry]);
+  }, [activeShippingCountry]);
 
   const selectedShippingMethod =
     shippingMethods.find((method) => method.id === shippingId) ??
     shippingMethods[0] ??
-    fallbackShippingMethods(shippingCountry)[0];
+    fallbackShippingMethods(activeShippingCountry)[0];
 
   useEffect(() => {
     if (!selectedShippingMethod || selectedShippingMethod.type !== "pickupPoint") {
@@ -835,7 +844,7 @@ export function CartCheckout() {
     let cancelled = false;
     const params = new URLSearchParams({
       carrier: selectedShippingMethod.carrierCode,
-      country: shippingCountry,
+      country: activeShippingCountry,
       type: selectedShippingMethod.subtype || "parcelMachine",
     });
 
@@ -870,7 +879,7 @@ export function CartCheckout() {
     };
   }, [
     selectedShippingMethod,
-    shippingCountry,
+    activeShippingCountry,
   ]);
 
   const lines = useMemo(
@@ -969,8 +978,8 @@ export function CartCheckout() {
     setShippingAddress((address) => ({ ...address, ...patch }));
   }
 
-  function updateShippingCountry(country: DeliveryCountry) {
-    const fallbackMethods = fallbackShippingMethods(country);
+  function updateShippingCountry(country: SelectedDeliveryCountry) {
+    const fallbackMethods = fallbackShippingMethods(effectiveDeliveryCountry(country));
 
     setShippingCountry(country);
     setShippingMethods(fallbackMethods);
@@ -1048,7 +1057,7 @@ export function CartCheckout() {
         streetAddress: selectedPickupPoint.streetAddress || selectedPickupPoint.name,
         locality: selectedPickupPoint.locality || shippingAddress.locality,
         postalCode: selectedPickupPoint.postalCode || shippingAddress.postalCode,
-        country: selectedPickupPoint.countryCode || shippingCountry,
+        country: selectedPickupPoint.countryCode || activeShippingCountry,
       };
     }
 
@@ -1081,6 +1090,7 @@ export function CartCheckout() {
         variationId: line.variation.id,
         brand: line.product.brand,
         category: line.product.category,
+        onlySelfPickup: Boolean(line.product.onlySelfPickup),
         productName: productTitle(line.product, language),
         variationName: line.variation.name,
         sku: line.variation.sku,
@@ -1256,14 +1266,18 @@ export function CartCheckout() {
             <span>01</span>
             <h3>{c.shipping}</h3>
           </div>
-          <label>
-            {c.country}
+          <label className="country-select-shell-v3">
             <select
+              aria-label={c.country}
+              className={shippingCountry ? "" : "select-placeholder-v3"}
               value={shippingCountry}
               onChange={(event) =>
-                updateShippingCountry(event.target.value as DeliveryCountry)
+                updateShippingCountry(event.target.value as SelectedDeliveryCountry)
               }
             >
+              <option value="" disabled>
+                {c.country}
+              </option>
               {deliveryCountries.map((country) => (
                 <option key={country.code} value={country.code}>
                   {shippingLabels(language).countries[country.code]}
@@ -1358,7 +1372,7 @@ export function CartCheckout() {
             <div className="courier-address courier-address-v2">
               <div className="courier-address-head-v2">
                 <strong>{c.courierAddress}</strong>
-                <span>{shippingLabels(language).countries[shippingCountry]}</span>
+                <span>{shippingLabels(language).countries[activeShippingCountry]}</span>
               </div>
               <div className="courier-address-grid-v2">
                 <input
@@ -1383,6 +1397,7 @@ export function CartCheckout() {
                   onChange={(event) => updateAddress({ region: event.target.value })}
                 />
                 <select
+                  className={shippingAddress.country ? "" : "select-placeholder-v3"}
                   value={shippingAddress.country}
                   onChange={(event) => updateAddress({ country: event.target.value })}
                 >

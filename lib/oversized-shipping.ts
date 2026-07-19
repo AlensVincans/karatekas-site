@@ -14,6 +14,7 @@ type OversizedLineInput = {
   productName?: string;
   variationName?: string;
   sku?: string;
+  onlySelfPickup?: boolean;
 };
 
 function normalizedText(value: unknown) {
@@ -69,6 +70,10 @@ export function isOversizedProduct(
   product: Product | undefined,
   extra: Partial<OversizedLineInput> = {},
 ) {
+  if (product?.onlySelfPickup || extra.onlySelfPickup) {
+    return true;
+  }
+
   const text = compactText([
     product?.id,
     product?.name,

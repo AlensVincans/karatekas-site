@@ -1,6 +1,7 @@
 import { createOrder, listOrders, type CreateOrderInput } from "../../../lib/orders";
 import { sendOrderEmails } from "../../../lib/email";
 import { roundMoney } from "../../../lib/montonio";
+import { getProduct } from "../../../lib/products-store";
 import {
   isSelfPickupShippingType,
   oversizedOrderLine,
@@ -78,6 +79,15 @@ function normalizeOrderInput(payload: OrderRequest): CreateOrderInput {
   };
 }
 
+async function orderLinesWithProducts(lines: NonNullable<OrderRequest["lines"]>) {
+  return Promise.all(
+    lines.map(async (line) => ({
+      ...line,
+      product: line.productId ? await getProduct(line.productId) : undefined,
+    })),
+  );
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const email = url.searchParams.get("email")?.trim().toLowerCase();
@@ -99,7 +109,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid order payload." }, { status: 400 });
   }
 
-  const oversizedLine = oversizedOrderLine(payload.lines ?? []);
+  const oversizedLine = oversizedOrderLine(await orderLinesWithProducts(payload.lines ?? []));
   const input = normalizeOrderInput(payload);
 
   if (!input.lines.length || input.totals.total <= 0) {

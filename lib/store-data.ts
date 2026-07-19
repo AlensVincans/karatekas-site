@@ -56,6 +56,7 @@ export type Product = {
   brand: string;
   category: string;
   description: string;
+  onlySelfPickup?: boolean;
   specs: string[];
   tags: string[];
   sheetX: string;

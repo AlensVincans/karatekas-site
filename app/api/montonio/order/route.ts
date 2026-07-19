@@ -1,5 +1,6 @@
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
 import { createOrder, updateOrder, type OrderShippingType } from "../../../../lib/orders";
+import { getProduct } from "../../../../lib/products-store";
 import {
   isSelfPickupShippingType,
   oversizedOrderLine,
@@ -13,6 +14,7 @@ type CheckoutLine = {
   productName?: string;
   variationName?: string;
   sku?: string;
+  onlySelfPickup?: boolean;
   quantity?: number;
   unitPrice?: number;
 };
@@ -209,6 +211,15 @@ function shippingType(payload: CheckoutPayload): OrderShippingType {
   return payload.shipping?.type === "courier" ? "courier" : "parcel_machine";
 }
 
+async function checkoutLinesWithProducts(lines: CheckoutLine[]) {
+  return Promise.all(
+    lines.map(async (line) => ({
+      ...line,
+      product: line.productId ? await getProduct(line.productId) : undefined,
+    })),
+  );
+}
+
 export async function POST(request: Request) {
   const accessKey = montonioEnv.MONTONIO_ACCESS_KEY?.trim();
   const secretKey = montonioEnv.MONTONIO_SECRET_KEY?.trim();
@@ -229,7 +240,9 @@ export async function POST(request: Request) {
   }
 
   const { lineItems, grandTotal } = buildLineItems(payload);
-  const oversizedLine = oversizedOrderLine(payload.lines ?? []);
+  const oversizedLine = oversizedOrderLine(
+    await checkoutLinesWithProducts(payload.lines ?? []),
+  );
 
   if (!lineItems.length || grandTotal <= 0) {
     return Response.json({ error: "Cart is empty." }, { status: 400 });

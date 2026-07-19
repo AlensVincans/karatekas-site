@@ -246,15 +246,23 @@ export function CatalogBrowser() {
   const [salesCounts, setSalesCounts] = useState<Record<string, number>>({});
   const [salesReady, setSalesReady] = useState(false);
   const catalogCategories = useMemo(
-    () =>
-      Array.from(
+    () => {
+      if (!productsReady) {
+        return [];
+      }
+
+      return Array.from(
         new Set([...seedCategories, ...catalogProducts.map((product) => product.category)]),
-      ).filter(Boolean),
-    [catalogProducts],
+      ).filter(Boolean);
+    },
+    [catalogProducts, productsReady],
   );
   const brands = useMemo(
-    () => Array.from(new Set(catalogProducts.map((product) => product.brand))).sort(),
-    [catalogProducts],
+    () =>
+      productsReady
+        ? Array.from(new Set(catalogProducts.map((product) => product.brand))).sort()
+        : [],
+    [catalogProducts, productsReady],
   );
   const [paramsReady, setParamsReady] = useState(false);
   const [query, setQuery] = useState(defaultCatalogParams().query);

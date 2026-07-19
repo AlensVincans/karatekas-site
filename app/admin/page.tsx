@@ -50,6 +50,7 @@ type AdminProduct = {
   description: string;
   images: string[];
   active: boolean;
+  onlySelfPickup: boolean;
   variations: AdminVariation[];
 };
 
@@ -644,6 +645,30 @@ const shippingStatusLabels = {
 
 type CopyText = (typeof copy)[keyof typeof copy];
 
+const onlySelfPickupLabels = {
+  ru: "Только самовывоз",
+  lv: "Tikai saņemšana uz vietas",
+  en: "Store pickup only",
+  et: "Ainult poest kättesaamine",
+  lt: "Tik atsiemimas vietoje",
+} as const;
+
+function onlySelfPickupLabel(language: keyof typeof onlySelfPickupLabels | string) {
+  return onlySelfPickupLabels[language as keyof typeof onlySelfPickupLabels] ?? onlySelfPickupLabels.en;
+}
+
+const adminLoadingLabels = {
+  ru: "Загружаем товары...",
+  lv: "Ielādējam preces...",
+  en: "Loading products...",
+  et: "Laadime tooteid...",
+  lt: "Įkeliamos prekės...",
+} as const;
+
+function adminLoadingLabel(language: keyof typeof adminLoadingLabels | string) {
+  return adminLoadingLabels[language as keyof typeof adminLoadingLabels] ?? adminLoadingLabels.en;
+}
+
 const initialOrders: OrderRow[] = [];
 
 function statusFromApiOrder(order: ApiOrder): OrderStatus {
@@ -739,6 +764,7 @@ function createProduct(name = ""): AdminProduct {
     description: "",
     images: [],
     active: true,
+    onlySelfPickup: false,
     variations: [createVariation()],
   };
 }
@@ -755,6 +781,7 @@ function productRows(sourceProducts: Product[] = products): AdminProduct[] {
     description: product.description,
     images: productImages(product, imageMap),
     active: true,
+    onlySelfPickup: Boolean(product.onlySelfPickup),
     variations: product.variations.map((variation) => ({
       id: variation.id,
       sku: variation.sku,
@@ -779,6 +806,7 @@ function adminProductToProduct(product: AdminProduct): Product {
     brand: product.brand,
     category: product.category,
     description: product.description,
+    onlySelfPickup: product.onlySelfPickup,
     specs: base?.specs ?? [],
     tags: base?.tags ?? [],
     sheetX: base?.sheetX ?? "0%",
@@ -1116,6 +1144,15 @@ function ProductForm({
         {product.active ? c.active : c.hidden}
       </label>
 
+      <label className="switch-row">
+        <input
+          checked={product.onlySelfPickup}
+          type="checkbox"
+          onChange={(event) => onProductChange({ onlySelfPickup: event.target.checked })}
+        />
+        {onlySelfPickupLabel(language)}
+      </label>
+
       <div className="variation-editor">
         <div className="variation-editor-head">
           <h4>{c.variants}</h4>
@@ -1246,7 +1283,8 @@ export default function AdminPage() {
   const [tab, setTab] = useState<
     "products" | "clients" | "orders" | "promotions" | "stock"
   >("products");
-  const [adminProducts, setAdminProducts] = useState<AdminProduct[]>(() => productRows());
+  const [adminProducts, setAdminProducts] = useState<AdminProduct[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const [banners, setBanners] = useState<PromoBanner[]>(() => readPromoBanners());
   const [promoRules, setPromoRules] = useState<PromoRule[]>(() => readPromoRules());
   const [editProductId, setEditProductId] = useState<string | null>(null);
@@ -1273,11 +1311,21 @@ export default function AdminPage() {
     fetch("/api/admin/products")
       .then((response) => response.json())
       .then((data: { products?: Product[] }) => {
-        if (!cancelled && Array.isArray(data.products) && data.products.length) {
-          setAdminProducts(productRows(data.products));
+        if (!cancelled) {
+          setAdminProducts(
+            Array.isArray(data.products) && data.products.length
+              ? productRows(data.products)
+              : productRows(),
+          );
+          setProductsLoaded(true);
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          setAdminProducts(productRows());
+          setProductsLoaded(true);
+        }
+      });
 
     fetch("/api/orders")
       .then((response) => response.json())
@@ -1802,7 +1850,9 @@ export default function AdminPage() {
       <div className="admin-stats compact">
         <div>
           <span>{c.activeProducts}</span>
-          <strong>{adminProducts.filter((product) => product.active).length}</strong>
+          <strong>
+            {productsLoaded ? adminProducts.filter((product) => product.active).length : "..."}
+          </strong>
         </div>
         <div>
           <span>{c.clients}</span>
@@ -1810,7 +1860,7 @@ export default function AdminPage() {
         </div>
         <div>
           <span>{c.stockAvailable}</span>
-          <strong>{availableTotal}</strong>
+          <strong>{productsLoaded || inventoryItems.length ? availableTotal : "..."}</strong>
         </div>
         <div>
           <span>{c.categories}</span>
@@ -1948,7 +1998,16 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((product) => (
+              {!productsLoaded ? (
+                <tr>
+                  <td colSpan={7}>
+                    <p className="empty-state admin-loading-state">
+                      {adminLoadingLabel(language)}
+                    </p>
+                  </td>
+                </tr>
+              ) : null}
+              {productsLoaded ? filteredProducts.map((product) => (
                 <Fragment key={product.id}>
                   <tr className={editProductId === product.id ? "selected-row" : ""}>
                     <td>
@@ -1968,6 +2027,11 @@ export default function AdminPage() {
                           <span>
                             {product.brand} · {product.description || c.noDescription}
                           </span>
+                          {product.onlySelfPickup ? (
+                            <span className="status-pill">
+                              {onlySelfPickupLabel(language)}
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                     </td>
@@ -2054,7 +2118,7 @@ export default function AdminPage() {
                     </tr>
                   ) : null}
                 </Fragment>
-              ))}
+              )) : null}
             </tbody>
           </table>
         </div>
