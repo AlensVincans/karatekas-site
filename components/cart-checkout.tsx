@@ -14,6 +14,10 @@ import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotion
 import { productTitle, type Language } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
 import { readCartLines, writeCartLines, type CartLine } from "../lib/cart-client";
+import {
+  isSelfPickupShippingType,
+  oversizedOrderLine,
+} from "../lib/oversized-shipping";
 import { useLanguage } from "./language";
 import { useDemoSession } from "./session";
 
@@ -298,6 +302,9 @@ const copy = {
     shippingRequired: "Сначала выберите способ доставки.",
     pickupRequired: "Выберите пункт выдачи.",
     addressRequired: "Заполните адрес и телефон для курьера.",
+    oversizedSelfPickup:
+      "В корзине крупный товар. Для такого заказа доступен только самовывоз.",
+    oversizedDisabled: "Недоступно для крупного товара",
     cardStatus: "Переходим к оплате Montonio.",
     redirecting: "Открываем Montonio...",
     paymentError: "Не удалось открыть оплату Montonio. Попробуйте ещё раз.",
@@ -342,6 +349,9 @@ const copy = {
     shippingRequired: "Vispirms izvēlieties piegādes veidu.",
     pickupRequired: "Izvēlieties saņemšanas punktu.",
     addressRequired: "Aizpildiet adresi un tālruni kurjeram.",
+    oversizedSelfPickup:
+      "Grozā ir lielgabarīta prece. Šādam pasūtījumam pieejama tikai saņemšana uz vietas.",
+    oversizedDisabled: "Nav pieejams lielgabarīta precei",
     cardStatus: "Pārejam uz Montonio apmaksu.",
     redirecting: "Atveram Montonio...",
     paymentError: "Neizdevās atvērt Montonio maksājumu. Mēģiniet vēlreiz.",
@@ -386,6 +396,9 @@ const copy = {
     shippingRequired: "Choose a delivery method first.",
     pickupRequired: "Choose a pickup point.",
     addressRequired: "Fill courier address and phone.",
+    oversizedSelfPickup:
+      "Your cart contains an oversized item. This order is available only for store pickup.",
+    oversizedDisabled: "Unavailable for oversized item",
     cardStatus: "Redirecting to Montonio.",
     redirecting: "Opening Montonio...",
     paymentError: "Could not open Montonio payment. Please try again.",
@@ -430,6 +443,9 @@ const copy = {
     shippingRequired: "Vali esmalt tarneviis.",
     pickupRequired: "Vali väljastuspunkt.",
     addressRequired: "Täida kulleri aadress ja telefon.",
+    oversizedSelfPickup:
+      "Ostukorvis on suuremõõtmeline kaup. Selle tellimuse saab ainult ise ära tuua.",
+    oversizedDisabled: "Pole suuremõõtmelisele kaubale saadaval",
     cardStatus: "Suundume Montonio maksesse.",
     redirecting: "Avame Montonio...",
     paymentError: "Montonio makset ei õnnestunud avada. Proovi uuesti.",
@@ -474,6 +490,9 @@ const copy = {
     shippingRequired: "Pirmiausia pasirinkite pristatymo būdą.",
     pickupRequired: "Pasirinkite atsiėmimo punktą.",
     addressRequired: "Užpildykite kurjerio adresą ir telefoną.",
+    oversizedSelfPickup:
+      "Krepšelyje yra didelė prekė. Tokį užsakymą galima tik atsiimti vietoje.",
+    oversizedDisabled: "Netinka didelei prekei",
     cardStatus: "Pereiname prie Montonio apmokėjimo.",
     redirecting: "Atidarome Montonio...",
     paymentError: "Nepavyko atidaryti Montonio mokėjimo. Bandykite dar kartą.",
@@ -883,6 +902,11 @@ export function CartCheckout() {
         .filter(isPresent),
     [cart, checkoutProducts, levels, promoPrices, promoRules, role],
   );
+  const oversizedLine = useMemo(() => oversizedOrderLine(lines), [lines]);
+  const oversizedProductName = oversizedLine ? productTitle(oversizedLine.product, language) : "";
+  const oversizedMessage = oversizedProductName
+    ? `${c.oversizedSelfPickup} (${oversizedProductName})`
+    : c.oversizedSelfPickup;
 
   const filteredPickupPoints = useMemo(() => {
     const query = normalizeSearch(pickupQuery);
@@ -911,6 +935,23 @@ export function CartCheckout() {
   const totalWithoutVat = subtotal + shippingPrice;
   const total = subtotal + vat + shippingPrice;
   const canUseB2B = role === "b2b" || role === "admin";
+  const selfPickupMethodId = shippingMethods.find((method) =>
+    isSelfPickupShippingType(method.shippingType),
+  )?.id;
+
+  useEffect(() => {
+    if (!oversizedLine || !selfPickupMethodId || shippingId === selfPickupMethodId) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setShippingId(selfPickupMethodId);
+      setPickupPointId("");
+      setPickupQuery("");
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [oversizedLine, selfPickupMethodId, shippingId]);
 
   function updateQty(variationId: string, qty: number) {
     const next =
@@ -954,6 +995,11 @@ export function CartCheckout() {
   function validateShipping() {
     if (!selectedShippingMethod) {
       setStatus(c.shippingRequired);
+      return false;
+    }
+
+    if (oversizedLine && !isSelfPickupShippingType(selectedShippingMethod.shippingType)) {
+      setStatus(oversizedMessage);
       return false;
     }
 
@@ -1033,6 +1079,8 @@ export function CartCheckout() {
       lines: lines.map((line) => ({
         productId: line.product.id,
         variationId: line.variation.id,
+        brand: line.product.brand,
+        category: line.product.category,
         productName: productTitle(line.product, language),
         variationName: line.variation.name,
         sku: line.variation.sku,
@@ -1223,15 +1271,33 @@ export function CartCheckout() {
               ))}
             </select>
           </label>
+          {oversizedLine ? (
+            <p className="oversized-shipping-note">{oversizedMessage}</p>
+          ) : null}
           <div className="shipping-options">
             {shippingMethods.map((method) => {
               const icon = carrierIcon(method);
+              const disabledByOversize = Boolean(
+                oversizedLine && !isSelfPickupShippingType(method.shippingType),
+              );
 
               return (
                 <button
-                  className={method.id === shippingId ? "shipping-option active" : "shipping-option"}
+                  aria-disabled={disabledByOversize}
+                  className={[
+                    "shipping-option",
+                    method.id === shippingId ? "active" : "",
+                    disabledByOversize ? "disabled" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  disabled={disabledByOversize}
                   key={method.id}
-                  onClick={() => setShippingId(method.id)}
+                  onClick={() => {
+                    if (!disabledByOversize) {
+                      setShippingId(method.id);
+                    }
+                  }}
                   type="button"
                 >
                   <span className={`carrier-icon ${icon.className}`}>
@@ -1249,6 +1315,9 @@ export function CartCheckout() {
                     <span>
                       {methodDetails(method, language)} / {cartMoney(method.price, language)}
                     </span>
+                    {disabledByOversize ? (
+                      <span className="shipping-option-lock">{c.oversizedDisabled}</span>
+                    ) : null}
                   </span>
                 </button>
               );

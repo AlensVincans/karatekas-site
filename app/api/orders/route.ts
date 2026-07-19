@@ -1,6 +1,10 @@
 import { createOrder, listOrders, type CreateOrderInput } from "../../../lib/orders";
 import { sendOrderEmails } from "../../../lib/email";
 import { roundMoney } from "../../../lib/montonio";
+import {
+  isSelfPickupShippingType,
+  oversizedOrderLine,
+} from "../../../lib/oversized-shipping";
 
 export const runtime = "nodejs";
 
@@ -95,6 +99,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid order payload." }, { status: 400 });
   }
 
+  const oversizedLine = oversizedOrderLine(payload.lines ?? []);
   const input = normalizeOrderInput(payload);
 
   if (!input.lines.length || input.totals.total <= 0) {
@@ -103,6 +108,13 @@ export async function POST(request: Request) {
 
   if (input.shippingType === "parcel_machine" && !input.pickupPointId) {
     return Response.json({ error: "Pickup point is required." }, { status: 400 });
+  }
+
+  if (oversizedLine && !isSelfPickupShippingType(input.shippingType)) {
+    return Response.json(
+      { error: "Oversized products are available only for store pickup." },
+      { status: 400 },
+    );
   }
 
   const order = await createOrder(input);

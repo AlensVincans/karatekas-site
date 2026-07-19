@@ -1,9 +1,15 @@
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
 import { createOrder, updateOrder, type OrderShippingType } from "../../../../lib/orders";
+import {
+  isSelfPickupShippingType,
+  oversizedOrderLine,
+} from "../../../../lib/oversized-shipping";
 
 type CheckoutLine = {
   productId?: string;
   variationId?: string;
+  brand?: string;
+  category?: string;
   productName?: string;
   variationName?: string;
   sku?: string;
@@ -223,6 +229,7 @@ export async function POST(request: Request) {
   }
 
   const { lineItems, grandTotal } = buildLineItems(payload);
+  const oversizedLine = oversizedOrderLine(payload.lines ?? []);
 
   if (!lineItems.length || grandTotal <= 0) {
     return Response.json({ error: "Cart is empty." }, { status: 400 });
@@ -243,9 +250,17 @@ export async function POST(request: Request) {
   const subtotal = roundMoney(orderLines.reduce((sum, line) => sum + line.total, 0));
   const shippingPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
   const vat = roundMoney(subtotal * 0.21);
+  const selectedShippingType = shippingType(payload);
 
-  if (shippingType(payload) === "parcel_machine" && !payload.shipping?.pickupPointId) {
+  if (selectedShippingType === "parcel_machine" && !payload.shipping?.pickupPointId) {
     return Response.json({ error: "Pickup point is required." }, { status: 400 });
+  }
+
+  if (oversizedLine && !isSelfPickupShippingType(selectedShippingType)) {
+    return Response.json(
+      { error: "Oversized products are available only for store pickup." },
+      { status: 400 },
+    );
   }
 
   const localOrder = await createOrder({
@@ -279,7 +294,7 @@ export async function POST(request: Request) {
       payload.shipping?.pickupPointName || payload.shipping?.methodName,
       "Omniva parcel machine",
     ),
-    shippingType: shippingType(payload),
+    shippingType: selectedShippingType,
     pickupPointId: payload.shipping?.pickupPointId,
     pickupPointName: payload.shipping?.pickupPointName,
     shippingAddress: payload.shipping?.address,

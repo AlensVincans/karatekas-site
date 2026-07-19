@@ -1952,10 +1952,24 @@ export default function AdminPage() {
                 <Fragment key={product.id}>
                   <tr className={editProductId === product.id ? "selected-row" : ""}>
                     <td>
-                      <strong>{product.name}</strong>
-                      <span>
-                        {product.brand} · {product.description || c.noDescription}
-                      </span>
+                      <div className="admin-product-list-cell">
+                        {product.images[0] ? (
+                          <span
+                            className="admin-product-list-thumb"
+                            style={{ backgroundImage: `url("${product.images[0]}")` }}
+                          />
+                        ) : (
+                          <span className="admin-product-list-thumb empty">
+                            {product.name.slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="admin-product-list-copy">
+                          <strong>{product.name}</strong>
+                          <span>
+                            {product.brand} · {product.description || c.noDescription}
+                          </span>
+                        </span>
+                      </div>
                     </td>
                     <td>{categoryLabel(product.category, language)}</td>
                     <td>
