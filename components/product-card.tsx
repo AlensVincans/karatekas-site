@@ -2,11 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
-import {
-  pricedVariation,
-  type Product,
-  type UserRole,
-} from "../lib/store-data";
+import { pricedVariation } from "../lib/pricing";
+import type { Product, UserRole } from "../lib/store-data";
 import { categoryLabel, money, productDescription, productTitle } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";

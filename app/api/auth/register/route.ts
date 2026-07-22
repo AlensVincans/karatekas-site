@@ -18,6 +18,12 @@ function clean(value: unknown) {
 }
 
 function originFromRequest(request: Request) {
+  const configuredOrigin = process.env.APP_URL?.trim();
+
+  if (configuredOrigin) {
+    return configuredOrigin.replace(/\/$/, "");
+  }
+
   const url = new URL(request.url);
   const forwardedProto = request.headers.get("x-forwarded-proto");
   const forwardedHost = request.headers.get("x-forwarded-host");

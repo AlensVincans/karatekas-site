@@ -3,11 +3,8 @@
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { useState } from "react";
 import { categoryLabel, colorLabel, money, productDescription, productTitle } from "../lib/i18n";
-import {
-  pricedVariation,
-  products,
-  type Product,
-} from "../lib/store-data";
+import { pricedVariation } from "../lib/pricing";
+import type { Product } from "../lib/store-data";
 import { productImages, useProductImages } from "../lib/product-media";
 import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
@@ -87,7 +84,13 @@ function variationTitle(
   return parts.join(" / ") || variation.name;
 }
 
-export function ProductDetail({ product }: { product: Product }) {
+export function ProductDetail({
+  product,
+  relatedProducts,
+}: {
+  product: Product;
+  relatedProducts: Product[];
+}) {
   const { role } = useDemoSession();
   const { language, t } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
@@ -289,8 +292,7 @@ export function ProductDetail({ product }: { product: Product }) {
           <h2>{t.similarProducts}</h2>
         </div>
         <div className="product-grid product-grid-v3 compact-grid-v3">
-          {products
-            .filter((item) => item.category === product.category && item.id !== product.id)
+          {relatedProducts
             .slice(0, 3)
             .map((item) => (
               <ProductCard key={item.id} product={item} role={role} />

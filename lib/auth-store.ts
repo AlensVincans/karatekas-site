@@ -171,6 +171,42 @@ function publicDemoUser(user: DemoUser): PublicUser {
   };
 }
 
+function demoUsersAllowed() {
+  return process.env.NODE_ENV !== "production" && process.env.ENABLE_DEMO_USERS === "true";
+}
+
+function localAuthStoreAllowed() {
+  return process.env.NODE_ENV !== "production";
+}
+
+function mapPublicUserRow(user: {
+  id: string;
+  first_name: string;
+  last_name: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  company: string | null;
+  vat_number: string | null;
+  credit_limit: string | null;
+  payment_terms: PaymentMethod[];
+  email_confirmed: boolean;
+}): PublicUser {
+  return {
+    id: user.id,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    company: user.company ?? undefined,
+    vatNumber: user.vat_number ?? undefined,
+    creditLimit: user.credit_limit ? Number(user.credit_limit) : undefined,
+    paymentTerms: user.payment_terms,
+    emailConfirmed: user.email_confirmed,
+  };
+}
+
 export async function listPublicUsers() {
   if (hasDatabase()) {
     const users = await dbQuery<{
@@ -192,24 +228,72 @@ export async function listPublicUsers() {
     const requestsByEmail = new Map(requests.map((request) => [request.email.toLowerCase(), request]));
 
     return users.rows.map((user) => ({
-      id: user.id,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      company: user.company ?? undefined,
-      vatNumber: user.vat_number ?? undefined,
-      creditLimit: user.credit_limit ? Number(user.credit_limit) : undefined,
-      paymentTerms: user.payment_terms,
-      emailConfirmed: user.email_confirmed,
+      ...mapPublicUserRow(user),
       b2bRequest: requestsByEmail.get(user.email.toLowerCase()),
     }));
   }
 
   const store = await readStore();
+  const fallbackUsers = demoUsersAllowed() ? demoUsers.map(publicDemoUser) : [];
 
-  return [...demoUsers.map(publicDemoUser), ...store.users.map(publicUser)];
+  return [...fallbackUsers, ...store.users.map(publicUser)];
+}
+
+export async function getPublicUserById(id: string) {
+  if (!id.trim()) {
+    return null;
+  }
+
+  if (hasDatabase()) {
+    const result = await dbQuery<{
+      id: string;
+      first_name: string;
+      last_name: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      company: string | null;
+      vat_number: string | null;
+      credit_limit: string | null;
+      payment_terms: PaymentMethod[];
+      email_confirmed: boolean;
+    }>(
+      `select id, first_name, last_name, name, email, role, company, vat_number,
+        credit_limit, payment_terms, email_confirmed
+       from users
+       where id = $1
+       limit 1`,
+      [id],
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return null;
+    }
+
+    const requests = await listB2BRequests();
+    const b2bRequest = requests.find(
+      (request) => request.email.toLowerCase() === user.email.toLowerCase(),
+    );
+
+    return {
+      ...mapPublicUserRow(user),
+      b2bRequest,
+    };
+  }
+
+  const store = await readStore();
+  const user = store.users.find((candidate) => candidate.id === id);
+
+  if (user) {
+    return publicUserWithRequest(user);
+  }
+
+  const demoUser = demoUsersAllowed()
+    ? demoUsers.find((candidate) => candidate.id === id)
+    : undefined;
+
+  return demoUser ? publicDemoUser(demoUser) : null;
 }
 
 export async function setUserB2BAccess(input: {
@@ -391,6 +475,10 @@ export async function registerAuthUser(input: RegisterUserInput) {
     return { ok: true as const, user: publicUser(user), confirmationToken };
   }
 
+  if (!localAuthStoreAllowed()) {
+    return { ok: false as const, error: "DATABASE_URL is required in production." };
+  }
+
   const store = await readStore();
   const email = normalizeEmail(input.email);
   const policyError = passwordPolicyError(input.password);
@@ -401,7 +489,10 @@ export async function registerAuthUser(input: RegisterUserInput) {
 
   const existingUser = store.users.find((user) => user.email.toLowerCase() === email);
 
-  if (demoUsers.some((user) => user.email.toLowerCase() === email) || existingUser?.emailConfirmed) {
+  if (
+    (demoUsersAllowed() && demoUsers.some((user) => user.email.toLowerCase() === email)) ||
+    existingUser?.emailConfirmed
+  ) {
     return { ok: false as const, error: "A user with this email already exists." };
   }
 
@@ -555,6 +646,10 @@ export async function authenticateAuthUser(emailInput: string, password: string)
         emailConfirmed: user.email_confirmed,
       },
     };
+  }
+
+  if (!localAuthStoreAllowed()) {
+    return { ok: false as const, error: "DATABASE_URL is required in production." };
   }
 
   const store = await readStore();

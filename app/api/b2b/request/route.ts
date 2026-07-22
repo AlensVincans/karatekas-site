@@ -1,5 +1,6 @@
 import { createB2BRequest } from "../../../../lib/auth-store";
 import { sendB2BRequestNotification } from "../../../../lib/email";
+import { authErrorResponse, requireUser } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,14 @@ function clean(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  let user;
+
+  try {
+    user = await requireUser();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   let payload: B2BRequestPayload;
 
   try {
@@ -25,7 +34,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "Invalid B2B request payload." }, { status: 400 });
   }
 
-  const email = clean(payload.email).toLowerCase();
+  const email = user.email.toLowerCase();
   const companyName = clean(payload.companyName);
   const registrationNumber = clean(payload.registrationNumber);
   const address = clean(payload.address);
@@ -39,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   const b2bRequest = await createB2BRequest({
-    userId: clean(payload.userId) || undefined,
+    userId: user.id,
     email,
     companyName,
     registrationNumber,

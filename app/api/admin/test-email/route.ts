@@ -1,8 +1,15 @@
 import { sendTestEmail } from "../../../../lib/email";
+import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   const payload = (await request.json().catch(() => ({}))) as { to?: string };
 
   try {

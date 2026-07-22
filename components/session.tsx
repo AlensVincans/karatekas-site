@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { demoUsers, type DemoUser, type UserRole } from "../lib/store-data";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-const usersKey = "bc_registered_users";
-const sessionKey = "bc_session";
 const sessionChangeEvent = "bc-session-change";
-const demoUsersEnabled =
-  process.env.NEXT_PUBLIC_ENABLE_DEMO_USERS === "true" ||
-  (process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_ENABLE_DEMO_USERS !== "false");
-let browserHydrated = false;
 
-export type SessionUser = Omit<DemoUser, "password"> & {
+export type UserRole = "user" | "b2b" | "admin";
+export type PaymentMethod = "card" | "invoice" | "defer15";
+
+export type SessionUser = {
+  id: string;
   firstName?: string;
   lastName?: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  company?: string;
+  vatNumber?: string;
+  creditLimit?: number;
+  paymentTerms: PaymentMethod[];
+  emailConfirmed: boolean;
   b2bRequest?: {
     id: string;
     status: "pending" | "approved" | "rejected";
@@ -24,155 +28,131 @@ export type SessionUser = Omit<DemoUser, "password"> & {
     phone: string;
   };
 };
-type StoredUser = DemoUser;
-
-function readStoredUsers(): StoredUser[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    return JSON.parse(window.localStorage.getItem(usersKey) ?? "[]") as StoredUser[];
-  } catch {
-    return [];
-  }
-}
-
-function readSession(): SessionUser | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return JSON.parse(window.localStorage.getItem(sessionKey) ?? "null") as SessionUser | null;
-  } catch {
-    return null;
-  }
-}
-
-function withoutPassword(user: DemoUser): SessionUser {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    company: user.company,
-    vatNumber: user.vatNumber,
-    creditLimit: user.creditLimit,
-    paymentTerms: user.paymentTerms,
-    emailConfirmed: user.emailConfirmed,
-  };
-}
 
 function notifySessionChange() {
-  window.dispatchEvent(new Event(sessionChangeEvent));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(sessionChangeEvent));
+  }
+}
+
+async function readMe() {
+  const response = await fetch("/api/auth/me", {
+    cache: "no-store",
+    credentials: "include",
+  });
+  const data = (await response.json().catch(() => ({}))) as {
+    user?: SessionUser | null;
+  };
+
+  return response.ok ? data.user ?? null : null;
 }
 
 export function useDemoSession() {
-  const [session, setSession] = useState<SessionUser | null>(() =>
-    browserHydrated ? readSession() : null,
-  );
-  const [registeredUsers, setRegisteredUsers] = useState<StoredUser[]>(() =>
-    browserHydrated ? readStoredUsers() : [],
-  );
-  const [serverUsers, setServerUsers] = useState<SessionUser[]>([]);
+  const [session, setSession] = useState<SessionUser | null>(null);
+  const [allUsers, setAllUsers] = useState<SessionUser[]>([]);
+  const [ready, setReady] = useState(false);
 
-  function refreshServerUsers() {
-    return fetch("/api/auth/users")
-      .then((response) => response.json())
-      .then((data: { users?: SessionUser[] }) => {
-        if (Array.isArray(data.users)) {
-          setServerUsers(data.users);
+  const refreshSession = useCallback(async () => {
+    const user = await readMe().catch(() => null);
 
-          const currentSession = readSession();
-          const freshSession = currentSession
-            ? data.users.find(
-                (user) => user.email.toLowerCase() === currentSession.email.toLowerCase(),
-              )
-            : undefined;
-
-          if (freshSession) {
-            setSession(freshSession);
-            window.localStorage.setItem(sessionKey, JSON.stringify(freshSession));
-          }
-        }
-      })
-      .catch(() => undefined);
-  }
-
-  useEffect(() => {
-    function syncFromStorage() {
-      browserHydrated = true;
-      setSession(readSession());
-      setRegisteredUsers(readStoredUsers());
-    }
-
-    syncFromStorage();
-    refreshServerUsers();
-    window.addEventListener("storage", syncFromStorage);
-    window.addEventListener(sessionChangeEvent, syncFromStorage);
-
-    return () => {
-      window.removeEventListener("storage", syncFromStorage);
-      window.removeEventListener(sessionChangeEvent, syncFromStorage);
-    };
+    setSession(user);
+    setReady(true);
+    return user;
   }, []);
 
-  const allUsers = useMemo(() => {
-    const unique = new Map<string, SessionUser>();
-    const demoSessionUsers = demoUsersEnabled ? demoUsers.map(withoutPassword) : [];
-    const storedSessionUsers = demoUsersEnabled
-      ? registeredUsers.map(withoutPassword)
-      : [];
+  const refreshServerUsers = useCallback(async () => {
+    const current = session ?? (await refreshSession());
 
-    for (const user of [
-      ...demoSessionUsers,
-      ...storedSessionUsers,
-      ...serverUsers,
-    ]) {
-      unique.set(user.email.toLowerCase(), user);
+    if (current?.role !== "admin") {
+      setAllUsers([]);
+      return [];
     }
 
-    return Array.from(unique.values());
-  }, [registeredUsers, serverUsers]);
+    const response = await fetch("/api/auth/users", {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      users?: SessionUser[];
+    };
+    const users = response.ok && Array.isArray(data.users) ? data.users : [];
 
-  function persistSession(user: SessionUser | null) {
-    setSession(user);
+    setAllUsers(users);
+    return users;
+  }, [refreshSession, session]);
 
-    if (user) {
-      window.localStorage.setItem(sessionKey, JSON.stringify(user));
-    } else {
-      window.localStorage.removeItem(sessionKey);
+  useEffect(() => {
+    let mounted = true;
+
+    void readMe()
+      .catch(() => null)
+      .then((user) => {
+        if (!mounted) {
+          return;
+        }
+
+        setSession(user);
+        setReady(true);
+      });
+
+    function syncFromServer() {
+      void refreshSession();
     }
 
-    notifySessionChange();
-  }
+    window.addEventListener(sessionChangeEvent, syncFromServer);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(sessionChangeEvent, syncFromServer);
+    };
+  }, [refreshSession]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (session?.role !== "admin") {
+      const timer = window.setTimeout(() => {
+        if (!cancelled) {
+          setAllUsers([]);
+        }
+      }, 0);
+
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
+
+    fetch("/api/auth/users", {
+      cache: "no-store",
+      credentials: "include",
+    })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }: { response: Response; data: { users?: SessionUser[] } }) => {
+        if (!cancelled) {
+          setAllUsers(response.ok && Array.isArray(data.users) ? data.users : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAllUsers([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.role]);
 
   async function login(email: string, password: string) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const localUser = demoUsersEnabled
-      ? [...demoUsers, ...registeredUsers].find(
-          (candidate) =>
-            candidate.email.toLowerCase() === normalizedEmail && candidate.password === password,
-        )
-      : undefined;
-
-    if (localUser) {
-      if (!localUser.emailConfirmed) {
-        return { ok: false, message: "Email is not confirmed yet." };
-      }
-
-      persistSession(withoutPassword(localUser));
-      return { ok: true, message: "Signed in." };
-    }
-
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: normalizedEmail, password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       const result = (await response.json().catch(() => ({}))) as {
         user?: SessionUser;
@@ -187,7 +167,8 @@ export function useDemoSession() {
         };
       }
 
-      persistSession(result.user);
+      setSession(result.user);
+      notifySessionChange();
       return { ok: true, message: result.message || "Signed in." };
     } catch {
       return { ok: false, message: "Could not sign in. Try again later." };
@@ -206,10 +187,11 @@ export function useDemoSession() {
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, role: "user" }),
       });
       const result = (await response.json().catch(() => ({}))) as {
         message?: string;
@@ -223,7 +205,6 @@ export function useDemoSession() {
         };
       }
 
-      refreshServerUsers();
       return {
         ok: true,
         message: result.message || "Registration created. Please confirm your email.",
@@ -233,17 +214,27 @@ export function useDemoSession() {
     }
   }
 
-  function logout() {
-    persistSession(null);
+  async function logout() {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => undefined);
+    setSession(null);
+    setAllUsers([]);
+    notifySessionChange();
   }
 
-  return {
-    session,
-    role: session?.role ?? "user",
-    allUsers,
-    login,
-    register,
-    logout,
-    refreshUsers: refreshServerUsers,
-  };
+  return useMemo(
+    () => ({
+      session,
+      role: session?.role ?? "user",
+      allUsers,
+      login,
+      register,
+      logout,
+      refreshUsers: refreshServerUsers,
+      ready,
+    }),
+    [allUsers, ready, refreshServerUsers, session],
+  );
 }

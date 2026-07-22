@@ -7,13 +7,8 @@ import {
   useInventoryLevels,
   type ClientInventoryMap,
 } from "../lib/inventory-client";
-import {
-  categories as seedCategories,
-  pricedVariation,
-  products as seedProducts,
-  type Product,
-  type UserRole,
-} from "../lib/store-data";
+import { pricedVariation } from "../lib/pricing";
+import type { Product, UserRole } from "../lib/store-data";
 import { categoryLabel, productDescription, productTitle } from "../lib/i18n";
 import {
   applyPromoPrice,
@@ -252,7 +247,7 @@ export function CatalogBrowser() {
       }
 
       return Array.from(
-        new Set([...seedCategories, ...catalogProducts.map((product) => product.category)]),
+        new Set(catalogProducts.map((product) => product.category)),
       ).filter(Boolean);
     },
     [catalogProducts, productsReady],
@@ -284,14 +279,14 @@ export function CatalogBrowser() {
           setCatalogProducts(
             Array.isArray(data.products) && data.products.length
               ? data.products
-              : seedProducts,
+              : [],
           );
           setProductsReady(true);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setCatalogProducts(seedProducts);
+          setCatalogProducts([]);
           setProductsReady(true);
         }
       });

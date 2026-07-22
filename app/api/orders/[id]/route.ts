@@ -8,8 +8,14 @@ import {
   type StoreOrder,
   type StoreOrderStatus,
 } from "../../../../lib/orders";
-import { decrementInventory, restoreInventory } from "../../../../lib/inventory";
+import {
+  decrementInventory,
+  releaseInventoryReservation,
+  reserveInventory,
+  restoreInventory,
+} from "../../../../lib/inventory";
 import { roundMoney } from "../../../../lib/montonio";
+import { authErrorResponse, isAdmin, requireAdmin, requireUser } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -96,7 +102,15 @@ function quantityMap(lines: OrderLine[]) {
   }, {});
 }
 
-async function syncInventoryDiff(previous: OrderLine[], next: OrderLine[]) {
+function canAccessOrder(user: Awaited<ReturnType<typeof requireUser>>, order: StoreOrder) {
+  return isAdmin(user) || order.customer.email.toLowerCase() === user.email.toLowerCase();
+}
+
+async function syncInventoryDiff(
+  previous: OrderLine[],
+  next: OrderLine[],
+  order: StoreOrder,
+) {
   const before = quantityMap(previous);
   const after = quantityMap(next);
   const variationIds = new Set([...Object.keys(before), ...Object.keys(after)]);
@@ -115,12 +129,24 @@ async function syncInventoryDiff(previous: OrderLine[], next: OrderLine[]) {
     }
   });
 
+  if (order.stockAdjusted) {
+    if (restoreLines.length) {
+      await restoreInventory(restoreLines);
+    }
+
+    if (decrementLines.length) {
+      await decrementInventory(decrementLines);
+    }
+
+    return;
+  }
+
   if (restoreLines.length) {
-    await restoreInventory(restoreLines);
+    await releaseInventoryReservation(restoreLines);
   }
 
   if (decrementLines.length) {
-    await decrementInventory(decrementLines);
+    await reserveInventory(decrementLines);
   }
 }
 
@@ -128,10 +154,22 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  let user;
+
+  try {
+    user = await requireUser();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   const { id } = await context.params;
   const order = await getOrderById(id);
 
   if (!order) {
+    return Response.json({ error: "Order not found." }, { status: 404 });
+  }
+
+  if (!canAccessOrder(user, order)) {
     return Response.json({ error: "Order not found." }, { status: 404 });
   }
 
@@ -142,6 +180,12 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   const { id } = await context.params;
   let payload: OrderPatchPayload;
 
@@ -204,7 +248,7 @@ export async function PATCH(
         ? Math.max(0, payload.shippingPrice)
         : currentOrder.shippingPrice;
 
-    await syncInventoryDiff(currentOrder.lines, lines);
+    await syncInventoryDiff(currentOrder.lines, lines, currentOrder);
     patch.lines = lines;
     patch.totals = totalsFor(lines, shippingPrice);
     patch.shippingPrice = roundMoney(shippingPrice);

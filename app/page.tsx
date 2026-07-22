@@ -14,8 +14,6 @@ import {
 } from "../lib/inventory-client";
 import { productImages, useProductImages } from "../lib/product-media";
 import {
-  categories as seedCategories,
-  products as seedProducts,
   type Product,
 } from "../lib/store-data";
 
@@ -280,7 +278,7 @@ export default function Home() {
   const homeCategories = useMemo(
     () =>
       Array.from(
-        new Set([...seedCategories, ...homeProducts.map((product) => product.category)]),
+        new Set(homeProducts.map((product) => product.category)),
       ).filter(Boolean),
     [homeProducts],
   );
@@ -412,13 +410,13 @@ export default function Home() {
           setHomeProducts(
             Array.isArray(data.products) && data.products.length
               ? data.products
-              : seedProducts,
+              : [],
           );
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setHomeProducts(seedProducts);
+          setHomeProducts([]);
         }
       });
 

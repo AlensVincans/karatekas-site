@@ -1,9 +1,16 @@
 import { sendB2BUnpaidInvoiceReminder } from "../../../../lib/email";
 import { listOrders } from "../../../../lib/orders";
+import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
 export async function POST() {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   const orders = await listOrders();
   const targets = orders.filter(
     (order) =>

@@ -1,7 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 
-import { decrementInventory, restoreInventory } from "./inventory";
+import {
+  releaseInventoryReservation,
+  reserveInventory,
+  restoreInventory,
+} from "./inventory";
 import { roundMoney } from "./montonio";
 import { dbQuery, hasDatabase } from "../db/postgres";
 
@@ -238,7 +243,7 @@ export async function createOrder(input: CreateOrderInput) {
   if (hasDatabase()) {
     const issuedAt = new Date();
     const now = issuedAt.toISOString();
-    const stockAdjusted = await decrementInventory(input.lines);
+    let reserved = false;
     const invoiceNumber = await nextInvoiceNumberDb(issuedAt);
     const order: StoreOrder = {
       ...input,
@@ -258,19 +263,28 @@ export async function createOrder(input: CreateOrderInput) {
         shipping: roundMoney(input.totals.shipping),
         total: roundMoney(input.totals.total),
       },
-      stockAdjusted,
+      stockAdjusted: false,
       createdAt: now,
       updatedAt: now,
     };
 
-    await insertOrderDb(order);
-    return order;
+    try {
+      reserved = await reserveInventory(input.lines);
+      await insertOrderDb(order);
+      return order;
+    } catch (error) {
+      if (reserved) {
+        await releaseInventoryReservation(input.lines).catch(() => undefined);
+      }
+
+      throw error;
+    }
   }
 
   const store = await readStore();
   const issuedAt = new Date();
   const now = issuedAt.toISOString();
-  const stockAdjusted = await decrementInventory(input.lines);
+  let reserved = false;
   const order: StoreOrder = {
     ...input,
     id: orderId(),
@@ -287,15 +301,23 @@ export async function createOrder(input: CreateOrderInput) {
       shipping: roundMoney(input.totals.shipping),
       total: roundMoney(input.totals.total),
     },
-    stockAdjusted,
+    stockAdjusted: false,
     createdAt: now,
     updatedAt: now,
   };
 
-  store.orders = [order, ...store.orders];
-  await writeStore(store);
+  try {
+    reserved = await reserveInventory(input.lines);
+    store.orders = [order, ...store.orders];
+    await writeStore(store);
+    return order;
+  } catch (error) {
+    if (reserved) {
+      await releaseInventoryReservation(input.lines).catch(() => undefined);
+    }
 
-  return order;
+    throw error;
+  }
 }
 
 export async function updateOrder(
@@ -316,6 +338,10 @@ export async function updateOrder(
     };
 
     await upsertOrderDb(updated);
+    if (patch.paymentStatus && patch.paymentStatus !== order.paymentStatus) {
+      await recordPaymentStatusChange(updated, order.paymentStatus, patch.paymentStatus);
+    }
+
     return updated;
   }
 
@@ -342,6 +368,38 @@ export async function updateOrder(
 
   await writeStore(store);
   return updated;
+}
+
+async function recordPaymentStatusChange(
+  order: StoreOrder,
+  previousStatus: OrderPaymentStatus,
+  nextStatus: OrderPaymentStatus,
+) {
+  if (!hasDatabase()) {
+    return;
+  }
+
+  try {
+    await dbQuery(
+      `insert into payment_status_history (
+        id, order_id, provider, previous_status, next_status, provider_payment_id, payload
+       ) values ($1,$2,$3,$4,$5,$6,$7::jsonb)`,
+      [
+        `payhist-${Date.now().toString(36)}-${randomBytes(6).toString("hex")}`,
+        order.id,
+        "montonio",
+        previousStatus,
+        nextStatus,
+        order.montonioOrderUuid ?? null,
+        JSON.stringify({
+          merchantReference: order.merchantReference,
+          paymentMethod: order.paymentMethod,
+        }),
+      ],
+    );
+  } catch (error) {
+    console.error("Payment status history write failed", error);
+  }
 }
 
 export async function updateOrderByMerchantReference(
@@ -375,14 +433,14 @@ export async function cancelPendingCardOrder(input: {
 
     const stockRestored = order.stockAdjusted
       ? await restoreInventory(order.lines)
-      : false;
+      : await releaseInventoryReservation(order.lines);
 
     return updateOrder(order.id, {
       paymentStatus: "cancelled",
       orderStatus: "unpaid",
       shippingStatus: "failed",
       shippingError: "Payment checkout was interrupted before completion.",
-      stockAdjusted: stockRestored ? false : order.stockAdjusted,
+      stockAdjusted: order.stockAdjusted && stockRestored ? false : order.stockAdjusted,
     });
   }
 
@@ -411,7 +469,7 @@ export async function cancelPendingCardOrder(input: {
 
       const stockRestored = order.stockAdjusted
         ? await restoreInventory(order.lines)
-        : false;
+        : await releaseInventoryReservation(order.lines);
 
       cancelled = {
         ...order,
@@ -419,7 +477,7 @@ export async function cancelPendingCardOrder(input: {
         orderStatus: "unpaid",
         shippingStatus: "failed",
         shippingError: "Payment checkout was interrupted before completion.",
-        stockAdjusted: stockRestored ? false : order.stockAdjusted,
+        stockAdjusted: order.stockAdjusted && stockRestored ? false : order.stockAdjusted,
         updatedAt: new Date().toISOString(),
       };
 

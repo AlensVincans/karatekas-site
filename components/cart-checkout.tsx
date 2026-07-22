@@ -3,12 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import {
-  pricedVariation,
-  type PaymentMethod,
-  products as seedProducts,
-  type Product,
-} from "../lib/store-data";
+import { pricedVariation } from "../lib/pricing";
+import type { PaymentMethod, Product } from "../lib/store-data";
 import { availableStock, useInventoryLevels } from "../lib/inventory-client";
 import { applyPromoPrice, usePromoPrices, usePromoRules } from "../lib/promotions";
 import { productTitle, type Language } from "../lib/i18n";
@@ -778,7 +774,7 @@ export function CartCheckout() {
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const totalsLabels = totalsCopy[language as keyof typeof totalsCopy] ?? totalsCopy.en;
   const [cart, setCart] = useState<CartLine[]>(() => readCart());
-  const [checkoutProducts, setCheckoutProducts] = useState<Product[]>(seedProducts);
+  const [checkoutProducts, setCheckoutProducts] = useState<Product[]>([]);
   const [shippingCountry, setShippingCountry] = useState<SelectedDeliveryCountry>("");
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
     () => fallbackShippingMethods(defaultDeliveryCountry),
@@ -1142,7 +1138,6 @@ export function CartCheckout() {
         name: session?.name,
         email: session?.email,
         company: session?.company,
-        role: session?.role,
       },
       shippingCarrier: shipping.carrierCode,
       shippingMethod: selectedPickupPoint?.id || shipping.serviceId || shipping.id,
@@ -1157,14 +1152,7 @@ export function CartCheckout() {
       lines: lines.map((line) => ({
         productId: line.product.id,
         variationId: line.variation.id,
-        brand: line.product.brand,
-        category: line.product.category,
-        onlySelfPickup: Boolean(line.product.onlySelfPickup),
-        productName: productTitle(line.product, language),
-        variationName: line.variation.name,
-        sku: line.variation.sku,
         quantity: line.qty,
-        unitPrice: line.price.final,
       })),
       noVat: false,
       totals: {

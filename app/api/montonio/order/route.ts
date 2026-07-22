@@ -1,70 +1,11 @@
+import { montonioLineItems, resolveCheckoutInput } from "../../../../lib/checkout-server";
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
 import {
   cancelPendingCardOrder,
   createOrder,
   updateOrder,
-  type OrderShippingType,
 } from "../../../../lib/orders";
-import { getProduct } from "../../../../lib/products-store";
-import {
-  isSelfPickupShippingType,
-  oversizedOrderLine,
-} from "../../../../lib/oversized-shipping";
-
-type CheckoutLine = {
-  productId?: string;
-  variationId?: string;
-  brand?: string;
-  category?: string;
-  productName?: string;
-  variationName?: string;
-  sku?: string;
-  onlySelfPickup?: boolean;
-  quantity?: number;
-  unitPrice?: number;
-};
-
-type CheckoutPayload = {
-  customer?: {
-    name?: string;
-    email?: string;
-    company?: string;
-    role?: string;
-  };
-  delivery?: {
-    name?: string;
-    price?: number;
-  };
-  shipping?: {
-    carrier?: string;
-    carrierCode?: string;
-    method?: string;
-    methodName?: string;
-    type?: "pickupPoint" | "courier" | "selfPickup";
-    shippingType?: OrderShippingType;
-    pickupPointId?: string;
-    pickupPointName?: string;
-    address?: {
-      name?: string;
-      companyName?: string;
-      streetAddress?: string;
-      locality?: string;
-      region?: string;
-      postalCode?: string;
-      country?: string;
-      phoneCountryCode?: string;
-      phoneNumber?: string;
-      email?: string;
-    };
-    price?: number;
-  };
-  language?: "ru" | "lv" | "en" | "et" | "lt";
-  lines?: CheckoutLine[];
-  noVat?: boolean;
-  totals?: {
-    vat?: number;
-  };
-};
+import { authErrorResponse, requireUser } from "../../../../lib/server-auth";
 
 type MontonioOrderResponse = {
   uuid?: string;
@@ -85,17 +26,11 @@ function cleanText(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function positiveMoney(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? roundMoney(value)
-    : 0;
-}
-
 function orderReference() {
   return `KG-${Date.now().toString(36).toUpperCase()}`;
 }
 
-function localeFor(language: CheckoutPayload["language"]) {
+function localeFor(language: unknown) {
   if (
     language === "lv" ||
     language === "ru" ||
@@ -118,7 +53,7 @@ function splitName(name: string) {
 }
 
 function getOrigin(request: Request) {
-  const configured = montonioEnv.MONTONIO_SITE_URL?.trim();
+  const configured = montonioEnv.MONTONIO_SITE_URL?.trim() || montonioEnv.APP_URL?.trim();
 
   if (configured) {
     return configured.replace(/\/+$/g, "");
@@ -138,193 +73,49 @@ function apiBaseUrl() {
     : sandboxApiBase;
 }
 
-function buildLineItems(payload: CheckoutPayload) {
-  const productLines = (payload.lines ?? [])
-    .map((line) => {
-      const quantity =
-        typeof line.quantity === "number" && Number.isFinite(line.quantity)
-          ? Math.max(1, Math.min(99, Math.floor(line.quantity)))
-          : 1;
-      const finalPrice = positiveMoney(line.unitPrice);
-      const name = [
-        cleanText(line.productName, "Karate product"),
-        cleanText(line.variationName, ""),
-        cleanText(line.sku, ""),
-      ]
-        .filter(Boolean)
-        .join(" · ")
-        .slice(0, 180);
-
-      return finalPrice > 0 ? { name, quantity, finalPrice } : null;
-    })
-    .filter((line): line is { name: string; quantity: number; finalPrice: number } =>
-      Boolean(line),
-    );
-
-  const subtotal = roundMoney(
-    productLines.reduce((sum, line) => sum + line.finalPrice * line.quantity, 0),
-  );
-  const deliveryPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
-  const vat = roundMoney(subtotal * 0.21);
-  const lineItems = [...productLines];
-
-  if (deliveryPrice > 0) {
-    lineItems.push({
-      name: cleanText(payload.shipping?.methodName ?? payload.delivery?.name, "Delivery"),
-      quantity: 1,
-      finalPrice: deliveryPrice,
-    });
-  }
-
-  if (vat > 0) {
-    lineItems.push({
-      name: "PVN 21%",
-      quantity: 1,
-      finalPrice: vat,
-    });
-  }
-
-  return {
-    lineItems,
-    grandTotal: roundMoney(subtotal + deliveryPrice + vat),
-  };
-}
-
-function checkoutLines(payload: CheckoutPayload) {
-  return (payload.lines ?? []).map((line) => {
-    const quantity =
-      typeof line.quantity === "number" && Number.isFinite(line.quantity)
-        ? Math.max(1, Math.min(99, Math.floor(line.quantity)))
-        : 1;
-    const unitPrice = positiveMoney(line.unitPrice);
-
-    return {
-      productId: line.productId,
-      variationId: line.variationId,
-      productName: cleanText(line.productName, "Karate product"),
-      variationName: line.variationName,
-      sku: line.sku,
-      quantity,
-      unitPrice,
-      total: roundMoney(quantity * unitPrice),
-    };
-  });
-}
-
-function shippingType(payload: CheckoutPayload): OrderShippingType {
-  if (payload.shipping?.shippingType) {
-    return payload.shipping.shippingType;
-  }
-
-  if (payload.shipping?.type === "selfPickup") {
-    return "self_pickup";
-  }
-
-  return payload.shipping?.type === "courier" ? "courier" : "parcel_machine";
-}
-
-async function checkoutLinesWithProducts(lines: CheckoutLine[]) {
-  return Promise.all(
-    lines.map(async (line) => ({
-      ...line,
-      product: line.productId ? await getProduct(line.productId) : undefined,
-    })),
-  );
-}
-
 export async function POST(request: Request) {
   const accessKey = montonioEnv.MONTONIO_ACCESS_KEY?.trim();
   const secretKey = montonioEnv.MONTONIO_SECRET_KEY?.trim();
 
   if (!accessKey || !secretKey) {
     return Response.json(
-      { error: "Montonio keys are not configured on the server." },
+      { error: "Payment is not configured. Please contact store administrator." },
       { status: 500 },
     );
   }
 
-  let payload: CheckoutPayload;
+  let user;
 
   try {
-    payload = (await request.json()) as CheckoutPayload;
+    user = await requireUser();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
+  let payload: Record<string, unknown>;
+
+  try {
+    payload = (await request.json()) as Record<string, unknown>;
   } catch {
     return Response.json({ error: "Invalid checkout payload." }, { status: 400 });
   }
 
-  const { lineItems, grandTotal } = buildLineItems(payload);
-  const oversizedLine = oversizedOrderLine(
-    await checkoutLinesWithProducts(payload.lines ?? []),
+  const reference = orderReference();
+  const resolved = await resolveCheckoutInput(payload, user, reference, "card").catch(
+    (error) => error,
   );
 
-  if (!lineItems.length || grandTotal <= 0) {
-    return Response.json({ error: "Cart is empty." }, { status: 400 });
+  if (resolved instanceof Error) {
+    return Response.json({ error: resolved.message }, { status: 400 });
   }
 
-  const reference = orderReference();
+  const localOrder = await createOrder(resolved.input);
   const origin = getOrigin(request);
-  const name = cleanText(
-    payload.customer?.company || payload.customer?.name,
-    "Karatekas customer",
-  );
-  const email = cleanText(payload.customer?.email, "customer@example.com");
-  const { firstName, lastName } = splitName(name);
+  const { firstName, lastName } = splitName(user.name);
   const country = cleanText(montonioEnv.MONTONIO_COUNTRY, defaultCountry);
   const postalCode = cleanText(montonioEnv.MONTONIO_POSTAL_CODE, defaultPostalCode);
   const now = Math.floor(Date.now() / 1000);
-  const orderLines = checkoutLines(payload);
-  const subtotal = roundMoney(orderLines.reduce((sum, line) => sum + line.total, 0));
-  const shippingPrice = positiveMoney(payload.shipping?.price ?? payload.delivery?.price);
-  const vat = roundMoney(subtotal * 0.21);
-  const selectedShippingType = shippingType(payload);
-
-  if (selectedShippingType === "parcel_machine" && !payload.shipping?.pickupPointId) {
-    return Response.json({ error: "Pickup point is required." }, { status: 400 });
-  }
-
-  if (oversizedLine && !isSelfPickupShippingType(selectedShippingType)) {
-    return Response.json(
-      { error: "Oversized products are available only for store pickup." },
-      { status: 400 },
-    );
-  }
-
-  const localOrder = await createOrder({
-    merchantReference: reference,
-    paymentMethod: "card",
-    noVat: false,
-    language: localeFor(payload.language),
-    customer: {
-      name,
-      email,
-      company: payload.customer?.company,
-      role: payload.customer?.role,
-    },
-    lines: orderLines,
-    totals: {
-      subtotal,
-      vat,
-      shipping: shippingPrice,
-      total: grandTotal,
-      currency: "EUR",
-    },
-    shippingCarrier: cleanText(
-      payload.shipping?.carrierCode || payload.shipping?.carrier,
-      "omniva",
-    ),
-    shippingMethod: cleanText(
-      payload.shipping?.pickupPointId || payload.shipping?.method,
-      "omniva-parcel-machine",
-    ),
-    shippingMethodName: cleanText(
-      payload.shipping?.pickupPointName || payload.shipping?.methodName,
-      "Omniva parcel machine",
-    ),
-    shippingType: selectedShippingType,
-    pickupPointId: payload.shipping?.pickupPointId,
-    pickupPointName: payload.shipping?.pickupPointName,
-    shippingAddress: payload.shipping?.address,
-    shippingPrice,
-  });
+  const grandTotal = roundMoney(resolved.input.totals.total);
 
   const order = {
     accessKey,
@@ -333,11 +124,11 @@ export async function POST(request: Request) {
     notificationUrl: `${origin}/api/montonio/notify`,
     currency: "EUR",
     grandTotal,
-    locale: localeFor(payload.language),
+    locale: localeFor(resolved.input.language),
     billingAddress: {
       firstName,
       lastName,
-      email,
+      email: user.email,
       addressLine1: cleanText(montonioEnv.MONTONIO_ADDRESS_LINE1, "Online order"),
       locality: cleanText(montonioEnv.MONTONIO_LOCALITY, "Riga"),
       region: cleanText(montonioEnv.MONTONIO_REGION, "Riga"),
@@ -347,14 +138,14 @@ export async function POST(request: Request) {
     shippingAddress: {
       firstName,
       lastName,
-      email,
+      email: user.email,
       addressLine1: cleanText(montonioEnv.MONTONIO_ADDRESS_LINE1, "Online order"),
       locality: cleanText(montonioEnv.MONTONIO_LOCALITY, "Riga"),
       region: cleanText(montonioEnv.MONTONIO_REGION, "Riga"),
       country,
       postalCode,
     },
-    lineItems,
+    lineItems: montonioLineItems(resolved.input),
     payment: {
       method: "cardPayments",
       methodDisplay: "Card / Apple Pay / Google Pay",
@@ -389,7 +180,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "Montonio did not return a payment URL.",
+            : "Could not open payment. Please try again.",
       },
       { status: 502 },
     );
@@ -403,7 +194,7 @@ export async function POST(request: Request) {
         error:
           result.message ||
           result.error ||
-          "Montonio did not return a payment URL.",
+          "Could not open payment. Please try again.",
       },
       { status: response.status || 502 },
     );

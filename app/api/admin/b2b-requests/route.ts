@@ -1,4 +1,5 @@
 import { listB2BRequests, reviewB2BRequest } from "../../../../lib/auth-store";
+import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -10,10 +11,21 @@ type ReviewPayload = {
 };
 
 export async function GET() {
-  return Response.json({ requests: await listB2BRequests() });
+  try {
+    await requireAdmin();
+    return Response.json({ requests: await listB2BRequests() });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
 }
 
 export async function PATCH(request: Request) {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   let payload: ReviewPayload;
 
   try {

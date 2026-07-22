@@ -1,9 +1,15 @@
 import { listPublicUsers, setUserB2BAccess } from "../../../../lib/auth-store";
+import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  return Response.json({ users: await listPublicUsers() });
+  try {
+    await requireAdmin();
+    return Response.json({ users: await listPublicUsers() });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
 }
 
 type UserPatchPayload = {
@@ -12,6 +18,12 @@ type UserPatchPayload = {
 };
 
 export async function PATCH(request: Request) {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   let payload: UserPatchPayload;
 
   try {

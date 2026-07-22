@@ -55,7 +55,7 @@ function MenuIcon({ open }: { open: boolean }) {
 }
 
 export function StoreHeader() {
-  const { session, logout } = useDemoSession();
+  const { session, logout, ready } = useDemoSession();
   const { t } = useLanguage();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -120,7 +120,7 @@ export function StoreHeader() {
             {t.logout}
           </button>
         </>
-      ) : (
+      ) : ready ? (
         <>
           <Link className="ghost-button" href="/login" onClick={() => setMobileOpen(false)}>
             {t.login}
@@ -129,7 +129,7 @@ export function StoreHeader() {
             {t.register}
           </Link>
         </>
-      )}
+      ) : null}
     </div>
   );
 

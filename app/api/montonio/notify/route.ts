@@ -9,7 +9,10 @@ import {
   type StoreOrder,
 } from "../../../../lib/orders";
 import { sendOrderEmails } from "../../../../lib/email";
-import { decrementInventory } from "../../../../lib/inventory";
+import {
+  confirmInventoryReservation,
+  releaseInventoryReservation,
+} from "../../../../lib/inventory";
 
 type MontonioReturnPayload = {
   merchantReference?: string;
@@ -91,7 +94,11 @@ export async function POST(request: Request) {
   try {
     const payload = await verifyMontonioJwt<MontonioReturnPayload>(token, secretKey);
     const paymentStatus = payload.paymentStatus ?? payload.payment_status ?? null;
-    const paid = paymentStatus?.toLowerCase() === "paid";
+    const normalizedPaymentStatus = paymentStatus?.toLowerCase();
+    const paid = normalizedPaymentStatus === "paid";
+    const failed = ["failed", "cancelled", "canceled", "expired", "voided"].includes(
+      normalizedPaymentStatus ?? "",
+    );
     let shipment: unknown = null;
     let label: unknown = null;
 
@@ -100,15 +107,26 @@ export async function POST(request: Request) {
 
       if (order) {
         let updated = await updateOrder(order.id, {
-          paymentStatus: paid ? "paid" : order.paymentStatus,
-          orderStatus: paid ? "paid" : order.orderStatus,
+          paymentStatus: paid ? "paid" : failed ? "failed" : order.paymentStatus,
+          orderStatus: paid ? "paid" : failed ? "unpaid" : order.orderStatus,
           montonioOrderUuid: payload.uuid || payload.orderUuid || order.montonioOrderUuid,
         });
 
         if (paid && updated && !updated.stockAdjusted) {
-          const stockAdjusted = await decrementInventory(updated.lines);
+          const stockAdjusted = await confirmInventoryReservation(updated.lines);
 
           updated = await updateOrder(updated.id, { stockAdjusted }) ?? updated;
+        }
+
+        if (failed && updated && !updated.stockAdjusted) {
+          await releaseInventoryReservation(updated.lines);
+          updated = await updateOrder(updated.id, {
+            paymentStatus: normalizedPaymentStatus === "cancelled" || normalizedPaymentStatus === "canceled"
+              ? "cancelled"
+              : "failed",
+            shippingStatus: "failed",
+            shippingError: "Payment was not completed.",
+          }) ?? updated;
         }
 
         if (paid && updated) {

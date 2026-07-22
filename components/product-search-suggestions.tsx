@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { categoryLabel, productDescription, productTitle } from "../lib/i18n";
 import { productImages, useProductImages } from "../lib/product-media";
-import { products as seedProducts, type Product } from "../lib/store-data";
+import type { Product } from "../lib/store-data";
 import { useLanguage } from "./language";
 
 function matchesProduct(product: Product, query: string, language: ReturnType<typeof useLanguage>["language"]) {
@@ -35,7 +35,7 @@ export function ProductSearchSuggestions({
 }) {
   const { language } = useLanguage();
   const productImageMap = useProductImages();
-  const [searchProducts, setSearchProducts] = useState<Product[]>(seedProducts);
+  const [searchProducts, setSearchProducts] = useState<Product[]>([]);
   const normalizedQuery = query.trim().toLowerCase();
 
   useEffect(() => {

@@ -1,102 +1,42 @@
-import {
-  createOrder,
-  listOrders,
-  updateOrder,
-  type CreateOrderInput,
-} from "../../../lib/orders";
+import { resolveCheckoutInput } from "../../../lib/checkout-server";
 import { sendOrderEmails } from "../../../lib/email";
-import { roundMoney } from "../../../lib/montonio";
-import { getProduct } from "../../../lib/products-store";
+import { createOrder, listOrders, updateOrder } from "../../../lib/orders";
 import {
-  isSelfPickupShippingType,
-  oversizedOrderLine,
-} from "../../../lib/oversized-shipping";
+  authErrorResponse,
+  isAdmin,
+  requireUser,
+} from "../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
-type OrderRequest = Partial<CreateOrderInput> & {
-  totals?: Partial<CreateOrderInput["totals"]>;
-};
-
-function cleanText(value: unknown, fallback: string) {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function money(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? roundMoney(value)
-    : 0;
-}
+type OrderRequest = Record<string, unknown>;
 
 function orderReference() {
   return `KG-${Date.now().toString(36).toUpperCase()}`;
 }
 
-function normalizeOrderInput(payload: OrderRequest): CreateOrderInput {
-  const lines = (payload.lines ?? []).map((line) => {
-    const quantity = Math.max(1, Math.floor(money(line.quantity) || 1));
-    const unitPrice = money(line.unitPrice);
+function publicOrderError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Could not create order. Please check cart and delivery details.";
 
-    return {
-      productId: line.productId,
-      variationId: line.variationId,
-      productName: cleanText(line.productName, "Karate product"),
-      variationName: line.variationName,
-      sku: line.sku,
-      quantity,
-      unitPrice,
-      total: roundMoney(quantity * unitPrice),
-    };
-  });
-  const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
-  const shippingPrice = money(payload.shippingPrice);
-  const vat = roundMoney(subtotal * 0.21);
-
-  return {
-    merchantReference: cleanText(payload.merchantReference, orderReference()),
-    montonioOrderUuid: payload.montonioOrderUuid,
-    paymentUrl: payload.paymentUrl,
-    paymentMethod: payload.paymentMethod === "card" ? "card" : payload.paymentMethod === "defer15" ? "defer15" : "invoice",
-    noVat: false,
-    language: payload.language,
-    customer: {
-      name: cleanText(payload.customer?.name, "Karatekas customer"),
-      email: cleanText(payload.customer?.email, "customer@example.com"),
-      company: payload.customer?.company,
-      role: payload.customer?.role,
-    },
-    lines,
-    totals: {
-      subtotal,
-      vat,
-      shipping: shippingPrice,
-      total: roundMoney(subtotal + vat + shippingPrice),
-      currency: "EUR",
-    },
-    shippingCarrier: cleanText(payload.shippingCarrier, "omniva"),
-    shippingMethod: cleanText(payload.shippingMethod, "omniva-parcel-machine"),
-    shippingMethodName: cleanText(payload.shippingMethodName, "Omniva parcel machine"),
-    shippingType: payload.shippingType ?? "parcel_machine",
-    pickupPointId: payload.pickupPointId,
-    pickupPointName: payload.pickupPointName,
-    shippingAddress: payload.shippingAddress,
-    shippingPrice,
-  };
-}
-
-async function orderLinesWithProducts(lines: NonNullable<OrderRequest["lines"]>) {
-  return Promise.all(
-    lines.map(async (line) => ({
-      ...line,
-      product: line.productId ? await getProduct(line.productId) : undefined,
-    })),
-  );
+  return Response.json({ error: message }, { status: 400 });
 }
 
 export async function GET(request: Request) {
+  let user;
+
+  try {
+    user = await requireUser();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   const url = new URL(request.url);
-  const email = url.searchParams.get("email")?.trim().toLowerCase();
+  const requestedEmail = url.searchParams.get("email")?.trim().toLowerCase();
   const orders = await listOrders();
+  const email = isAdmin(user) ? requestedEmail : user.email.toLowerCase();
 
   return Response.json({
     orders: email
@@ -106,6 +46,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let user;
+
+  try {
+    user = await requireUser();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   let payload: OrderRequest;
 
   try {
@@ -114,25 +62,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid order payload." }, { status: 400 });
   }
 
-  const oversizedLine = oversizedOrderLine(await orderLinesWithProducts(payload.lines ?? []));
-  const input = normalizeOrderInput(payload);
+  const resolved = await resolveCheckoutInput(payload, user, orderReference()).catch(
+    (error) => error,
+  );
 
-  if (!input.lines.length || input.totals.total <= 0) {
-    return Response.json({ error: "Cart is empty." }, { status: 400 });
+  if (resolved instanceof Error) {
+    return publicOrderError(resolved);
   }
 
-  if (input.shippingType === "parcel_machine" && !input.pickupPointId) {
-    return Response.json({ error: "Pickup point is required." }, { status: 400 });
-  }
-
-  if (oversizedLine && !isSelfPickupShippingType(input.shippingType)) {
-    return Response.json(
-      { error: "Oversized products are available only for store pickup." },
-      { status: 400 },
-    );
-  }
-
-  const order = await createOrder(input);
+  const order = await createOrder(resolved.input);
   let emailSent = false;
 
   if (order.paymentMethod !== "card") {

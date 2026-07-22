@@ -105,5 +105,5 @@ export function availableStock(
   variation: Variation,
   levels: ClientInventoryMap,
 ) {
-  return Math.max(0, physicalStock(variation, levels));
+  return Math.max(0, physicalStock(variation, levels) - reservedStock(variation, levels));
 }

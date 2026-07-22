@@ -1,9 +1,12 @@
-import { listProducts } from "../../../lib/products-store";
+import { listPublicProducts } from "../../../lib/public-products";
+import { getSessionUser } from "../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const products = await listProducts();
+  const user = await getSessionUser();
 
-  return Response.json({ products });
+  return Response.json({
+    products: await listPublicProducts(user),
+  });
 }

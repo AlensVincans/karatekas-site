@@ -3,6 +3,7 @@ import {
   listInventory,
   updateInventoryLevel,
 } from "../../../lib/inventory";
+import { authErrorResponse, requireAdmin } from "../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -13,13 +14,24 @@ type InventoryPatch = {
 };
 
 export async function GET() {
-  return Response.json({
-    items: await listInventory(),
-    levels: await inventoryLevelMap(),
-  });
+  try {
+    await requireAdmin();
+    return Response.json({
+      items: await listInventory(),
+      levels: await inventoryLevelMap(),
+    });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
 }
 
 export async function PATCH(request: Request) {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+
   let payload: InventoryPatch;
 
   try {
