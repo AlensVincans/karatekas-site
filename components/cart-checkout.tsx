@@ -27,7 +27,34 @@ type ShippingType =
   | "post_office"
   | "courier"
   | "self_pickup";
-type DeliveryCountry = "LV" | "LT" | "EE";
+type DeliveryCountry =
+  | "LV"
+  | "LT"
+  | "EE"
+  | "AT"
+  | "BE"
+  | "BG"
+  | "HR"
+  | "CY"
+  | "CZ"
+  | "DK"
+  | "FI"
+  | "FR"
+  | "DE"
+  | "GR"
+  | "HU"
+  | "IE"
+  | "IT"
+  | "LU"
+  | "MT"
+  | "NL"
+  | "PL"
+  | "PT"
+  | "RO"
+  | "SK"
+  | "SI"
+  | "ES"
+  | "SE";
 type SelectedDeliveryCountry = "" | DeliveryCountry;
 const defaultDeliveryCountry: DeliveryCountry = "LV";
 
@@ -208,7 +235,7 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
   },
 ];
 
-const manualShippingPrices: Record<DeliveryCountry, Record<string, number>> = {
+const manualShippingPrices: Partial<Record<DeliveryCountry, Record<string, number>>> = {
   LV: {
     "self:self_pickup": 0,
     "omniva:parcel_machine": 2.2,
@@ -242,13 +269,14 @@ const manualShippingPrices: Record<DeliveryCountry, Record<string, number>> = {
 };
 
 function fallbackShippingMethods(country: DeliveryCountry) {
-  const prices = manualShippingPrices[country] ?? manualShippingPrices.LV;
+  const defaultPrices = manualShippingPrices[defaultDeliveryCountry] ?? {};
+  const prices = manualShippingPrices[country] ?? defaultPrices;
 
   return baseFallbackShippingMethods.map((method) => ({
     ...method,
     price:
       prices[`${method.carrierCode}:${method.shippingType}`] ??
-      manualShippingPrices.LV[`${method.carrierCode}:${method.shippingType}`] ??
+      defaultPrices[`${method.carrierCode}:${method.shippingType}`] ??
       method.price,
   }));
 }
@@ -267,6 +295,30 @@ const deliveryCountries: Array<{
   { code: "LV", name: "Latvia", phoneCode: "371", locality: "Riga", region: "Riga" },
   { code: "LT", name: "Lithuania", phoneCode: "370", locality: "Vilnius", region: "Vilnius" },
   { code: "EE", name: "Estonia", phoneCode: "372", locality: "Tallinn", region: "Harju" },
+  { code: "AT", name: "Austria", phoneCode: "43", locality: "Vienna", region: "Vienna" },
+  { code: "BE", name: "Belgium", phoneCode: "32", locality: "Brussels", region: "Brussels" },
+  { code: "BG", name: "Bulgaria", phoneCode: "359", locality: "Sofia", region: "Sofia" },
+  { code: "HR", name: "Croatia", phoneCode: "385", locality: "Zagreb", region: "Zagreb" },
+  { code: "CY", name: "Cyprus", phoneCode: "357", locality: "Nicosia", region: "Nicosia" },
+  { code: "CZ", name: "Czechia", phoneCode: "420", locality: "Prague", region: "Prague" },
+  { code: "DK", name: "Denmark", phoneCode: "45", locality: "Copenhagen", region: "Capital Region" },
+  { code: "FI", name: "Finland", phoneCode: "358", locality: "Helsinki", region: "Uusimaa" },
+  { code: "FR", name: "France", phoneCode: "33", locality: "Paris", region: "Ile-de-France" },
+  { code: "DE", name: "Germany", phoneCode: "49", locality: "Berlin", region: "Berlin" },
+  { code: "GR", name: "Greece", phoneCode: "30", locality: "Athens", region: "Attica" },
+  { code: "HU", name: "Hungary", phoneCode: "36", locality: "Budapest", region: "Budapest" },
+  { code: "IE", name: "Ireland", phoneCode: "353", locality: "Dublin", region: "Leinster" },
+  { code: "IT", name: "Italy", phoneCode: "39", locality: "Rome", region: "Lazio" },
+  { code: "LU", name: "Luxembourg", phoneCode: "352", locality: "Luxembourg", region: "Luxembourg" },
+  { code: "MT", name: "Malta", phoneCode: "356", locality: "Valletta", region: "Valletta" },
+  { code: "NL", name: "Netherlands", phoneCode: "31", locality: "Amsterdam", region: "North Holland" },
+  { code: "PL", name: "Poland", phoneCode: "48", locality: "Warsaw", region: "Masovian" },
+  { code: "PT", name: "Portugal", phoneCode: "351", locality: "Lisbon", region: "Lisbon" },
+  { code: "RO", name: "Romania", phoneCode: "40", locality: "Bucharest", region: "Bucharest" },
+  { code: "SK", name: "Slovakia", phoneCode: "421", locality: "Bratislava", region: "Bratislava" },
+  { code: "SI", name: "Slovenia", phoneCode: "386", locality: "Ljubljana", region: "Ljubljana" },
+  { code: "ES", name: "Spain", phoneCode: "34", locality: "Madrid", region: "Madrid" },
+  { code: "SE", name: "Sweden", phoneCode: "46", locality: "Stockholm", region: "Stockholm" },
 ];
 
 const copy = {
@@ -609,6 +661,12 @@ const deliveryLabels = {
 
 function shippingLabels(language: Language) {
   return deliveryLabels[language as keyof typeof deliveryLabels] ?? deliveryLabels.en;
+}
+
+function countryLabel(code: DeliveryCountry, language: Language) {
+  const labels = shippingLabels(language).countries as Partial<Record<DeliveryCountry, string>>;
+
+  return labels[code] ?? deliveryCountries.find((country) => country.code === code)?.name ?? code;
 }
 
 function methodName(method: ShippingMethodOption, language: Language) {
@@ -1267,6 +1325,9 @@ export function CartCheckout() {
             <h3>{c.shipping}</h3>
           </div>
           <label className="country-select-shell-v3">
+            {!shippingCountry ? (
+              <span className="select-placeholder-label-v3">{c.country}</span>
+            ) : null}
             <select
               aria-label={c.country}
               className={shippingCountry ? "" : "select-placeholder-v3"}
@@ -1275,12 +1336,10 @@ export function CartCheckout() {
                 updateShippingCountry(event.target.value as SelectedDeliveryCountry)
               }
             >
-              <option value="" disabled>
-                {c.country}
-              </option>
+              <option value="" />
               {deliveryCountries.map((country) => (
                 <option key={country.code} value={country.code}>
-                  {shippingLabels(language).countries[country.code]}
+                  {countryLabel(country.code, language)}
                 </option>
               ))}
             </select>
@@ -1372,7 +1431,6 @@ export function CartCheckout() {
             <div className="courier-address courier-address-v2">
               <div className="courier-address-head-v2">
                 <strong>{c.courierAddress}</strong>
-                <span>{shippingLabels(language).countries[activeShippingCountry]}</span>
               </div>
               <div className="courier-address-grid-v2">
                 <input
@@ -1396,18 +1454,24 @@ export function CartCheckout() {
                   value={shippingAddress.region}
                   onChange={(event) => updateAddress({ region: event.target.value })}
                 />
-                <select
-                  className={shippingAddress.country ? "" : "select-placeholder-v3"}
-                  value={shippingAddress.country}
-                  onChange={(event) => updateAddress({ country: event.target.value })}
-                >
-                  <option value="">{c.country}</option>
-                  {deliveryCountries.map((country) => (
-                    <option key={country.code} value={country.code}>
-                      {shippingLabels(language).countries[country.code]}
-                    </option>
-                  ))}
-                </select>
+                <label className="country-select-shell-v3 courier-country-shell-v3">
+                  {!shippingAddress.country ? (
+                    <span className="select-placeholder-label-v3">{c.country}</span>
+                  ) : null}
+                  <select
+                    aria-label={c.country}
+                    className={shippingAddress.country ? "" : "select-placeholder-v3"}
+                    value={shippingAddress.country}
+                    onChange={(event) => updateAddress({ country: event.target.value })}
+                  >
+                    <option value="" />
+                    {deliveryCountries.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {countryLabel(country.code, language)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <input
                   placeholder={c.phoneCountry}
                   value={shippingAddress.phoneCountryCode}
