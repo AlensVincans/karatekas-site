@@ -1,5 +1,10 @@
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
-import { createOrder, updateOrder, type OrderShippingType } from "../../../../lib/orders";
+import {
+  cancelPendingCardOrder,
+  createOrder,
+  updateOrder,
+  type OrderShippingType,
+} from "../../../../lib/orders";
 import { getProduct } from "../../../../lib/products-store";
 import {
   isSelfPickupShippingType,
@@ -59,6 +64,13 @@ type CheckoutPayload = {
   totals?: {
     vat?: number;
   };
+};
+
+type MontonioOrderResponse = {
+  uuid?: string;
+  paymentUrl?: string;
+  message?: string;
+  error?: string;
 };
 
 const montonioEnv = process.env;
@@ -356,23 +368,35 @@ export async function POST(request: Request) {
     exp: now + 10 * 60,
   };
 
-  const token = await signMontonioJwt(order, secretKey);
-  const response = await fetch(`${apiBaseUrl()}/orders`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ data: token }),
-  });
-  const result = (await response.json().catch(() => ({}))) as {
-    uuid?: string;
-    paymentUrl?: string;
-    message?: string;
-    error?: string;
-  };
+  let response: Response;
+  let result: MontonioOrderResponse;
+
+  try {
+    const token = await signMontonioJwt(order, secretKey);
+    response = await fetch(`${apiBaseUrl()}/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ data: token }),
+    });
+    result = (await response.json().catch(() => ({}))) as MontonioOrderResponse;
+  } catch (error) {
+    await cancelPendingCardOrder({ id: localOrder.id, merchantReference: reference });
+
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Montonio did not return a payment URL.",
+      },
+      { status: 502 },
+    );
+  }
 
   if (!response.ok || !result.paymentUrl) {
-    await updateOrder(localOrder.id, { paymentStatus: "failed" });
+    await cancelPendingCardOrder({ id: localOrder.id, merchantReference: reference });
 
     return Response.json(
       {

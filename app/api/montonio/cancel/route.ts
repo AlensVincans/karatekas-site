@@ -19,9 +19,9 @@ export async function POST(request: Request) {
   const orderId = payload.orderId?.trim();
   const merchantReference = payload.merchantReference?.trim();
 
-  if (!orderId || !merchantReference) {
+  if (!orderId && !merchantReference) {
     return Response.json(
-      { ok: false, error: "Order id and merchant reference are required." },
+      { ok: false, error: "Order id or merchant reference is required." },
       { status: 400 },
     );
   }

@@ -184,7 +184,10 @@ async function writeStore(store: OrderStore) {
 export async function listOrders() {
   if (hasDatabase()) {
     const result = await dbQuery<OrderRow>(
-      "select * from orders where payment_status <> 'cancelled' order by created_at desc",
+      `select * from orders
+       where payment_status <> 'cancelled'
+         and not (payment_method = 'card' and payment_status = 'pending')
+       order by created_at desc`,
     );
 
     return result.rows.map(mapOrderRow);
@@ -193,7 +196,11 @@ export async function listOrders() {
   const store = await readStore();
 
   return store.orders
-    .filter((order) => order.paymentStatus !== "cancelled")
+    .filter(
+      (order) =>
+        order.paymentStatus !== "cancelled" &&
+        !(order.paymentMethod === "card" && order.paymentStatus === "pending"),
+    )
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
@@ -409,6 +416,7 @@ export async function cancelPendingCardOrder(input: {
       cancelled = {
         ...order,
         paymentStatus: "cancelled",
+        orderStatus: "unpaid",
         shippingStatus: "failed",
         shippingError: "Payment checkout was interrupted before completion.",
         stockAdjusted: stockRestored ? false : order.stockAdjusted,

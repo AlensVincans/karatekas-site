@@ -279,7 +279,7 @@ function paymentStatusText(status: string | undefined, language: Language) {
 function shouldCancelReturnedOrder(status: string | undefined) {
   const normalized = status?.toLowerCase();
 
-  return Boolean(normalized && normalized !== "paid" && normalized !== "pending");
+  return Boolean(normalized && normalized !== "paid");
 }
 
 export default async function PaymentReturnPage({

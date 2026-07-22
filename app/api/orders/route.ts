@@ -1,4 +1,9 @@
-import { createOrder, listOrders, type CreateOrderInput } from "../../../lib/orders";
+import {
+  createOrder,
+  listOrders,
+  updateOrder,
+  type CreateOrderInput,
+} from "../../../lib/orders";
 import { sendOrderEmails } from "../../../lib/email";
 import { roundMoney } from "../../../lib/montonio";
 import { getProduct } from "../../../lib/products-store";
@@ -128,13 +133,16 @@ export async function POST(request: Request) {
   }
 
   const order = await createOrder(input);
-  let emailSent = true;
+  let emailSent = false;
 
-  try {
-    await sendOrderEmails(order);
-  } catch (error) {
-    emailSent = false;
-    console.error("Order email sending failed", error);
+  if (order.paymentMethod !== "card") {
+    try {
+      await sendOrderEmails(order);
+      await updateOrder(order.id, { orderEmailSent: true });
+      emailSent = true;
+    } catch (error) {
+      console.error("Order email sending failed", error);
+    }
   }
 
   return Response.json({ order, emailSent });

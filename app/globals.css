@@ -5819,7 +5819,8 @@ textarea {
   display: grid;
   gap: 14px;
   grid-template-columns: 96px minmax(0, 1fr) 86px auto;
-  padding: 12px;
+  padding: 12px 52px 12px 12px;
+  position: relative;
 }
 
 .cart-item-photo-v3 {
@@ -5853,6 +5854,40 @@ textarea {
 .cart-line-total-v3 {
   color: var(--v3-black);
   font-size: 20px;
+}
+
+.cart-line-remove-v3 {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--v3-line);
+  border-radius: 999px;
+  color: #6f6861;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 20px;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 0 2px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+  width: 30px;
+}
+
+.cart-line-remove-v3:hover,
+.cart-line-remove-v3:focus-visible {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+  outline: 0;
+  transform: translateY(-1px);
 }
 
 .checkout-panel-v3 {
@@ -6708,7 +6743,7 @@ textarea {
     align-items: start;
     gap: 10px;
     grid-template-columns: 82px minmax(0, 1fr);
-    padding: 10px;
+    padding: 10px 48px 10px 10px;
   }
 
   .cart-item-photo-v3 {
@@ -7534,10 +7569,10 @@ textarea {
 
 .home-promo-top-v5 .promo-image-banner {
   aspect-ratio: 1920 / 600;
-  background-color: #f7f4ef;
+  background-color: #080808;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: contain;
   display: block;
   min-height: 0;
   width: 100%;
@@ -7692,7 +7727,7 @@ textarea {
 
 @media (max-width: 640px) {
   .home-promo-top-v5 .promo-image-banner {
-    aspect-ratio: 16 / 7;
+    aspect-ratio: 1920 / 600;
   }
 
   .courier-address-head-v2 {

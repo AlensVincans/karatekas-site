@@ -103,13 +103,13 @@ type PendingMontonioOrder = {
 
 async function cancelPendingMontonioOrder() {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
   const raw = window.sessionStorage.getItem(pendingMontonioOrderKey);
 
   if (!raw) {
-    return;
+    return false;
   }
 
   let pending: PendingMontonioOrder;
@@ -118,16 +118,16 @@ async function cancelPendingMontonioOrder() {
     pending = JSON.parse(raw) as PendingMontonioOrder;
   } catch {
     window.sessionStorage.removeItem(pendingMontonioOrderKey);
-    return;
+    return false;
   }
 
   if (!pending.orderId || !pending.merchantReference) {
     window.sessionStorage.removeItem(pendingMontonioOrderKey);
-    return;
+    return false;
   }
 
   try {
-    await fetch("/api/montonio/cancel", {
+    const response = await fetch("/api/montonio/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -135,10 +135,16 @@ async function cancelPendingMontonioOrder() {
         merchantReference: pending.merchantReference,
       }),
     });
-    return true;
-  } finally {
-    window.sessionStorage.removeItem(pendingMontonioOrderKey);
+
+    if (response.ok) {
+      window.sessionStorage.removeItem(pendingMontonioOrderKey);
+      return true;
+    }
+  } catch {
+    return false;
   }
+
+  return false;
 }
 
 const baseFallbackShippingMethods: ShippingMethodOption[] = [
@@ -352,6 +358,7 @@ const copy = {
     inStock: "в наличии",
     readyGroups: "групп товаров готовы к выбору доставки.",
     qty: "Кол-во",
+    removeItem: "Удалить товар",
     total: "Итого",
     placeOrder: "Оформить заказ",
     needLogin: "Сначала войдите или зарегистрируйтесь.",
@@ -399,6 +406,7 @@ const copy = {
     inStock: "noliktavā",
     readyGroups: "preču grupas gatavas piegādes izvēlei.",
     qty: "Daudzums",
+    removeItem: "Noņemt preci",
     total: "Kopā",
     placeOrder: "Noformēt pasūtījumu",
     needLogin: "Vispirms ieejiet vai reģistrējieties.",
@@ -446,6 +454,7 @@ const copy = {
     inStock: "in stock",
     readyGroups: "item groups ready for delivery selection.",
     qty: "Qty",
+    removeItem: "Remove item",
     total: "Total",
     placeOrder: "Place order",
     needLogin: "Please sign in or register first.",
@@ -493,6 +502,7 @@ const copy = {
     inStock: "laos",
     readyGroups: "tootegruppi on tarne valikuks valmis.",
     qty: "Kogus",
+    removeItem: "Eemalda toode",
     total: "Kokku",
     placeOrder: "Vormista tellimus",
     needLogin: "Palun logi sisse või registreeru.",
@@ -540,6 +550,7 @@ const copy = {
     inStock: "sandėlyje",
     readyGroups: "prekių grupės paruoštos pristatymo pasirinkimui.",
     qty: "Kiekis",
+    removeItem: "Pašalinti prekę",
     total: "Iš viso",
     placeOrder: "Pateikti užsakymą",
     needLogin: "Pirmiausia prisijunkite arba užsiregistruokite.",
@@ -917,7 +928,7 @@ export function CartCheckout() {
         const points = data.pickupPoints ?? [];
 
         setPickupPoints(points);
-        setPickupPointId(points[0]?.id ?? "");
+        setPickupPointId("");
       })
       .catch(() => {
         if (!cancelled) {
@@ -1304,6 +1315,15 @@ export function CartCheckout() {
                     />
                   </label>
                   <strong className="cart-line-total-v3">{cartMoney(line.total, language)}</strong>
+                  <button
+                    aria-label={c.removeItem}
+                    className="cart-line-remove-v3"
+                    onClick={() => updateQty(line.variation.id, 0)}
+                    title={c.removeItem}
+                    type="button"
+                  >
+                    &times;
+                  </button>
                 </div>
               );
             })}
