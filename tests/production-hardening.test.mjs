@@ -113,3 +113,12 @@ test("README documents production caveats for rate limits and image storage", ()
   assert.match(readme, /DigitalOcean Spaces\/S3\/Cloudinary/);
   assert.match(readme, /ALLOW_LEGACY_PRODUCT_ARRAY_PUT=false/);
 });
+
+test("database diagnostics are available for production setup", () => {
+  assert.match(source("package.json"), /"db:doctor"/);
+  assert.match(source("scripts/db-doctor.mjs"), /missing migrations/);
+  assert.match(source("scripts/db-doctor.mjs"), /counts:/);
+  assert.match(source("app/api/health/route.ts"), /products/);
+  assert.match(source("app/api/health/route.ts"), /Run npm run db:migrate/);
+  assert.match(source("README.md"), /npm run db:doctor/);
+});

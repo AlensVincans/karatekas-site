@@ -53,6 +53,12 @@ npm run db:migrate
 
 Migrations are additive and tracked in `kg_migrations`. Do not run seed/reset scripts automatically in production.
 
+Check database readiness without printing secrets:
+
+```bash
+npm run db:doctor
+```
+
 Seed the current product catalog into PostgreSQL:
 
 ```bash
@@ -74,6 +80,30 @@ npm run db:create-admin
 ```
 
 `ADMIN_PASSWORD` must be at least 8 characters and contain at least one uppercase letter.
+
+If the deployed site opens but products/login are empty, check:
+
+```bash
+curl https://karatekas.eu/api/health
+```
+
+For a new or empty DigitalOcean PostgreSQL database, run this sequence once with the production `DATABASE_URL`:
+
+```bash
+npm run db:migrate
+npm run db:seed
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=StrongPass1 npm run db:create-admin
+npm run db:doctor
+```
+
+PowerShell:
+
+```powershell
+$env:ADMIN_EMAIL="admin@example.com"
+$env:ADMIN_PASSWORD="StrongPass1"
+npm run db:create-admin
+npm run db:doctor
+```
 
 ## Run Locally
 

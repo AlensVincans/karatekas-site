@@ -13,6 +13,7 @@
     "test": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs tests/production-hardening.test.mjs",
     "typecheck": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/typescript/bin/tsc --noEmit --pretty false",
     "db:generate": "drizzle-kit generate",
+    "db:doctor": "node scripts/db-doctor.mjs",
     "db:migrate": "node scripts/migrate-postgres.mjs",
     "db:seed": "node scripts/seed-postgres.mjs",
     "db:create-admin": "node scripts/create-admin.mjs"
