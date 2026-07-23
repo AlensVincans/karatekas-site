@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { pricedVariation } from "../lib/pricing";
 import type { PaymentMethod, Product } from "../lib/store-data";
 import { availableStock, useInventoryLevels } from "../lib/inventory-client";
@@ -285,6 +285,36 @@ function fallbackShippingMethods(country: DeliveryCountry) {
 
 function effectiveDeliveryCountry(country: SelectedDeliveryCountry): DeliveryCountry {
   return country || defaultDeliveryCountry;
+}
+
+function shippingMethodMatches(
+  preferred: ShippingMethodOption,
+  candidate: ShippingMethodOption,
+) {
+  return (
+    candidate.carrierCode === preferred.carrierCode &&
+    candidate.shippingType === preferred.shippingType &&
+    (!preferred.subtype || !candidate.subtype || candidate.subtype === preferred.subtype)
+  );
+}
+
+function preferredShippingMethodId(
+  currentId: string,
+  previousMethods: ShippingMethodOption[],
+  nextMethods: ShippingMethodOption[],
+) {
+  const exact = nextMethods.find((method) => method.id === currentId);
+
+  if (exact) {
+    return exact.id;
+  }
+
+  const preferred = previousMethods.find((method) => method.id === currentId);
+  const matching = preferred
+    ? nextMethods.find((method) => shippingMethodMatches(preferred, method))
+    : undefined;
+
+  return matching?.id ?? nextMethods[0]?.id ?? currentId;
 }
 
 const deliveryCountries: Array<{
@@ -779,6 +809,7 @@ export function CartCheckout() {
   const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>(
     () => fallbackShippingMethods(defaultDeliveryCountry),
   );
+  const shippingMethodsRef = useRef(shippingMethods);
   const [shippingId, setShippingId] = useState(
     () => fallbackShippingMethods(defaultDeliveryCountry)[0].id,
   );
@@ -800,6 +831,10 @@ export function CartCheckout() {
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const activeShippingCountry = effectiveDeliveryCountry(shippingCountry);
+
+  useEffect(() => {
+    shippingMethodsRef.current = shippingMethods;
+  }, [shippingMethods]);
 
   useEffect(() => {
     let cancelled = false;
@@ -862,27 +897,30 @@ export function CartCheckout() {
     fetch(`/api/shipping/montonio/methods?country=${activeShippingCountry}`)
       .then((response) => response.json())
       .then((data: { methods?: ShippingMethodOption[] }) => {
-        if (cancelled || !data.methods?.length) {
+        if (cancelled) {
           return;
         }
 
-        const activeMethods = data.methods.filter((method) => method.available);
+        const activeMethods = (data.methods ?? []).filter((method) => method.available);
+        const nextMethods = activeMethods.length
+          ? activeMethods
+          : fallbackShippingMethods(activeShippingCountry);
+        const previousMethods = shippingMethodsRef.current;
 
-        if (!activeMethods.length) {
-          return;
-        }
-
-        setShippingMethods(activeMethods);
+        setShippingMethods(nextMethods);
         setShippingId((current) =>
-          activeMethods.some((method) => method.id === current)
-            ? current
-            : activeMethods[0].id,
+          preferredShippingMethodId(current, previousMethods, nextMethods),
         );
       })
       .catch(() => {
         if (!cancelled) {
           const fallbackMethods = fallbackShippingMethods(activeShippingCountry);
+          const previousMethods = shippingMethodsRef.current;
+
           setShippingMethods(fallbackMethods);
+          setShippingId((current) =>
+            preferredShippingMethodId(current, previousMethods, fallbackMethods),
+          );
         }
       });
 
@@ -1046,13 +1084,12 @@ export function CartCheckout() {
 
   function updateShippingCountry(country: SelectedDeliveryCountry) {
     const fallbackMethods = fallbackShippingMethods(effectiveDeliveryCountry(country));
+    const previousMethods = shippingMethodsRef.current;
 
     setShippingCountry(country);
     setShippingMethods(fallbackMethods);
     setShippingId((current) =>
-      fallbackMethods.some((method) => method.id === current)
-        ? current
-        : fallbackMethods[0].id,
+      preferredShippingMethodId(current, previousMethods, fallbackMethods),
     );
     setPickupQuery("");
     setPickupPointId("");

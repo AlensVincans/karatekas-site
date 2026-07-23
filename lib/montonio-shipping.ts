@@ -377,8 +377,27 @@ function normalizeCarrierCode(carrier: string) {
     return "latvijas_pasts";
   }
 
-  if (normalized === "smart_posti" || normalized === "smartposti" || normalized === "smartpost") {
+  if (
+    normalized === "smart_posti" ||
+    normalized === "smartposti" ||
+    normalized === "smartpost" ||
+    normalized.startsWith("smartposti_") ||
+    normalized.startsWith("smartpost_") ||
+    normalized.startsWith("itella_")
+  ) {
     return "smartposti";
+  }
+
+  if (normalized === "omniva" || normalized.startsWith("omniva_")) {
+    return "omniva";
+  }
+
+  if (normalized === "dpd" || normalized.startsWith("dpd_")) {
+    return "dpd";
+  }
+
+  if (normalized === "unisend" || normalized.startsWith("unisend_")) {
+    return "unisend";
   }
 
   return normalized;
@@ -396,6 +415,53 @@ function carrierCodeCandidates(carrier: string) {
   }
 
   return [normalized];
+}
+
+function normalizePickupPointType(value?: string) {
+  return (value || "").trim().toLowerCase().replace(/[-_\s]+/g, "");
+}
+
+function pickupPointTypeMatches(actualType: string | undefined, requestedType: string) {
+  const actual = normalizePickupPointType(actualType);
+  const requested = normalizePickupPointType(requestedType);
+
+  if (!requested || !actual || actual === "pickuppoint") {
+    return true;
+  }
+
+  if (requested === "parcelmachine") {
+    return ["parcelmachine", "locker", "terminal", "pakomat", "pakuautomats"].includes(actual);
+  }
+
+  if (requested === "parcelshop") {
+    return ["parcelshop", "servicepoint"].includes(actual);
+  }
+
+  if (requested === "postoffice") {
+    return ["postoffice", "post"].includes(actual);
+  }
+
+  return actual === requested;
+}
+
+function normalizePickupPoints(
+  data: MontonioPickupPointResponse,
+  fallbackCarrierCode: string,
+  fallbackCountryCode: string,
+  fallbackType: string,
+) {
+  return (data.pickupPoints ?? [])
+    .filter((point) => point.id && point.name)
+    .map((point) => ({
+      id: point.id as string,
+      name: point.name as string,
+      type: point.type || fallbackType,
+      streetAddress: point.streetAddress,
+      locality: point.locality,
+      postalCode: point.postalCode,
+      carrierCode: normalizeCarrierCode(point.carrierCode || fallbackCarrierCode),
+      countryCode: data.countryCode || fallbackCountryCode.toUpperCase(),
+    }));
 }
 
 function shippingApiBaseUrl() {
@@ -641,13 +707,20 @@ function normalizeMethods(
   return methods;
 }
 
+function fallbackShippingMethodCandidates(countryCode = defaultCountry) {
+  return fallbackMethods.map((method) => ({
+    ...method,
+    available: true,
+    price: priceFor(method.carrierCode, method.shippingType, countryCode),
+  }));
+}
+
 export function fallbackShippingMethods(countryCode = defaultCountry) {
-  return fallbackMethods
+  return fallbackShippingMethodCandidates(countryCode)
     .filter((method) => method.shippingType === "self_pickup" || manualShippingPricesAllowed())
     .map((method) => ({
       ...method,
       available: method.shippingType === "self_pickup" || manualShippingPricesAllowed(),
-      price: priceFor(method.carrierCode, method.shippingType, countryCode),
     }));
 }
 
@@ -764,6 +837,45 @@ async function withPublicContractPrices(
   return priced;
 }
 
+async function contractPricedFallbackMethods(countryCode = defaultCountry) {
+  const methods = await withPublicContractPrices(
+    fallbackShippingMethodCandidates(countryCode),
+    countryCode,
+  );
+
+  return methods.filter(
+    (method) =>
+      method.shippingType === "self_pickup" ||
+      method.source === "montonio" ||
+      manualShippingPricesAllowed(),
+  );
+}
+
+function shippingMethodMergeKey(method: ShippingMethodOption) {
+  return `${method.carrierCode}:${method.shippingType}`;
+}
+
+function mergeShippingMethods(
+  primary: ShippingMethodOption[],
+  secondary: ShippingMethodOption[],
+) {
+  const used = new Set(primary.map(shippingMethodMergeKey));
+
+  return [
+    ...primary,
+    ...secondary.filter((method) => {
+      const key = shippingMethodMergeKey(method);
+
+      if (used.has(key)) {
+        return false;
+      }
+
+      used.add(key);
+      return true;
+    }),
+  ];
+}
+
 function withSelfPickup(methods: ShippingMethodOption[], countryCode = defaultCountry) {
   const selfPickup = fallbackShippingMethods(countryCode).find(
     (method) => method.shippingType === "self_pickup",
@@ -778,20 +890,22 @@ function withSelfPickup(methods: ShippingMethodOption[], countryCode = defaultCo
 
 export async function getShippingMethods(countryCode = defaultCountry) {
   if (env().MONTONIO_SHIPPING_USE_API?.trim().toLowerCase() !== "true") {
-    return withPublicContractPrices(fallbackShippingMethods(countryCode), countryCode);
+    return contractPricedFallbackMethods(countryCode);
   }
 
   try {
     const data =
       await shippingRequest<MontonioShippingMethodResponse>("/shipping-methods");
     const methods = normalizeMethods(data, countryCode);
+    const apiMethods = methods.length ? withSelfPickup(methods, countryCode) : [];
+    const fallbackMethods = await contractPricedFallbackMethods(countryCode);
 
     return withPublicContractPrices(
-      methods.length ? withSelfPickup(methods, countryCode) : fallbackShippingMethods(countryCode),
+      mergeShippingMethods(apiMethods, fallbackMethods),
       countryCode,
     );
   } catch {
-    return withPublicContractPrices(fallbackShippingMethods(countryCode), countryCode);
+    return contractPricedFallbackMethods(countryCode);
   }
 }
 
@@ -801,12 +915,14 @@ export async function getPickupPoints(
   type = "parcelMachine",
 ) {
   const carrierCode = normalizeCarrierCode(carrier);
+  const country = countryCode.toUpperCase();
+  const acceptedCarrierCodes = new Set(carrierCodeCandidates(carrierCode).map(normalizeCarrierCode));
 
   for (const candidate of carrierCodeCandidates(carrierCode)) {
     for (const requestedType of [type, ""]) {
       const params = new URLSearchParams({
         carrierCode: candidate,
-        countryCode: countryCode.toUpperCase(),
+        countryCode: country,
       });
 
       if (requestedType) {
@@ -817,18 +933,7 @@ export async function getPickupPoints(
         const data = await shippingRequest<MontonioPickupPointResponse>(
           `/shipping-methods/pickup-points?${params.toString()}`,
         );
-        const points = (data.pickupPoints ?? [])
-          .filter((point) => point.id && point.name)
-          .map((point) => ({
-            id: point.id as string,
-            name: point.name as string,
-            type: point.type || requestedType || type,
-            streetAddress: point.streetAddress,
-            locality: point.locality,
-            postalCode: point.postalCode,
-            carrierCode: normalizeCarrierCode(point.carrierCode || candidate),
-            countryCode: data.countryCode || countryCode.toUpperCase(),
-          }));
+        const points = normalizePickupPoints(data, candidate, country, requestedType || type);
 
         if (points.length) {
           return points;
@@ -836,6 +941,32 @@ export async function getPickupPoints(
       } catch {
         continue;
       }
+    }
+  }
+
+  for (const requestedType of [type, ""]) {
+    const params = new URLSearchParams({ countryCode: country });
+
+    if (requestedType) {
+      params.set("type", requestedType);
+    }
+
+    try {
+      const data = await shippingRequest<MontonioPickupPointResponse>(
+        `/shipping-methods/pickup-points?${params.toString()}`,
+      );
+      const points = normalizePickupPoints(data, carrierCode, country, requestedType || type)
+        .filter(
+          (point) =>
+            acceptedCarrierCodes.has(point.carrierCode) &&
+            pickupPointTypeMatches(point.type, requestedType || type),
+        );
+
+      if (points.length) {
+        return points;
+      }
+    } catch {
+      continue;
     }
   }
 
