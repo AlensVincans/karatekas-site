@@ -77,6 +77,9 @@ async function main() {
       );
       const counts = {
         users: await scalar(client, "select count(*) from users"),
+        confirmedUsers: await scalar(client, "select count(*) from users where email_confirmed = true"),
+        admins: await scalar(client, "select count(*) from users where role = 'admin'"),
+        pbkdf2Users: await scalar(client, "select count(*) from users where password_hash like 'pbkdf2$%'"),
         products: await scalar(client, "select count(*) from products where active = true"),
         stockLevels: await scalar(client, "select count(*) from stock_levels"),
         orders: await scalar(client, "select count(*) from orders"),
@@ -90,7 +93,14 @@ async function main() {
       }
       console.log(`counts: ${JSON.stringify(counts)}`);
 
-      if (missingMigrations.length || !counts.products || !counts.users) {
+      if (
+        missingMigrations.length ||
+        !counts.products ||
+        !counts.users ||
+        !counts.confirmedUsers ||
+        !counts.admins ||
+        !counts.pbkdf2Users
+      ) {
         process.exitCode = 2;
       }
     } finally {

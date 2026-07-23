@@ -38,13 +38,49 @@ export async function POST(request: Request) {
     return emailLimited;
   }
 
-  const result = await authenticateAuthUser(payload.email ?? "", payload.password ?? "");
+  let result: Awaited<ReturnType<typeof authenticateAuthUser>>;
+
+  try {
+    result = await authenticateAuthUser(payload.email ?? "", payload.password ?? "");
+  } catch (error) {
+    console.error("Login authentication failed", error instanceof Error ? error.message : error);
+
+    return Response.json(
+      {
+        ok: false,
+        code: "auth_unavailable",
+        error: "Login service is unavailable. Please try again later.",
+      },
+      { status: 503 },
+    );
+  }
 
   if (!result.ok) {
     return Response.json({ ok: false, code: result.code, error: result.error }, { status: 401 });
   }
 
-  await setSessionCookie(result.user);
+  try {
+    await setSessionCookie(result.user);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const missingSessionSecret = message.includes("SESSION_SECRET");
+
+    console.error(
+      "Login session creation failed",
+      missingSessionSecret ? "SESSION_SECRET is missing" : message || error,
+    );
+
+    return Response.json(
+      {
+        ok: false,
+        code: missingSessionSecret ? "session_secret_missing" : "session_unavailable",
+        error: missingSessionSecret
+          ? "Login session is not configured. Set SESSION_SECRET in the app environment."
+          : "Login session could not be created. Please try again later.",
+      },
+      { status: 503 },
+    );
+  }
 
   return Response.json({ ok: true, user: result.user });
 }

@@ -125,8 +125,13 @@ test("README documents production caveats for rate limits and image storage", ()
 test("database diagnostics are available for production setup", () => {
   assert.match(source("package.json"), /"db:doctor"/);
   assert.match(source("scripts/db-doctor.mjs"), /missing migrations/);
+  assert.match(source("scripts/db-doctor.mjs"), /confirmedUsers/);
+  assert.match(source("scripts/db-doctor.mjs"), /admins/);
+  assert.match(source("scripts/db-doctor.mjs"), /pbkdf2Users/);
   assert.match(source("scripts/db-doctor.mjs"), /counts:/);
   assert.match(source("app/api/health/route.ts"), /products/);
+  assert.match(source("app/api/health/route.ts"), /SESSION_SECRET/);
+  assert.match(source("app/api/auth/login/route.ts"), /session_secret_missing/);
   assert.match(source("app/api/health/route.ts"), /Run npm run db:migrate/);
   assert.match(source("README.md"), /npm run db:doctor/);
 });
