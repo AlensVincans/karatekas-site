@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useLanguage } from "../../components/language";
+import { PasswordField } from "../../components/password-field";
 import { useDemoSession } from "../../components/session";
 
 const copy = {
@@ -181,25 +182,19 @@ export default function RegisterPage() {
             onChange={(event) => setForm({ ...form, email: event.target.value })}
           />
         </label>
-        <label>
-          {c.password}
-          <input
-            autoComplete="new-password"
-            type="password"
-            value={form.password}
-            onChange={(event) => setForm({ ...form, password: event.target.value })}
-          />
-          <span className="auth-hint">{c.passwordPolicy}</span>
-        </label>
-        <label>
-          {c.confirmPassword}
-          <input
-            autoComplete="new-password"
-            type="password"
-            value={form.confirmPassword}
-            onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
-          />
-        </label>
+        <PasswordField
+          autoComplete="new-password"
+          hint={c.passwordPolicy}
+          label={c.password}
+          value={form.password}
+          onChange={(value) => setForm({ ...form, password: value })}
+        />
+        <PasswordField
+          autoComplete="new-password"
+          label={c.confirmPassword}
+          value={form.confirmPassword}
+          onChange={(value) => setForm({ ...form, confirmPassword: value })}
+        />
         <p className="auth-hint strong">{c.emailNote}</p>
         <input
           aria-hidden="true"

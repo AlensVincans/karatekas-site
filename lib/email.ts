@@ -411,6 +411,45 @@ export async function sendEmailConfirmation(input: {
   });
 }
 
+export async function sendPasswordResetEmail(input: {
+  to: string;
+  name: string;
+  resetUrl: string;
+}) {
+  const name = input.name || "Karatekas customer";
+  const text = [
+    `Hello ${name},`,
+    "",
+    "You requested a password reset for your Karatekas.eu account.",
+    "Open this link and set a new password:",
+    input.resetUrl,
+    "",
+    "This link expires in 2 hours.",
+    "If you did not request this, ignore this email.",
+  ].join("\n");
+
+  return sendMail({
+    to: input.to,
+    subject: "Reset your Karatekas.eu password",
+    text,
+    html: emailShell({
+      title: "Reset your password",
+      eyebrow: "Account security",
+      preheader: "Set a new password for your Karatekas.eu account.",
+      cta: { href: input.resetUrl, label: "Set new password" },
+      body: `
+        <p style="margin:0 0 16px;color:#4f4740;font-size:16px;line-height:1.65;">Hello ${escapeHtml(name)},</p>
+        <p style="margin:0 0 18px;color:#4f4740;font-size:16px;line-height:1.65;">We received a request to reset your Karatekas.eu account password. Use the button above to choose a new password.</p>
+        <div style="background:#f7f5f2;border:1px solid #e3ded8;border-radius:16px;padding:16px;color:#776f67;font-size:13px;line-height:1.6;">
+          The link expires in 2 hours. If the button does not work, open this link in your browser:<br />
+          <a href="${escapeHtml(input.resetUrl)}" style="color:#ff6b00;word-break:break-all;">${escapeHtml(input.resetUrl)}</a>
+        </div>
+        <p style="margin:18px 0 0;color:#776f67;font-size:13px;line-height:1.6;">If you did not request a password reset, you can safely ignore this email.</p>
+      `,
+    }),
+  });
+}
+
 export async function sendOrderEmails(order: StoreOrder) {
   const attachment = invoiceAttachment(order);
   const customerText = [

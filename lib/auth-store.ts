@@ -20,6 +20,8 @@ type AuthUser = {
   emailConfirmed: boolean;
   confirmationToken?: string;
   confirmationSentAt?: string;
+  passwordResetToken?: string;
+  passwordResetSentAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -29,6 +31,7 @@ type AuthStore = {
 };
 
 const confirmationTokenTtlMs = 48 * 60 * 60 * 1000;
+const passwordResetTokenTtlMs = 2 * 60 * 60 * 1000;
 
 export type B2BRequestStatus = "pending" | "approved" | "rejected";
 
@@ -700,6 +703,160 @@ export async function issueEmailConfirmation(emailInput: string) {
     user: publicUser(updated),
     confirmationToken,
   };
+}
+
+export async function issuePasswordReset(emailInput: string) {
+  const email = normalizeEmail(emailInput);
+  const now = new Date().toISOString();
+  const passwordResetToken = randomBytes(32).toString("hex");
+
+  if (!email) {
+    return { ok: false as const, code: "not_found" as const, error: "Account not found." };
+  }
+
+  if (hasDatabase()) {
+    const result = await dbQuery<{
+      email: string;
+      name: string;
+    }>(
+      `update users
+       set password_reset_token = $2,
+           password_reset_sent_at = now(),
+           updated_at = now()
+       where lower(email) = lower($1)
+         and email_confirmed = true
+       returning email, name`,
+      [email, passwordResetToken],
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return { ok: false as const, code: "not_found" as const, error: "Account not found." };
+    }
+
+    return {
+      ok: true as const,
+      user: {
+        email: user.email,
+        name: user.name,
+      },
+      passwordResetToken,
+    };
+  }
+
+  if (!localAuthStoreAllowed()) {
+    return { ok: false as const, code: "not_found" as const, error: "DATABASE_URL is required in production." };
+  }
+
+  const store = await readStore();
+  const existingUser = store.users.find(
+    (user) => user.email.toLowerCase() === email && user.emailConfirmed,
+  );
+
+  if (!existingUser) {
+    return { ok: false as const, code: "not_found" as const, error: "Account not found." };
+  }
+
+  const updatedUser: AuthUser = {
+    ...existingUser,
+    passwordResetToken,
+    passwordResetSentAt: now,
+    updatedAt: now,
+  };
+
+  store.users = store.users.map((user) => (user.id === updatedUser.id ? updatedUser : user));
+
+  await writeStore(store);
+
+  return {
+    ok: true as const,
+    user: {
+      email: updatedUser.email,
+      name: updatedUser.name,
+    },
+    passwordResetToken,
+  };
+}
+
+export async function resetAuthUserPassword(tokenInput: string, password: string) {
+  const token = tokenInput.trim();
+  const policyError = passwordPolicyError(password);
+
+  if (policyError) {
+    return { ok: false as const, code: "weak_password" as const, error: policyError };
+  }
+
+  if (!token) {
+    return { ok: false as const, code: "invalid_token" as const, error: "Password reset link is invalid or expired." };
+  }
+
+  const passwordHash = hashPassword(password);
+
+  if (hasDatabase()) {
+    const result = await dbQuery<{ id: string }>(
+      `update users
+       set password_hash = $2,
+           password_reset_token = null,
+           password_reset_sent_at = null,
+           updated_at = now()
+       where password_reset_token = $1
+         and password_reset_sent_at > now() - interval '2 hours'
+       returning id`,
+      [token, passwordHash],
+    );
+
+    if (!result.rows[0]) {
+      return {
+        ok: false as const,
+        code: "invalid_token" as const,
+        error: "Password reset link is invalid or expired.",
+      };
+    }
+
+    return { ok: true as const };
+  }
+
+  if (!localAuthStoreAllowed()) {
+    return { ok: false as const, code: "invalid_token" as const, error: "DATABASE_URL is required in production." };
+  }
+
+  const store = await readStore();
+  let updated = false;
+
+  store.users = store.users.map((user) => {
+    if (user.passwordResetToken !== token) {
+      return user;
+    }
+
+    if (
+      !user.passwordResetSentAt ||
+      Date.now() - new Date(user.passwordResetSentAt).getTime() > passwordResetTokenTtlMs
+    ) {
+      return user;
+    }
+
+    updated = true;
+
+    return {
+      ...user,
+      passwordHash,
+      passwordResetToken: undefined,
+      passwordResetSentAt: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  if (!updated) {
+    return {
+      ok: false as const,
+      code: "invalid_token" as const,
+      error: "Password reset link is invalid or expired.",
+    };
+  }
+
+  await writeStore(store);
+
+  return { ok: true as const };
 }
 
 export async function authenticateAuthUser(emailInput: string, password: string) {

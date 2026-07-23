@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useLanguage } from "../../components/language";
+import { PasswordField } from "../../components/password-field";
 import { useDemoSession } from "../../components/session";
 
 const copy = {
@@ -112,17 +113,64 @@ const confirmationCopy = {
   },
 } as const;
 
+const passwordResetCopy = {
+  ru: {
+    forgot: "Забыли пароль?",
+    email: "Email для восстановления",
+    send: "Отправить ссылку",
+    sending: "Отправляем...",
+    sent: "Если такой email зарегистрирован, мы отправили ссылку для восстановления пароля.",
+    failed: "Не удалось отправить письмо восстановления.",
+  },
+  lv: {
+    forgot: "Aizmirsāt paroli?",
+    email: "Atjaunošanas email",
+    send: "Nosūtīt saiti",
+    sending: "Sūtām...",
+    sent: "Ja šis email ir reģistrēts, nosūtījām paroles atjaunošanas saiti.",
+    failed: "Neizdevās nosūtīt paroles atjaunošanas vēstuli.",
+  },
+  en: {
+    forgot: "Forgot password?",
+    email: "Recovery email",
+    send: "Send reset link",
+    sending: "Sending...",
+    sent: "If this email is registered, a password reset link has been sent.",
+    failed: "Could not send the password reset email.",
+  },
+  et: {
+    forgot: "Unustasid parooli?",
+    email: "Taastamise email",
+    send: "Saada link",
+    sending: "Saadame...",
+    sent: "Kui see email on registreeritud, saatsime parooli taastamise lingi.",
+    failed: "Parooli taastamise kirja saatmine ebaõnnestus.",
+  },
+  lt: {
+    forgot: "Pamiršote slaptažodį?",
+    email: "Atkūrimo email",
+    send: "Siųsti nuorodą",
+    sending: "Siunčiama...",
+    sent: "Jei šis email registruotas, išsiuntėme slaptažodžio atkūrimo nuorodą.",
+    failed: "Nepavyko išsiųsti slaptažodžio atkūrimo laiško.",
+  },
+} as const;
+
 export default function LoginPage() {
   const { login, session } = useDemoSession();
   const router = useRouter();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
   const cc = confirmationCopy[language as keyof typeof confirmationCopy] ?? confirmationCopy.en;
+  const rc = passwordResetCopy[language as keyof typeof passwordResetCopy] ?? passwordResetCopy.en;
   const [email, setEmail] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isForgotSubmitting, setIsForgotSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
   return (
@@ -140,16 +188,68 @@ export default function LoginPage() {
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
-        <label>
-          {c.password}
-          <input
-            autoComplete="current-password"
-            placeholder={c.passwordPlaceholder}
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
+        <PasswordField
+          autoComplete="current-password"
+          label={c.password}
+          placeholder={c.passwordPlaceholder}
+          value={password}
+          onChange={setPassword}
+        />
+        <div className="auth-secondary-actions">
+          <button
+            className="auth-text-button"
+            onClick={() => {
+              setForgotOpen((open) => !open);
+              setForgotEmail(email);
+            }}
+            type="button"
+          >
+            {rc.forgot}
+          </button>
+          {forgotOpen ? (
+            <div className="forgot-password-panel">
+              <label>
+                {rc.email}
+                <input
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="you@company.lv"
+                  value={forgotEmail}
+                  onChange={(event) => setForgotEmail(event.target.value)}
+                />
+              </label>
+              <button
+                className="wide-button secondary"
+                disabled={isForgotSubmitting}
+                onClick={async () => {
+                  setIsForgotSubmitting(true);
+
+                  try {
+                    const response = await fetch("/api/auth/forgot-password", {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: forgotEmail || email }),
+                    });
+                    const result = (await response.json().catch(() => ({}))) as {
+                      message?: string;
+                      error?: string;
+                    };
+
+                    setMessage(response.ok ? result.message || rc.sent : result.error || rc.failed);
+                  } catch {
+                    setMessage(rc.failed);
+                  } finally {
+                    setIsForgotSubmitting(false);
+                  }
+                }}
+                type="button"
+              >
+                {isForgotSubmitting ? rc.sending : rc.send}
+              </button>
+            </div>
+          ) : null}
+        </div>
         <button
           className="wide-button"
           disabled={isSubmitting}

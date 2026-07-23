@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { HydrationReady } from "../components/hydration-ready";
+import { SessionProvider } from "../components/session";
 import { StoreFooter } from "../components/store-footer";
 import { StoreHeader } from "../components/store-header";
+import { getSessionUser } from "../lib/server-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,11 +17,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const initialSession = await getSessionUser().catch(() => null);
+
   return (
     <html lang="ru">
       <body suppressHydrationWarning>
@@ -30,9 +34,11 @@ export default function RootLayout({
           }}
         />
         <HydrationReady />
-        <StoreHeader />
-        <main>{children}</main>
-        <StoreFooter />
+        <SessionProvider initialSession={initialSession}>
+          <StoreHeader />
+          <main>{children}</main>
+          <StoreFooter />
+        </SessionProvider>
       </body>
     </html>
   );

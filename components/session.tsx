@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 const sessionChangeEvent = "bc-session-change";
 
@@ -29,6 +37,31 @@ export type SessionUser = {
   };
 };
 
+type SessionContextValue = {
+  session: SessionUser | null;
+  role: UserRole;
+  allUsers: SessionUser[];
+  login: (email: string, password: string) => Promise<{
+    ok: boolean;
+    code?: string;
+    message?: string;
+  }>;
+  register: (input: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    role: Extract<UserRole, "user" | "b2b">;
+    company?: string;
+    vatNumber?: string;
+  }) => Promise<{ ok: boolean; message: string }>;
+  logout: () => Promise<void>;
+  refreshUsers: () => Promise<SessionUser[]>;
+  ready: boolean;
+};
+
+const SessionContext = createContext<SessionContextValue | null>(null);
+
 function notifySessionChange() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(sessionChangeEvent));
@@ -47,10 +80,11 @@ async function readMe() {
   return response.ok ? data.user ?? null : null;
 }
 
-export function useDemoSession() {
-  const [session, setSession] = useState<SessionUser | null>(null);
+function useSessionStore(initialSession: SessionUser | null | undefined) {
+  const hasInitialSessionSnapshot = initialSession !== undefined;
+  const [session, setSession] = useState<SessionUser | null>(initialSession ?? null);
   const [allUsers, setAllUsers] = useState<SessionUser[]>([]);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(hasInitialSessionSnapshot);
 
   const refreshSession = useCallback(async () => {
     const user = await readMe().catch(() => null);
@@ -82,6 +116,10 @@ export function useDemoSession() {
   }, [refreshSession, session]);
 
   useEffect(() => {
+    if (hasInitialSessionSnapshot) {
+      return undefined;
+    }
+
     let mounted = true;
 
     void readMe()
@@ -105,7 +143,23 @@ export function useDemoSession() {
       mounted = false;
       window.removeEventListener(sessionChangeEvent, syncFromServer);
     };
-  }, [refreshSession]);
+  }, [hasInitialSessionSnapshot, refreshSession]);
+
+  useEffect(() => {
+    if (!hasInitialSessionSnapshot) {
+      return undefined;
+    }
+
+    function syncFromServer() {
+      void refreshSession();
+    }
+
+    window.addEventListener(sessionChangeEvent, syncFromServer);
+
+    return () => {
+      window.removeEventListener(sessionChangeEvent, syncFromServer);
+    };
+  }, [hasInitialSessionSnapshot, refreshSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -239,4 +293,26 @@ export function useDemoSession() {
     }),
     [allUsers, ready, refreshServerUsers, session],
   );
+}
+
+export function SessionProvider({
+  children,
+  initialSession,
+}: {
+  children: ReactNode;
+  initialSession: SessionUser | null;
+}) {
+  const value = useSessionStore(initialSession);
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
+export function useDemoSession() {
+  const context = useContext(SessionContext);
+
+  if (!context) {
+    throw new Error("SessionProvider is required before useDemoSession.");
+  }
+
+  return context;
 }

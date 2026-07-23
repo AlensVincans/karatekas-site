@@ -9,6 +9,8 @@ function source(path) {
 test("auth uses server session cookie and exposes /api/auth/me", () => {
   assert.match(source("app/api/auth/login/route.ts"), /setSessionCookie/);
   assert.match(source("app/api/auth/me/route.ts"), /getSessionUser/);
+  assert.match(source("app/layout.tsx"), /SessionProvider/);
+  assert.match(source("app/layout.tsx"), /getSessionUser/);
   assert.doesNotMatch(source("components/session.tsx"), /localStorage\.setItem\(["']bc_session/);
 });
 
@@ -18,6 +20,18 @@ test("unconfirmed users can request a new email confirmation link", () => {
   assert.match(source("components/session.tsx"), /code:\s*result\.code/);
   assert.match(source("app/api/auth/resend-confirmation/route.ts"), /sendEmailConfirmation/);
   assert.match(source("app/login/page.tsx"), /email_unconfirmed/);
+});
+
+test("password reset is token-based and uses server email flow", () => {
+  assert.match(source("db/migrations/004_password_reset.sql"), /password_reset_token/);
+  assert.match(source("lib/auth-store.ts"), /issuePasswordReset/);
+  assert.match(source("lib/auth-store.ts"), /resetAuthUserPassword/);
+  assert.match(source("lib/email.ts"), /sendPasswordResetEmail/);
+  assert.match(source("app/api/auth/forgot-password/route.ts"), /sendPasswordResetEmail/);
+  assert.match(source("app/api/auth/reset-password/route.ts"), /resetAuthUserPassword/);
+  assert.match(source("app/reset-password/page.tsx"), /PasswordField/);
+  assert.match(source("app/login/page.tsx"), /forgot-password/);
+  assert.match(source("app/register/page.tsx"), /PasswordField/);
 });
 
 test("promotions and product image overrides are not browser localStorage storage", () => {
