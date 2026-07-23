@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const result = await authenticateAuthUser(payload.email ?? "", payload.password ?? "");
 
   if (!result.ok) {
-    return Response.json({ ok: false, error: result.error }, { status: 401 });
+    return Response.json({ ok: false, code: result.code, error: result.error }, { status: 401 });
   }
 
   await setSessionCookie(result.user);

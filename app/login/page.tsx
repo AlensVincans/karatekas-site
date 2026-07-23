@@ -69,15 +69,61 @@ const copy = {
   },
 } as const;
 
+const confirmationCopy = {
+  ru: {
+    unconfirmed:
+      "Аккаунт создан, но email ещё не подтверждён. Проверьте почту или отправьте письмо ещё раз.",
+    resend: "Отправить письмо повторно",
+    resending: "Отправляем...",
+    sent: "Письмо подтверждения отправлено. Проверьте входящие и спам.",
+    failed: "Не удалось отправить письмо подтверждения.",
+  },
+  lv: {
+    unconfirmed:
+      "Konts ir izveidots, bet email vēl nav apstiprināts. Pārbaudiet pastu vai nosūtiet vēstuli vēlreiz.",
+    resend: "Nosūtīt vēstuli vēlreiz",
+    resending: "Sūtām...",
+    sent: "Apstiprinājuma vēstule nosūtīta. Pārbaudiet iesūtni un spamu.",
+    failed: "Neizdevās nosūtīt apstiprinājuma vēstuli.",
+  },
+  en: {
+    unconfirmed:
+      "The account exists, but the email is not confirmed yet. Check your inbox or send the confirmation email again.",
+    resend: "Resend confirmation email",
+    resending: "Sending...",
+    sent: "Confirmation email sent. Check your inbox and spam folder.",
+    failed: "Could not send the confirmation email.",
+  },
+  et: {
+    unconfirmed:
+      "Konto on loodud, kuid email pole veel kinnitatud. Kontrolli postkasti või saada kinnituskiri uuesti.",
+    resend: "Saada kinnituskiri uuesti",
+    resending: "Saadame...",
+    sent: "Kinnituskiri on saadetud. Kontrolli postkasti ja rämpsposti.",
+    failed: "Kinnituskirja saatmine ebaõnnestus.",
+  },
+  lt: {
+    unconfirmed:
+      "Paskyra sukurta, bet email dar nepatvirtintas. Patikrinkite paštą arba išsiųskite laišką dar kartą.",
+    resend: "Siųsti patvirtinimo laišką dar kartą",
+    resending: "Siunčiama...",
+    sent: "Patvirtinimo laiškas išsiųstas. Patikrinkite gautuosius ir šlamštą.",
+    failed: "Nepavyko išsiųsti patvirtinimo laiško.",
+  },
+} as const;
+
 export default function LoginPage() {
   const { login, session } = useDemoSession();
   const router = useRouter();
   const { language } = useLanguage();
   const c = copy[language as keyof typeof copy] ?? copy.en;
+  const cc = confirmationCopy[language as keyof typeof confirmationCopy] ?? confirmationCopy.en;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   return (
     <section className="auth-page">
@@ -109,12 +155,19 @@ export default function LoginPage() {
           disabled={isSubmitting}
           onClick={async () => {
             setIsSubmitting(true);
+            setNeedsConfirmation(false);
             const result = await login(email, password);
             setIsSubmitting(false);
 
             if (result.ok) {
               setMessage(c.success);
               router.push("/");
+              return;
+            }
+
+            if (result.code === "email_unconfirmed") {
+              setNeedsConfirmation(true);
+              setMessage(cc.unconfirmed);
               return;
             }
 
@@ -125,6 +178,37 @@ export default function LoginPage() {
           {c.submit}
         </button>
         {message ? <p className="status-box">{message}</p> : null}
+        {needsConfirmation ? (
+          <button
+            className="wide-button secondary"
+            disabled={isResending}
+            onClick={async () => {
+              setIsResending(true);
+
+              try {
+                const response = await fetch("/api/auth/resend-confirmation", {
+                  method: "POST",
+                  credentials: "include",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email }),
+                });
+                const result = (await response.json().catch(() => ({}))) as {
+                  message?: string;
+                  error?: string;
+                };
+
+                setMessage(response.ok ? result.message || cc.sent : result.error || cc.failed);
+              } catch {
+                setMessage(cc.failed);
+              } finally {
+                setIsResending(false);
+              }
+            }}
+            type="button"
+          >
+            {isResending ? cc.resending : cc.resend}
+          </button>
+        ) : null}
         {session ? (
           <div className="auth-actions">
             <Link href={session.role === "admin" ? "/admin" : "/account"}>

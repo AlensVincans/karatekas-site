@@ -156,6 +156,7 @@ export function useDemoSession() {
       });
       const result = (await response.json().catch(() => ({}))) as {
         user?: SessionUser;
+        code?: string;
         error?: string;
         message?: string;
       };
@@ -163,6 +164,7 @@ export function useDemoSession() {
       if (!response.ok || !result.user) {
         return {
           ok: false,
+          code: result.code,
           message: result.error || result.message || "Incorrect email or password.",
         };
       }

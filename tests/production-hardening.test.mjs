@@ -12,6 +12,14 @@ test("auth uses server session cookie and exposes /api/auth/me", () => {
   assert.doesNotMatch(source("components/session.tsx"), /localStorage\.setItem\(["']bc_session/);
 });
 
+test("unconfirmed users can request a new email confirmation link", () => {
+  assert.match(source("lib/auth-store.ts"), /issueEmailConfirmation/);
+  assert.match(source("app/api/auth/login/route.ts"), /code:\s*result\.code/);
+  assert.match(source("components/session.tsx"), /code:\s*result\.code/);
+  assert.match(source("app/api/auth/resend-confirmation/route.ts"), /sendEmailConfirmation/);
+  assert.match(source("app/login/page.tsx"), /email_unconfirmed/);
+});
+
 test("promotions and product image overrides are not browser localStorage storage", () => {
   assert.doesNotMatch(source("lib/promotions.ts"), /localStorage|kg_promo/);
   assert.doesNotMatch(source("lib/product-media.ts"), /localStorage|kg_product_images/);

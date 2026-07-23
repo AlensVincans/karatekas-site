@@ -609,6 +609,99 @@ export async function confirmAuthUser(token: string) {
   return confirmed;
 }
 
+export async function issueEmailConfirmation(emailInput: string) {
+  const email = normalizeEmail(emailInput);
+  const now = new Date().toISOString();
+  const confirmationToken = randomBytes(32).toString("hex");
+
+  if (!email) {
+    return { ok: false as const, code: "not_found" as const, error: "Account not found." };
+  }
+
+  if (hasDatabase()) {
+    const result = await dbQuery<{
+      id: string;
+      first_name: string;
+      last_name: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      company: string | null;
+      vat_number: string | null;
+      credit_limit: string | null;
+      payment_terms: PaymentMethod[];
+      email_confirmed: boolean;
+    }>(
+      `update users
+       set confirmation_token = $2,
+           confirmation_sent_at = now(),
+           updated_at = now()
+       where lower(email) = lower($1)
+         and email_confirmed = false
+       returning id, first_name, last_name, name, email, role, company, vat_number,
+         credit_limit, payment_terms, email_confirmed`,
+      [email, confirmationToken],
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return { ok: false as const, code: "not_found" as const, error: "Account not found or already confirmed." };
+    }
+
+    return {
+      ok: true as const,
+      user: {
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        company: user.company ?? undefined,
+        vatNumber: user.vat_number ?? undefined,
+        creditLimit: user.credit_limit ? Number(user.credit_limit) : undefined,
+        paymentTerms: user.payment_terms,
+        emailConfirmed: user.email_confirmed,
+      },
+      confirmationToken,
+    };
+  }
+
+  if (!localAuthStoreAllowed()) {
+    return { ok: false as const, code: "not_found" as const, error: "DATABASE_URL is required in production." };
+  }
+
+  const store = await readStore();
+  let updated: AuthUser | null = null;
+
+  store.users = store.users.map((user) => {
+    if (user.email.toLowerCase() !== email || user.emailConfirmed) {
+      return user;
+    }
+
+    updated = {
+      ...user,
+      confirmationToken,
+      confirmationSentAt: now,
+      updatedAt: now,
+    };
+
+    return updated;
+  });
+
+  if (!updated) {
+    return { ok: false as const, code: "not_found" as const, error: "Account not found or already confirmed." };
+  }
+
+  await writeStore(store);
+
+  return {
+    ok: true as const,
+    user: publicUser(updated),
+    confirmationToken,
+  };
+}
+
 export async function authenticateAuthUser(emailInput: string, password: string) {
   const email = normalizeEmail(emailInput);
 
@@ -637,7 +730,11 @@ export async function authenticateAuthUser(emailInput: string, password: string)
     }
 
     if (!user.email_confirmed) {
-      return { ok: false as const, error: "Email is not confirmed yet." };
+      return {
+        ok: false as const,
+        code: "email_unconfirmed" as const,
+        error: "Email is not confirmed yet.",
+      };
     }
 
     return {
@@ -670,7 +767,11 @@ export async function authenticateAuthUser(emailInput: string, password: string)
   }
 
   if (!user.emailConfirmed) {
-    return { ok: false as const, error: "Email is not confirmed yet." };
+    return {
+      ok: false as const,
+      code: "email_unconfirmed" as const,
+      error: "Email is not confirmed yet.",
+    };
   }
 
   return { ok: true as const, user: publicUser(user) };
