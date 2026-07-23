@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 import { products } from "./store-data";
@@ -34,6 +35,24 @@ export type InventoryAdjustmentLine = {
   quantity: number;
 };
 
+export type StockHistoryOptions = {
+  actorUserId?: string;
+  orderId?: string;
+  note?: string;
+};
+
+type StockLevelSnapshot = {
+  physical: number;
+  reserved: number;
+  expected?: number;
+};
+
+type QueryFn = Parameters<typeof dbTransaction>[0] extends (
+  query: infer Query,
+) => Promise<unknown>
+  ? Query
+  : never;
+
 function inventoryStorePath() {
   return (
     process.env.KG_STOCK_FILE?.trim() ||
@@ -49,6 +68,41 @@ function normalizeQty(value: unknown) {
   const parsed = Number(value);
 
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+function stockHistoryId() {
+  return `stockhist-${Date.now().toString(36)}-${randomBytes(6).toString("hex")}`;
+}
+
+async function recordStockHistory(
+  query: QueryFn,
+  input: {
+    variationId: string;
+    action: string;
+    quantity: number;
+    oldLevel: StockLevelSnapshot;
+    newLevel: StockLevelSnapshot;
+  } & StockHistoryOptions,
+) {
+  await query(
+    `insert into stock_history (
+      id, variation_id, action, quantity, old_physical, new_physical,
+      old_reserved, new_reserved, actor_user_id, order_id, note
+    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [
+      stockHistoryId(),
+      input.variationId,
+      input.action,
+      input.quantity,
+      input.oldLevel.physical,
+      input.newLevel.physical,
+      input.oldLevel.reserved,
+      input.newLevel.reserved,
+      input.actorUserId ?? null,
+      input.orderId ?? null,
+      input.note ?? null,
+    ],
+  );
 }
 
 function baseItem(variationId: string) {
@@ -183,6 +237,7 @@ export async function inventoryLevelMap() {
 export async function updateInventoryLevel(
   variationId: string,
   patch: Partial<Pick<InventoryItem, "physical" | "reserved" | "expected">>,
+  options: StockHistoryOptions = {},
 ) {
   if (hasDatabase()) {
     await ensureStockSeeded();
@@ -191,26 +246,43 @@ export async function updateInventoryLevel(
       return null;
     }
 
-    const current = await dbQuery<{ physical: number; reserved: number; expected: number }>(
-      "select physical, reserved, expected from stock_levels where variation_id = $1",
-      [variationId],
-    );
+    await dbTransaction(async (query) => {
+      const current = await query<{ physical: number; reserved: number; expected: number }>(
+        "select physical, reserved, expected from stock_levels where variation_id = $1 for update",
+        [variationId],
+      );
+      const level = current.rows[0];
 
-    if (!current.rows[0]) {
-      return null;
-    }
+      if (!level) {
+        return;
+      }
 
-    await dbQuery(
-      `update stock_levels
-       set physical = $2, reserved = $3, expected = $4, updated_at = now()
-       where variation_id = $1`,
-      [
+      const next = {
+        physical: normalizeQty(patch.physical ?? level.physical),
+        reserved: normalizeQty(patch.reserved ?? level.reserved),
+        expected: normalizeQty(patch.expected ?? level.expected),
+      };
+
+      await query(
+        `update stock_levels
+         set physical = $2, reserved = $3, expected = $4, updated_at = now()
+         where variation_id = $1`,
+        [variationId, next.physical, next.reserved, next.expected],
+      );
+
+      await recordStockHistory(query, {
         variationId,
-        normalizeQty(patch.physical ?? current.rows[0].physical),
-        normalizeQty(patch.reserved ?? current.rows[0].reserved),
-        normalizeQty(patch.expected ?? current.rows[0].expected),
-      ],
-    );
+        action: "manual_update",
+        quantity: next.physical - Number(level.physical),
+        oldLevel: {
+          physical: Number(level.physical),
+          reserved: Number(level.reserved),
+          expected: Number(level.expected),
+        },
+        newLevel: next,
+        ...options,
+      });
+    });
 
     return inventoryLevelMap();
   }
@@ -237,37 +309,64 @@ export async function updateInventoryLevel(
   return inventoryLevelMap();
 }
 
-export async function decrementInventory(lines: InventoryAdjustmentLine[]) {
+export async function decrementInventory(
+  lines: InventoryAdjustmentLine[],
+  options: StockHistoryOptions = {},
+) {
   if (hasDatabase()) {
     await ensureStockSeeded();
-    let changed = false;
 
-    for (const line of lines) {
-      if (!line.variationId) {
-        continue;
+    return dbTransaction(async (query) => {
+      let changed = false;
+
+      for (const line of lines) {
+        if (!line.variationId) {
+          continue;
+        }
+
+        const quantity = normalizeQty(line.quantity);
+
+        if (quantity <= 0) {
+          continue;
+        }
+
+        const current = await query<{ physical: number; reserved: number }>(
+          "select physical, reserved from stock_levels where variation_id = $1 for update",
+          [line.variationId],
+        );
+        const level = current.rows[0];
+
+        if (!level || Number(level.physical) < quantity) {
+          throw new Error("Not enough stock for selected product.");
+        }
+
+        const next = {
+          physical: Number(level.physical) - quantity,
+          reserved: Number(level.reserved),
+        };
+
+        await query(
+          `update stock_levels
+           set physical = $2, updated_at = now()
+           where variation_id = $1`,
+          [line.variationId, next.physical],
+        );
+        await recordStockHistory(query, {
+          variationId: line.variationId,
+          action: "decrement",
+          quantity,
+          oldLevel: {
+            physical: Number(level.physical),
+            reserved: Number(level.reserved),
+          },
+          newLevel: next,
+          ...options,
+        });
+        changed = true;
       }
 
-      const quantity = normalizeQty(line.quantity);
-
-      if (quantity <= 0) {
-        continue;
-      }
-
-      const result = await dbQuery(
-        `update stock_levels
-         set physical = physical - $2, updated_at = now()
-         where variation_id = $1 and physical >= $2`,
-        [line.variationId, quantity],
-      );
-
-      if (!result.rowCount) {
-        throw new Error("Not enough stock for selected product.");
-      }
-
-      changed = changed || Boolean(result.rowCount);
-    }
-
-    return changed;
+      return changed;
+    });
   }
 
   const store = await readStore();
@@ -310,7 +409,10 @@ export async function decrementInventory(lines: InventoryAdjustmentLine[]) {
   return changed;
 }
 
-export async function reserveInventory(lines: InventoryAdjustmentLine[]) {
+export async function reserveInventory(
+  lines: InventoryAdjustmentLine[],
+  options: StockHistoryOptions = {},
+) {
   if (hasDatabase()) {
     await ensureStockSeeded();
 
@@ -342,12 +444,28 @@ export async function reserveInventory(lines: InventoryAdjustmentLine[]) {
           throw new Error("Not enough stock for selected product.");
         }
 
+        const next = {
+          physical: Number(level.physical),
+          reserved: Number(level.reserved) + quantity,
+        };
+
         await query(
           `update stock_levels
-           set reserved = reserved + $2, updated_at = now()
+           set reserved = $2, updated_at = now()
            where variation_id = $1`,
-          [line.variationId, quantity],
+          [line.variationId, next.reserved],
         );
+        await recordStockHistory(query, {
+          variationId: line.variationId,
+          action: "reserve",
+          quantity,
+          oldLevel: {
+            physical: Number(level.physical),
+            reserved: Number(level.reserved),
+          },
+          newLevel: next,
+          ...options,
+        });
         changed = true;
       }
 
@@ -390,7 +508,10 @@ export async function reserveInventory(lines: InventoryAdjustmentLine[]) {
   return changed;
 }
 
-export async function confirmInventoryReservation(lines: InventoryAdjustmentLine[]) {
+export async function confirmInventoryReservation(
+  lines: InventoryAdjustmentLine[],
+  options: StockHistoryOptions = {},
+) {
   if (hasDatabase()) {
     await ensureStockSeeded();
 
@@ -408,19 +529,40 @@ export async function confirmInventoryReservation(lines: InventoryAdjustmentLine
           continue;
         }
 
-        const result = await query(
-          `update stock_levels
-           set physical = physical - $2,
-               reserved = reserved - $2,
-               updated_at = now()
-           where variation_id = $1 and physical >= $2 and reserved >= $2`,
-          [line.variationId, quantity],
+        const current = await query<{ physical: number; reserved: number }>(
+          "select physical, reserved from stock_levels where variation_id = $1 for update",
+          [line.variationId],
         );
+        const level = current.rows[0];
 
-        if (!result.rowCount) {
+        if (!level || Number(level.physical) < quantity || Number(level.reserved) < quantity) {
           throw new Error("Reserved stock is not available.");
         }
 
+        const next = {
+          physical: Number(level.physical) - quantity,
+          reserved: Number(level.reserved) - quantity,
+        };
+
+        await query(
+          `update stock_levels
+           set physical = $2,
+               reserved = $3,
+               updated_at = now()
+           where variation_id = $1`,
+          [line.variationId, next.physical, next.reserved],
+        );
+        await recordStockHistory(query, {
+          variationId: line.variationId,
+          action: "confirm",
+          quantity,
+          oldLevel: {
+            physical: Number(level.physical),
+            reserved: Number(level.reserved),
+          },
+          newLevel: next,
+          ...options,
+        });
         changed = true;
       }
 
@@ -463,33 +605,64 @@ export async function confirmInventoryReservation(lines: InventoryAdjustmentLine
   return changed;
 }
 
-export async function releaseInventoryReservation(lines: InventoryAdjustmentLine[]) {
+export async function releaseInventoryReservation(
+  lines: InventoryAdjustmentLine[],
+  options: StockHistoryOptions = {},
+) {
   if (hasDatabase()) {
     await ensureStockSeeded();
-    let changed = false;
 
-    for (const line of lines) {
-      if (!line.variationId) {
-        continue;
+    return dbTransaction(async (query) => {
+      let changed = false;
+
+      for (const line of lines) {
+        if (!line.variationId) {
+          continue;
+        }
+
+        const quantity = normalizeQty(line.quantity);
+
+        if (quantity <= 0) {
+          continue;
+        }
+
+        const current = await query<{ physical: number; reserved: number }>(
+          "select physical, reserved from stock_levels where variation_id = $1 for update",
+          [line.variationId],
+        );
+        const level = current.rows[0];
+
+        if (!level) {
+          continue;
+        }
+
+        const next = {
+          physical: Number(level.physical),
+          reserved: Math.max(0, Number(level.reserved) - quantity),
+        };
+
+        await query(
+          `update stock_levels
+           set reserved = $2, updated_at = now()
+           where variation_id = $1`,
+          [line.variationId, next.reserved],
+        );
+        await recordStockHistory(query, {
+          variationId: line.variationId,
+          action: "release",
+          quantity,
+          oldLevel: {
+            physical: Number(level.physical),
+            reserved: Number(level.reserved),
+          },
+          newLevel: next,
+          ...options,
+        });
+        changed = true;
       }
 
-      const quantity = normalizeQty(line.quantity);
-
-      if (quantity <= 0) {
-        continue;
-      }
-
-      const result = await dbQuery(
-        `update stock_levels
-         set reserved = case when reserved >= $2 then reserved - $2 else 0 end,
-             updated_at = now()
-         where variation_id = $1`,
-        [line.variationId, quantity],
-      );
-      changed = changed || Boolean(result.rowCount);
-    }
-
-    return changed;
+      return changed;
+    });
   }
 
   const store = await readStore();
@@ -523,32 +696,64 @@ export async function releaseInventoryReservation(lines: InventoryAdjustmentLine
   return changed;
 }
 
-export async function restoreInventory(lines: InventoryAdjustmentLine[]) {
+export async function restoreInventory(
+  lines: InventoryAdjustmentLine[],
+  options: StockHistoryOptions = {},
+) {
   if (hasDatabase()) {
     await ensureStockSeeded();
-    let changed = false;
 
-    for (const line of lines) {
-      if (!line.variationId) {
-        continue;
+    return dbTransaction(async (query) => {
+      let changed = false;
+
+      for (const line of lines) {
+        if (!line.variationId) {
+          continue;
+        }
+
+        const quantity = normalizeQty(line.quantity);
+
+        if (quantity <= 0) {
+          continue;
+        }
+
+        const current = await query<{ physical: number; reserved: number }>(
+          "select physical, reserved from stock_levels where variation_id = $1 for update",
+          [line.variationId],
+        );
+        const level = current.rows[0];
+
+        if (!level) {
+          continue;
+        }
+
+        const next = {
+          physical: Number(level.physical) + quantity,
+          reserved: Number(level.reserved),
+        };
+
+        await query(
+          `update stock_levels
+           set physical = $2, updated_at = now()
+           where variation_id = $1`,
+          [line.variationId, next.physical],
+        );
+        await recordStockHistory(query, {
+          variationId: line.variationId,
+          action: "restore",
+          quantity,
+          oldLevel: {
+            physical: Number(level.physical),
+            reserved: Number(level.reserved),
+          },
+          newLevel: next,
+          ...options,
+        });
+        changed = true;
       }
 
-      const quantity = normalizeQty(line.quantity);
-
-      if (quantity <= 0) {
-        continue;
-      }
-
-      const result = await dbQuery(
-        `update stock_levels
-         set physical = physical + $2, updated_at = now()
-         where variation_id = $1`,
-        [line.variationId, quantity],
-      );
-      changed = changed || Boolean(result.rowCount);
-    }
-
-    return changed;
+      return changed;
+    });
   }
 
   const store = await readStore();

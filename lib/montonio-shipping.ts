@@ -469,11 +469,26 @@ function priceKey(carrierCode: string, shippingType: OrderShippingType) {
   return `${normalizeCarrierCode(carrierCode)}:${shippingType}`;
 }
 
+function manualShippingPricesAllowed() {
+  return (
+    env().MONTONIO_SHIPPING_ALLOW_MANUAL_PRICES?.trim().toLowerCase() === "true" ||
+    env().NODE_ENV !== "production"
+  );
+}
+
 function manualPriceFor(
   carrierCode: string,
   shippingType: OrderShippingType,
   countryCode = defaultCountry,
 ) {
+  if (shippingType === "self_pickup") {
+    return 0;
+  }
+
+  if (!manualShippingPricesAllowed()) {
+    return undefined;
+  }
+
   const country = countryCode.trim().toUpperCase() || defaultCountry;
   const key = priceKey(carrierCode, shippingType);
   const countryPrice = manualShippingPrices[country]?.[key];
@@ -502,7 +517,9 @@ function priceFor(
       method.shippingType === shippingType,
   );
 
-  return fallback?.price ?? (shippingType === "courier" ? 8.5 : 4.9);
+  return manualShippingPricesAllowed()
+    ? fallback?.price ?? (shippingType === "courier" ? 8.5 : 4.9)
+    : 0;
 }
 
 function moneyOrFallback(
@@ -625,10 +642,13 @@ function normalizeMethods(
 }
 
 export function fallbackShippingMethods(countryCode = defaultCountry) {
-  return fallbackMethods.map((method) => ({
-    ...method,
-    price: priceFor(method.carrierCode, method.shippingType, countryCode),
-  }));
+  return fallbackMethods
+    .filter((method) => method.shippingType === "self_pickup" || manualShippingPricesAllowed())
+    .map((method) => ({
+      ...method,
+      available: method.shippingType === "self_pickup" || manualShippingPricesAllowed(),
+      price: priceFor(method.carrierCode, method.shippingType, countryCode),
+    }));
 }
 
 function publicCarrierCode(carrierCode: string) {
@@ -943,6 +963,45 @@ function shipmentProducts(order: StoreOrder) {
   }));
 }
 
+function packageWeightKg(order: StoreOrder) {
+  const grams = order.lines.reduce((sum, line) => {
+    const lineWeight = Number(line.weightGrams);
+    const safeWeight = Number.isFinite(lineWeight) && lineWeight > 0 ? lineWeight : 500;
+
+    return sum + safeWeight * Math.max(1, line.quantity);
+  }, 0);
+
+  return Math.max(0.1, roundMoney(grams / 1000));
+}
+
+function packageDimensions(order: StoreOrder) {
+  const dimensions = order.lines
+    .map((line) => ({
+      length: Number(line.lengthCm),
+      width: Number(line.widthCm),
+      height: Number(line.heightCm),
+    }))
+    .filter(
+      (item) =>
+        Number.isFinite(item.length) &&
+        Number.isFinite(item.width) &&
+        Number.isFinite(item.height) &&
+        item.length > 0 &&
+        item.width > 0 &&
+        item.height > 0,
+    );
+
+  if (!dimensions.length) {
+    return undefined;
+  }
+
+  return {
+    length: Math.max(...dimensions.map((item) => item.length)),
+    width: Math.max(...dimensions.map((item) => item.width)),
+    height: Math.max(...dimensions.map((item) => item.height)),
+  };
+}
+
 export async function createShipmentForOrder(order: StoreOrder) {
   if (order.shippingType === "self_pickup") {
     return {
@@ -963,7 +1022,10 @@ export async function createShipmentForOrder(order: StoreOrder) {
         type: order.shippingType === "courier" ? "courier" : "pickupPoint",
         id: shippingMethodId,
       },
-      parcels: [{ weight: 1 }],
+      parcels: [{
+        weight: packageWeightKg(order),
+        dimensions: packageDimensions(order),
+      }],
       products: shipmentProducts(order),
       synchronous: true,
     }),

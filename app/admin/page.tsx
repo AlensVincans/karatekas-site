@@ -7,6 +7,7 @@ import { type SessionUser, useDemoSession } from "../../components/session";
 import { categoryLabel, money } from "../../lib/i18n";
 import {
   productImages,
+  loadProductImages,
   readProductImages,
   type ProductImageMap,
   writeProductImages,
@@ -23,6 +24,7 @@ import {
   readPromoRules,
   type PromoBanner,
   type PromoPriceMap,
+  loadPromotions,
   writePromoBanners,
   writePromoPrices,
   writePromoRules,
@@ -992,15 +994,16 @@ function recalculateOrderTotals(
   lines: NonNullable<OrderRow["lines"]>,
   shippingPrice = 0,
 ) {
-  const subtotal = roundAdminMoney(lines.reduce((sum, line) => sum + line.total, 0));
-  const vat = roundAdminMoney(subtotal * 0.21);
   const shipping = roundAdminMoney(shippingPrice);
+  const gross = roundAdminMoney(lines.reduce((sum, line) => sum + line.total, 0) + shipping);
+  const vat = roundAdminMoney(gross * 21 / 121);
+  const subtotal = roundAdminMoney(gross - vat);
 
   return {
     subtotal,
     vat,
     shipping,
-    total: roundAdminMoney(subtotal + vat + shipping),
+    total: gross,
     currency: "EUR" as const,
   };
 }
@@ -1308,10 +1311,15 @@ export default function AdminPage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/admin/products")
-      .then((response) => response.json())
-      .then((data: { products?: Product[] }) => {
+    Promise.all([
+      fetch("/api/admin/products").then((response) => response.json()) as Promise<{ products?: Product[] }>,
+      loadPromotions(),
+      loadProductImages(),
+    ])
+      .then(([data, promotions]) => {
         if (!cancelled) {
+          setBanners(promotions.banners);
+          setPromoRules(promotions.rules);
           setAdminProducts(
             Array.isArray(data.products) && data.products.length
               ? productRows(data.products)

@@ -57,6 +57,10 @@ export type Product = {
   category: string;
   description: string;
   onlySelfPickup?: boolean;
+  weightGrams?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
   specs: string[];
   tags: string[];
   sheetX: string;

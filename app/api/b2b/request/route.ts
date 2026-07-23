@@ -1,5 +1,6 @@
 import { createB2BRequest } from "../../../../lib/auth-store";
 import { sendB2BRequestNotification } from "../../../../lib/email";
+import { rateLimit, rateLimitByEmail } from "../../../../lib/rate-limit";
 import { authErrorResponse, requireUser } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
@@ -18,6 +19,16 @@ function clean(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const ipLimited = rateLimit(request, {
+    key: "b2b:request:ip",
+    limit: 6,
+    windowMs: 60 * 60_000,
+  });
+
+  if (ipLimited) {
+    return ipLimited;
+  }
+
   let user;
 
   try {
@@ -35,6 +46,16 @@ export async function POST(request: Request) {
   }
 
   const email = user.email.toLowerCase();
+  const emailLimited = rateLimitByEmail(request, email, {
+    key: "b2b:request:email",
+    limit: 2,
+    windowMs: 24 * 60 * 60_000,
+  });
+
+  if (emailLimited) {
+    return emailLimited;
+  }
+
   const companyName = clean(payload.companyName);
   const registrationNumber = clean(payload.registrationNumber);
   const address = clean(payload.address);

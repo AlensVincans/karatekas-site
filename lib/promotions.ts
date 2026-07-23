@@ -1,233 +1,176 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
-import type { UserRole } from "./store-data";
+import {
+  emptyPromotionState,
+  type PromoBanner,
+  type PromoPriceMap,
+  type PromoRule,
+  type PromotionState,
+} from "./promotion-core";
 
-export type PromoPrice = {
-  b2c?: number;
-  b2b?: number;
-};
+export {
+  applyPromoPrice,
+  promoBannerHref,
+  type PromoBanner,
+  type PromoPrice,
+  type PromoPriceMap,
+  type PromoRule,
+  type PromoRuleAudience,
+  type PromoRuleScope,
+  type PromoTargetType,
+  type PromotionState,
+} from "./promotion-core";
 
-export type PromoPriceMap = Record<string, PromoPrice>;
+let state: PromotionState = emptyPromotionState;
+let snapshot = JSON.stringify(state);
+let loadPromise: Promise<PromotionState> | null = null;
+const listeners = new Set<() => void>();
 
-export type PromoTargetType = "discounts" | "brand" | "category";
-export type PromoRuleScope = "brand" | "product";
-export type PromoRuleAudience = "user" | "b2b" | "both";
-
-export type PromoRule = {
-  id: string;
-  scope: PromoRuleScope;
-  target: string;
-  percent: number;
-  audience: PromoRuleAudience;
-  active: boolean;
-};
-
-export type PromoBanner = {
-  id: string;
-  title: string;
-  text: string;
-  buttonText: string;
-  href?: string;
-  image: string;
-  targetType?: PromoTargetType;
-  targetValue?: string;
-  active: boolean;
-};
-
-const promoPriceKey = "kg_promo_prices";
-const promoBannerKey = "kg_promo_banners";
-const promoRuleKey = "kg_promo_rules";
-const promoChangeEvent = "kg-promo-change";
-
-function parseJson<T>(value: string | null, fallback: T): T {
-  if (!value) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
+function emit(next: PromotionState) {
+  state = next;
+  snapshot = JSON.stringify(next);
+  listeners.forEach((listener) => listener());
 }
 
-function browserSnapshot(key: string, fallback: string) {
-  if (typeof window === "undefined") {
-    return fallback;
+function parsePromotionState(value: unknown): PromotionState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return emptyPromotionState;
   }
 
-  return window.localStorage.getItem(key) ?? fallback;
-}
+  const record = value as Partial<PromotionState>;
 
-function subscribe(onStoreChange: () => void) {
-  window.addEventListener("storage", onStoreChange);
-  window.addEventListener(promoChangeEvent, onStoreChange);
-
-  return () => {
-    window.removeEventListener("storage", onStoreChange);
-    window.removeEventListener(promoChangeEvent, onStoreChange);
+  return {
+    prices: record.prices && typeof record.prices === "object" ? record.prices : {},
+    rules: Array.isArray(record.rules) ? record.rules : [],
+    banners: Array.isArray(record.banners) ? record.banners : [],
   };
 }
 
-function notifyPromotionsChanged() {
-  window.dispatchEvent(new Event(promoChangeEvent));
+export function hydratePromotions(next: PromotionState) {
+  emit(parsePromotionState(next));
+}
+
+export async function loadPromotions() {
+  if (typeof window === "undefined") {
+    return state;
+  }
+
+  loadPromise ??= fetch("/api/promotions", { credentials: "include" })
+    .then((response) => response.json())
+    .then((data: { promotions?: PromotionState }) => {
+      const next = parsePromotionState(data.promotions);
+      emit(next);
+      return next;
+    })
+    .catch(() => state)
+    .finally(() => {
+      loadPromise = null;
+    });
+
+  return loadPromise;
+}
+
+async function savePromotions(next: PromotionState) {
+  emit(next);
+
+  if (typeof window === "undefined") {
+    return next;
+  }
+
+  const response = await fetch("/api/admin/promotions", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ promotions: next }),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as {
+    promotions?: PromotionState;
+  };
+
+  if (data.promotions) {
+    emit(parsePromotionState(data.promotions));
+    return parsePromotionState(data.promotions);
+  }
+
+  if (!response.ok) {
+    throw new Error("Could not save promotions.");
+  }
+
+  return next;
+}
+
+function subscribe(onStoreChange: () => void) {
+  listeners.add(onStoreChange);
+  void loadPromotions();
+
+  return () => {
+    listeners.delete(onStoreChange);
+  };
+}
+
+function currentSnapshot() {
+  return snapshot;
+}
+
+function serverSnapshot() {
+  return JSON.stringify(emptyPromotionState);
 }
 
 export function readPromoPrices(): PromoPriceMap {
-  return parseJson(browserSnapshot(promoPriceKey, "{}"), {});
+  return state.prices;
 }
 
 export function writePromoPrices(prices: PromoPriceMap) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(promoPriceKey, JSON.stringify(prices));
-  notifyPromotionsChanged();
+  void savePromotions({ ...state, prices });
 }
 
 export function usePromoPrices() {
-  const snapshot = useSyncExternalStore(
-    subscribe,
-    () => browserSnapshot(promoPriceKey, "{}"),
-    () => "{}",
-  );
+  const value = useSyncExternalStore(subscribe, currentSnapshot, serverSnapshot);
 
-  return useMemo(() => parseJson<PromoPriceMap>(snapshot, {}), [snapshot]);
+  return useMemo(
+    () => parsePromotionState(JSON.parse(value)).prices,
+    [value],
+  );
 }
 
 export function readPromoRules(): PromoRule[] {
-  return parseJson(browserSnapshot(promoRuleKey, "[]"), []);
+  return state.rules;
 }
 
 export function writePromoRules(rules: PromoRule[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(promoRuleKey, JSON.stringify(rules));
-  notifyPromotionsChanged();
+  void savePromotions({ ...state, rules });
 }
 
 export function usePromoRules() {
-  const snapshot = useSyncExternalStore(
-    subscribe,
-    () => browserSnapshot(promoRuleKey, "[]"),
-    () => "[]",
-  );
+  const value = useSyncExternalStore(subscribe, currentSnapshot, serverSnapshot);
 
-  return useMemo(() => parseJson<PromoRule[]>(snapshot, []), [snapshot]);
+  return useMemo(
+    () => parsePromotionState(JSON.parse(value)).rules,
+    [value],
+  );
 }
 
 export function readPromoBanners(): PromoBanner[] {
-  return parseJson(browserSnapshot(promoBannerKey, "[]"), []);
+  return state.banners;
 }
 
 export function writePromoBanners(banners: PromoBanner[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(promoBannerKey, JSON.stringify(banners));
-  notifyPromotionsChanged();
+  void savePromotions({ ...state, banners });
 }
 
 export function usePromoBanners() {
-  const snapshot = useSyncExternalStore(
-    subscribe,
-    () => browserSnapshot(promoBannerKey, "[]"),
-    () => "[]",
-  );
+  const value = useSyncExternalStore(subscribe, currentSnapshot, serverSnapshot);
 
-  return useMemo(() => parseJson<PromoBanner[]>(snapshot, []), [snapshot]);
+  return useMemo(
+    () => parsePromotionState(JSON.parse(value)).banners,
+    [value],
+  );
 }
 
 export function useActivePromoBanners() {
   const banners = usePromoBanners();
 
   return useMemo(() => banners.filter((banner) => banner.active), [banners]);
-}
-
-export function promoBannerHref(banner: PromoBanner) {
-  if (banner.targetType === "brand" && banner.targetValue) {
-    return `/catalog?brand=${encodeURIComponent(banner.targetValue)}`;
-  }
-
-  if (banner.targetType === "category" && banner.targetValue) {
-    return `/catalog?category=${encodeURIComponent(banner.targetValue)}`;
-  }
-
-  if (banner.targetType === "discounts") {
-    return "/catalog?promo=1";
-  }
-
-  return banner.href || "/catalog";
-}
-
-function promoValue(value: number | undefined) {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? value
-    : undefined;
-}
-
-function ruleApplies(
-  rule: PromoRule,
-  role: UserRole,
-  context?: { productId?: string; brand?: string },
-) {
-  const isB2B = role === "b2b" || role === "admin";
-  const audience = isB2B ? "b2b" : "user";
-  const audienceMatches = rule.audience === "both" || rule.audience === audience;
-
-  if (!rule.active || !audienceMatches || rule.percent <= 0) {
-    return false;
-  }
-
-  if (rule.scope === "brand") {
-    return Boolean(context?.brand) && context?.brand === rule.target;
-  }
-
-  return Boolean(context?.productId) && context?.productId === rule.target;
-}
-
-function bestRulePrice<T extends { final: number }>(
-  price: T,
-  role: UserRole,
-  rules: PromoRule[],
-  context?: { productId?: string; brand?: string },
-) {
-  return rules
-    .filter((rule) => ruleApplies(rule, role, context))
-    .map((rule) => ({
-      rule,
-      final: Math.max(0, price.final * (1 - Math.min(rule.percent, 100) / 100)),
-    }))
-    .sort((left, right) => left.final - right.final)[0];
-}
-
-export function applyPromoPrice<T extends { final: number; retail: number; isB2B: boolean }>(
-  price: T,
-  variationId: string,
-  role: UserRole,
-  promoPrices: PromoPriceMap,
-  promoRules: PromoRule[] = [],
-  context?: { productId?: string; brand?: string },
-) {
-  const isB2B = role === "b2b" || role === "admin";
-  const promo = promoValue(isB2B ? promoPrices[variationId]?.b2b : promoPrices[variationId]?.b2c);
-  const absolutePromo = typeof promo === "number" && promo < price.final ? promo : undefined;
-  const rulePromo = bestRulePrice(price, role, promoRules, context);
-  const ruleFinal = rulePromo && rulePromo.final < price.final ? rulePromo.final : undefined;
-  const final = Math.min(absolutePromo ?? price.final, ruleFinal ?? price.final);
-  const hasPromo = final < price.final;
-  const compareAt = price.isB2B ? price.retail : hasPromo ? price.final : undefined;
-
-  return {
-    ...price,
-    final,
-    compareAt,
-    hasPromo,
-    promoRule: final === ruleFinal ? rulePromo?.rule : undefined,
-  };
 }

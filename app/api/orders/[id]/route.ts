@@ -15,11 +15,18 @@ import {
   restoreInventory,
 } from "../../../../lib/inventory";
 import { roundMoney } from "../../../../lib/montonio";
+import { logAdminAction } from "../../../../lib/audit-log";
 import { authErrorResponse, isAdmin, requireAdmin, requireUser } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
 const orderStatuses: StoreOrderStatus[] = [
+  "pending",
+  "awaiting_payment",
+  "processing",
+  "cancelled",
+  "failed",
+  "refunded",
   "in_process",
   "paid",
   "shipped",
@@ -79,15 +86,16 @@ function cleanLine(line: Partial<OrderLine>): OrderLine | null {
 }
 
 function totalsFor(lines: OrderLine[], shippingPrice: number): OrderTotals {
-  const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
   const shipping = roundMoney(shippingPrice);
-  const vat = roundMoney(subtotal * 0.21);
+  const gross = roundMoney(lines.reduce((sum, line) => sum + line.total, 0) + shipping);
+  const vat = roundMoney(gross * 21 / 121);
+  const subtotal = roundMoney(gross - vat);
 
   return {
     subtotal,
     vat,
     shipping,
-    total: roundMoney(subtotal + vat + shipping),
+    total: gross,
     currency: "EUR",
   };
 }
@@ -110,6 +118,7 @@ async function syncInventoryDiff(
   previous: OrderLine[],
   next: OrderLine[],
   order: StoreOrder,
+  actorUserId?: string,
 ) {
   const before = quantityMap(previous);
   const after = quantityMap(next);
@@ -131,22 +140,22 @@ async function syncInventoryDiff(
 
   if (order.stockAdjusted) {
     if (restoreLines.length) {
-      await restoreInventory(restoreLines);
+      await restoreInventory(restoreLines, { actorUserId, orderId: order.id, note: "admin_order_line_edit" });
     }
 
     if (decrementLines.length) {
-      await decrementInventory(decrementLines);
+      await decrementInventory(decrementLines, { actorUserId, orderId: order.id, note: "admin_order_line_edit" });
     }
 
     return;
   }
 
   if (restoreLines.length) {
-    await releaseInventoryReservation(restoreLines);
+    await releaseInventoryReservation(restoreLines, { actorUserId, orderId: order.id, note: "admin_order_line_edit" });
   }
 
   if (decrementLines.length) {
-    await reserveInventory(decrementLines);
+    await reserveInventory(decrementLines, { actorUserId, orderId: order.id, note: "admin_order_line_edit" });
   }
 }
 
@@ -180,8 +189,10 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  let admin;
+
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -248,38 +259,19 @@ export async function PATCH(
         ? Math.max(0, payload.shippingPrice)
         : currentOrder.shippingPrice;
 
-    await syncInventoryDiff(currentOrder.lines, lines, currentOrder);
+    await syncInventoryDiff(currentOrder.lines, lines, currentOrder, admin.id);
     patch.lines = lines;
     patch.totals = totalsFor(lines, shippingPrice);
     patch.shippingPrice = roundMoney(shippingPrice);
-  } else if (payload.totals) {
-    patch.totals = {
-      ...currentOrder.totals,
-      subtotal:
-        typeof payload.totals.subtotal === "number"
-          ? roundMoney(payload.totals.subtotal)
-          : currentOrder.totals.subtotal,
-      vat:
-        typeof payload.totals.vat === "number"
-          ? roundMoney(payload.totals.vat)
-          : currentOrder.totals.vat,
-      shipping:
-        typeof payload.totals.shipping === "number"
-          ? roundMoney(payload.totals.shipping)
-          : currentOrder.totals.shipping,
-      total:
-        typeof payload.totals.total === "number"
-          ? roundMoney(payload.totals.total)
-          : currentOrder.totals.total,
-      currency: "EUR",
-    };
   }
   if (shippingMethod) patch.shippingMethod = shippingMethod;
   if (shippingMethodName) patch.shippingMethodName = shippingMethodName;
   if (pickupPointId) patch.pickupPointId = pickupPointId;
   if (pickupPointName) patch.pickupPointName = pickupPointName;
   if (typeof payload.shippingPrice === "number" && Number.isFinite(payload.shippingPrice)) {
-    patch.shippingPrice = roundMoney(Math.max(0, payload.shippingPrice));
+    const shippingPrice = roundMoney(Math.max(0, payload.shippingPrice));
+    patch.shippingPrice = shippingPrice;
+    patch.totals = totalsFor(patch.lines ?? currentOrder.lines, shippingPrice);
   }
   if (trackingNumber) patch.trackingNumber = trackingNumber;
   if (trackingLink) patch.trackingLink = trackingLink;
@@ -291,6 +283,15 @@ export async function PATCH(
   if (!order) {
     return Response.json({ error: "Order not found." }, { status: 404 });
   }
+
+  await logAdminAction({
+    actorUserId: admin.id,
+    action: "update_order",
+    entityType: "order",
+    entityId: id,
+    oldValue: currentOrder,
+    newValue: order,
+  });
 
   return Response.json({ order });
 }

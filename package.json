@@ -10,6 +10,7 @@
     "build": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js build",
     "start": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/vinext/dist/cli.js start",
     "lint": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/eslint/bin/eslint.js . --ignore-pattern dist --ignore-pattern .next --ignore-pattern work",
+    "test": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs tests/production-hardening.test.mjs",
     "typecheck": "node --preserve-symlinks --preserve-symlinks-main scripts/use-modern-node.mjs node_modules/typescript/bin/tsc --noEmit --pretty false",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate-postgres.mjs",

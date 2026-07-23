@@ -2,71 +2,124 @@
 
 import { useMemo, useSyncExternalStore } from "react";
 import type { Product } from "./store-data";
+import type { ProductImageMap } from "./product-media-store";
 
-export type ProductImageMap = Record<string, string[]>;
+export type { ProductImageMap } from "./product-media-store";
 
-const productImageKey = "kg_product_images";
-const productImageChangeEvent = "kg-product-image-change";
+let imageMap: ProductImageMap = {};
+let snapshot = "{}";
+let loadPromise: Promise<ProductImageMap> | null = null;
+const listeners = new Set<() => void>();
 
-function parseJson<T>(value: string | null, fallback: T): T {
-  if (!value) {
-    return fallback;
+function normalizeImages(value: unknown): ProductImageMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
   }
 
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
+  return Object.entries(value as Record<string, unknown>).reduce<ProductImageMap>(
+    (result, [productId, images]) => {
+      if (!Array.isArray(images)) {
+        return result;
+      }
+
+      const cleaned = images
+        .map((image) => (typeof image === "string" ? image.trim() : ""))
+        .filter(Boolean);
+
+      if (cleaned.length) {
+        result[productId] = cleaned;
+      }
+
+      return result;
+    },
+    {},
+  );
 }
 
-function browserSnapshot(key: string, fallback: string) {
+function emit(next: ProductImageMap) {
+  imageMap = normalizeImages(next);
+  snapshot = JSON.stringify(imageMap);
+  listeners.forEach((listener) => listener());
+}
+
+export function hydrateProductImages(next: ProductImageMap) {
+  emit(next);
+}
+
+export async function loadProductImages() {
   if (typeof window === "undefined") {
-    return fallback;
+    return imageMap;
   }
 
-  return window.localStorage.getItem(key) ?? fallback;
+  loadPromise ??= fetch("/api/product-images", { credentials: "include" })
+    .then((response) => response.json())
+    .then((data: { images?: ProductImageMap }) => {
+      const next = normalizeImages(data.images);
+      emit(next);
+      return next;
+    })
+    .catch(() => imageMap)
+    .finally(() => {
+      loadPromise = null;
+    });
+
+  return loadPromise;
+}
+
+async function saveProductImages(next: ProductImageMap) {
+  emit(next);
+
+  if (typeof window === "undefined") {
+    return next;
+  }
+
+  const response = await fetch("/api/admin/product-images", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ images: next }),
+  });
+  const data = (await response.json().catch(() => ({}))) as {
+    images?: ProductImageMap;
+  };
+
+  if (data.images) {
+    emit(data.images);
+    return data.images;
+  }
+
+  if (!response.ok) {
+    throw new Error("Could not save product images.");
+  }
+
+  return next;
 }
 
 function subscribe(onStoreChange: () => void) {
-  window.addEventListener("storage", onStoreChange);
-  window.addEventListener(productImageChangeEvent, onStoreChange);
+  listeners.add(onStoreChange);
+  void loadProductImages();
 
   return () => {
-    window.removeEventListener("storage", onStoreChange);
-    window.removeEventListener(productImageChangeEvent, onStoreChange);
+    listeners.delete(onStoreChange);
   };
 }
 
-function notifyProductImagesChanged() {
-  window.dispatchEvent(new Event(productImageChangeEvent));
-}
-
 export function readProductImages(): ProductImageMap {
-  return parseJson(browserSnapshot(productImageKey, "{}"), {});
+  return imageMap;
 }
 
 export function writeProductImages(images: ProductImageMap) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(productImageKey, JSON.stringify(images));
-  notifyProductImagesChanged();
+  void saveProductImages(images);
 }
 
 export function useProductImages() {
-  const snapshot = useSyncExternalStore(
-    subscribe,
-    () => browserSnapshot(productImageKey, "{}"),
-    () => "{}",
-  );
+  const value = useSyncExternalStore(subscribe, () => snapshot, () => "{}");
 
-  return useMemo(() => parseJson<ProductImageMap>(snapshot, {}), [snapshot]);
+  return useMemo(() => normalizeImages(JSON.parse(value)), [value]);
 }
 
-export function productImages(product: Product, imageMap: ProductImageMap) {
-  const override = imageMap[product.id]?.filter(Boolean);
+export function productImages(product: Product, map: ProductImageMap) {
+  const override = map[product.id]?.filter(Boolean);
 
   return override?.length ? override : product.images ?? [];
 }

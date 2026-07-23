@@ -1,5 +1,6 @@
 import { passwordPolicyError, registerAuthUser } from "../../../../lib/auth-store";
 import { sendEmailConfirmation } from "../../../../lib/email";
+import { rateLimit, rateLimitByEmail } from "../../../../lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,16 @@ function originFromRequest(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const ipLimited = rateLimit(request, {
+    key: "auth:register:ip",
+    limit: 6,
+    windowMs: 60 * 60_000,
+  });
+
+  if (ipLimited) {
+    return ipLimited;
+  }
+
   let payload: RegisterPayload;
 
   try {
@@ -49,6 +60,16 @@ export async function POST(request: Request) {
   const email = clean(payload.email).toLowerCase();
   const password = clean(payload.password);
   const role = "user";
+
+  const emailLimited = rateLimitByEmail(request, email, {
+    key: "auth:register:email",
+    limit: 3,
+    windowMs: 60 * 60_000,
+  });
+
+  if (emailLimited) {
+    return emailLimited;
+  }
 
   if (!firstName || !lastName || !email || !password) {
     return Response.json({ ok: false, error: "Fill first name, last name, email and password." }, { status: 400 });

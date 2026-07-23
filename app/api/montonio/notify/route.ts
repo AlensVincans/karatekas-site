@@ -5,6 +5,7 @@ import {
 } from "../../../../lib/montonio-shipping";
 import {
   getOrderByMerchantReference,
+  ensureInvoiceForOrder,
   updateOrder,
   type StoreOrder,
 } from "../../../../lib/orders";
@@ -13,6 +14,7 @@ import {
   confirmInventoryReservation,
   releaseInventoryReservation,
 } from "../../../../lib/inventory";
+import { rateLimit } from "../../../../lib/rate-limit";
 
 type MontonioReturnPayload = {
   merchantReference?: string;
@@ -77,6 +79,16 @@ async function sendPaidOrderEmailOnce(order: StoreOrder) {
 }
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, {
+    key: "montonio:webhook",
+    limit: 240,
+    windowMs: 60_000,
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const token = await readOrderToken(request);
   const secretKey = montonioEnv.MONTONIO_SECRET_KEY?.trim();
 
@@ -108,22 +120,36 @@ export async function POST(request: Request) {
       if (order) {
         let updated = await updateOrder(order.id, {
           paymentStatus: paid ? "paid" : failed ? "failed" : order.paymentStatus,
-          orderStatus: paid ? "paid" : failed ? "unpaid" : order.orderStatus,
+          orderStatus: paid ? "paid" : failed ? "failed" : order.orderStatus,
           montonioOrderUuid: payload.uuid || payload.orderUuid || order.montonioOrderUuid,
         });
 
         if (paid && updated && !updated.stockAdjusted) {
-          const stockAdjusted = await confirmInventoryReservation(updated.lines);
+          const stockAdjusted = await confirmInventoryReservation(updated.lines, {
+            orderId: updated.id,
+            note: "montonio_paid_webhook",
+          });
 
           updated = await updateOrder(updated.id, { stockAdjusted }) ?? updated;
         }
 
+        if (paid && updated) {
+          updated = await ensureInvoiceForOrder(updated);
+        }
+
         if (failed && updated && !updated.stockAdjusted) {
-          await releaseInventoryReservation(updated.lines);
+          await releaseInventoryReservation(updated.lines, {
+            orderId: updated.id,
+            note: "montonio_failed_webhook",
+          });
           updated = await updateOrder(updated.id, {
             paymentStatus: normalizedPaymentStatus === "cancelled" || normalizedPaymentStatus === "canceled"
               ? "cancelled"
               : "failed",
+            orderStatus:
+              normalizedPaymentStatus === "cancelled" || normalizedPaymentStatus === "canceled"
+                ? "cancelled"
+                : "failed",
             shippingStatus: "failed",
             shippingError: "Payment was not completed.",
           }) ?? updated;

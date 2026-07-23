@@ -8,6 +8,8 @@ import {
 import { roundMoney } from "./montonio";
 import { isSelfPickupShippingType, oversizedOrderLine } from "./oversized-shipping";
 import { getProduct } from "./products-store";
+import { applyPromoPrice } from "./promotion-core";
+import { getPromotionState } from "./promotions-store";
 import { pricedVariation } from "./pricing";
 import { isApprovedB2B } from "./server-auth";
 import {
@@ -181,6 +183,7 @@ function normalizeAddress(payload: CheckoutPayload, user: PublicUser) {
 async function resolveLines(payload: CheckoutPayload, user: PublicUser) {
   const role: UserRole = isApprovedB2B(user) ? "b2b" : "user";
   const levels = await inventoryLevelMap();
+  const promotions = await getPromotionState();
   const resolved: ResolvedCheckoutLine[] = [];
 
   for (const line of payload.lines ?? []) {
@@ -205,7 +208,14 @@ async function resolveLines(payload: CheckoutPayload, user: PublicUser) {
       throw new Error("Not enough stock for selected product.");
     }
 
-    const price = pricedVariation(product, variation, role).final;
+    const price = applyPromoPrice(
+      pricedVariation(product, variation, role),
+      variation.id,
+      role,
+      promotions.prices,
+      promotions.rules,
+      { productId: product.id, brand: product.brand },
+    ).final;
 
     resolved.push({
       product,
@@ -219,6 +229,10 @@ async function resolveLines(payload: CheckoutPayload, user: PublicUser) {
         quantity,
         unitPrice: roundMoney(price),
         total: roundMoney(price * quantity),
+        weightGrams: product.weightGrams,
+        lengthCm: product.lengthCm,
+        widthCm: product.widthCm,
+        heightCm: product.heightCm,
       },
     });
   }
@@ -301,9 +315,11 @@ export async function resolveCheckoutInput(
   }
 
   const orderLines = lines.map((line) => line.orderLine);
-  const subtotal = roundMoney(orderLines.reduce((sum, line) => sum + line.total, 0));
-  const vat = roundMoney(subtotal * 0.21);
+  const itemsGross = roundMoney(orderLines.reduce((sum, line) => sum + line.total, 0));
   const shippingPrice = roundMoney(method.price);
+  const grossTotal = roundMoney(itemsGross + shippingPrice);
+  const vat = roundMoney(grossTotal * 21 / 121);
+  const subtotal = roundMoney(grossTotal - vat);
   const shippingAddressValue =
     method.type === "pickupPoint" && pickupPoint
       ? {
@@ -334,7 +350,7 @@ export async function resolveCheckoutInput(
         subtotal,
         vat,
         shipping: shippingPrice,
-        total: roundMoney(subtotal + vat + shippingPrice),
+        total: grossTotal,
         currency: "EUR",
       },
       shippingCarrier: method.carrierCode,
@@ -364,14 +380,6 @@ export function montonioLineItems(input: CreateOrderInput) {
       name: input.shippingMethodName,
       quantity: 1,
       finalPrice: input.shippingPrice,
-    });
-  }
-
-  if (input.totals.vat > 0) {
-    lineItems.push({
-      name: "PVN 21%",
-      quantity: 1,
-      finalPrice: input.totals.vat,
     });
   }
 

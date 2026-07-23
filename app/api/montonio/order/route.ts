@@ -2,9 +2,11 @@ import { montonioLineItems, resolveCheckoutInput } from "../../../../lib/checkou
 import { roundMoney, signMontonioJwt } from "../../../../lib/montonio";
 import {
   cancelPendingCardOrder,
+  cleanupPendingCardOrders,
   createOrder,
   updateOrder,
 } from "../../../../lib/orders";
+import { rateLimit } from "../../../../lib/rate-limit";
 import { authErrorResponse, requireUser } from "../../../../lib/server-auth";
 
 type MontonioOrderResponse = {
@@ -74,6 +76,16 @@ function apiBaseUrl() {
 }
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, {
+    key: "payment:create",
+    limit: 8,
+    windowMs: 60_000,
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   const accessKey = montonioEnv.MONTONIO_ACCESS_KEY?.trim();
   const secretKey = montonioEnv.MONTONIO_SECRET_KEY?.trim();
 
@@ -83,6 +95,10 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+
+  await cleanupPendingCardOrders().catch((error) => {
+    console.error("Pending card order cleanup failed", error);
+  });
 
   let user;
 
@@ -151,9 +167,6 @@ export async function POST(request: Request) {
       methodDisplay: "Card / Apple Pay / Google Pay",
       amount: grandTotal,
       currency: "EUR",
-      methodOptions: {
-        preferredMethod: "wallet",
-      },
     },
     iat: now,
     exp: now + 10 * 60,

@@ -1,4 +1,5 @@
 import { listB2BRequests, reviewB2BRequest } from "../../../../lib/auth-store";
+import { logAdminAction } from "../../../../lib/audit-log";
 import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
@@ -20,8 +21,10 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  let admin;
+
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -58,6 +61,14 @@ export async function PATCH(request: Request) {
   if (!b2bRequest) {
     return Response.json({ ok: false, error: "B2B request not found." }, { status: 404 });
   }
+
+  await logAdminAction({
+    actorUserId: admin.id,
+    action: status === "approved" ? "approve_b2b_request" : "reject_b2b_request",
+    entityType: "b2b_request",
+    entityId: payload.id,
+    newValue: b2bRequest,
+  });
 
   return Response.json({ ok: true, request: b2bRequest });
 }

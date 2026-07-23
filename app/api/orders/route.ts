@@ -1,6 +1,7 @@
 import { resolveCheckoutInput } from "../../../lib/checkout-server";
 import { sendOrderEmails } from "../../../lib/email";
 import { createOrder, listOrders, updateOrder } from "../../../lib/orders";
+import { rateLimit } from "../../../lib/rate-limit";
 import {
   authErrorResponse,
   isAdmin,
@@ -46,6 +47,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, {
+    key: "orders:create",
+    limit: 10,
+    windowMs: 60_000,
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   let user;
 
   try {

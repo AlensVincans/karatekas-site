@@ -28,6 +28,8 @@ type AuthStore = {
   users: AuthUser[];
 };
 
+const confirmationTokenTtlMs = 48 * 60 * 60 * 1000;
+
 export type B2BRequestStatus = "pending" | "approved" | "rejected";
 
 export type B2BRequest = {
@@ -548,6 +550,7 @@ export async function confirmAuthUser(token: string) {
       `update users
        set email_confirmed = true, confirmation_token = null, updated_at = now()
        where confirmation_token = $1
+         and confirmation_sent_at > now() - interval '48 hours'
        returning id, first_name, last_name, name, email, role, company, vat_number, credit_limit, payment_terms, email_confirmed`,
       [token],
     );
@@ -577,6 +580,13 @@ export async function confirmAuthUser(token: string) {
 
   store.users = store.users.map((user) => {
     if (user.confirmationToken !== token) {
+      return user;
+    }
+
+    if (
+      !user.confirmationSentAt ||
+      Date.now() - new Date(user.confirmationSentAt).getTime() > confirmationTokenTtlMs
+    ) {
       return user;
     }
 

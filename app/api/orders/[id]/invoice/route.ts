@@ -27,6 +27,10 @@ export async function GET(
     return Response.json({ error: "Order not found." }, { status: 404 });
   }
 
+  if (!order.invoiceNumber || !order.invoiceIssuedAt) {
+    return Response.json({ error: "Invoice is not available yet." }, { status: 404 });
+  }
+
   const pdf = buildInvoicePdf(order);
   const fileName = `${order.invoiceNumber ?? order.id}.pdf`;
 

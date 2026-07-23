@@ -1003,11 +1003,12 @@ export function CartCheckout() {
     );
   }, [pickupPoints, pickupQuery]);
   const selectedPickupPoint = pickupPoints.find((point) => point.id === pickupPointId);
-  const subtotal = lines.reduce((sum, line) => sum + line.total, 0);
-  const vat = subtotal * 0.21;
   const shippingPrice = selectedShippingMethod?.price ?? 0;
-  const totalWithoutVat = subtotal + shippingPrice;
-  const total = subtotal + vat + shippingPrice;
+  const grossItems = lines.reduce((sum, line) => sum + line.total, 0);
+  const total = grossItems + shippingPrice;
+  const vat = total * 21 / 121;
+  const subtotal = total - vat;
+  const totalWithoutVat = subtotal;
   const canUseB2B = role === "b2b" || role === "admin";
   const selfPickupMethodId = shippingMethods.find((method) =>
     isSelfPickupShippingType(method.shippingType),

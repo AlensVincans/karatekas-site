@@ -26,8 +26,10 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  let admin;
+
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -47,6 +49,9 @@ export async function PATCH(request: Request) {
   const levels = await updateInventoryLevel(payload.variationId, {
     physical: payload.physical,
     expected: payload.expected,
+  }, {
+    actorUserId: admin.id,
+    note: "admin_inventory_patch",
   });
 
   if (!levels) {

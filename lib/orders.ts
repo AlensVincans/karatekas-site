@@ -27,6 +27,12 @@ export type OrderShippingType =
   | "self_pickup";
 
 export type StoreOrderStatus =
+  | "pending"
+  | "awaiting_payment"
+  | "processing"
+  | "cancelled"
+  | "failed"
+  | "refunded"
   | "in_process"
   | "paid"
   | "shipped"
@@ -42,6 +48,10 @@ export type OrderLine = {
   quantity: number;
   unitPrice: number;
   total: number;
+  weightGrams?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
 };
 
 export type OrderCustomer = {
@@ -244,16 +254,17 @@ export async function createOrder(input: CreateOrderInput) {
     const issuedAt = new Date();
     const now = issuedAt.toISOString();
     let reserved = false;
-    const invoiceNumber = await nextInvoiceNumberDb(issuedAt);
+    const issueInvoiceNow = input.paymentMethod !== "card";
+    const invoiceNumber = issueInvoiceNow ? await nextInvoiceNumberDb(issuedAt) : undefined;
     const order: StoreOrder = {
       ...input,
       noVat: false,
       id: orderId(),
       invoiceNumber,
-      invoiceIssuedAt: now,
-      invoiceDueAt: invoiceDueAt({ ...input, noVat: false }, issuedAt),
+      invoiceIssuedAt: issueInvoiceNow ? now : undefined,
+      invoiceDueAt: issueInvoiceNow ? invoiceDueAt({ ...input, noVat: false }, issuedAt) : undefined,
       paymentStatus: "pending",
-      orderStatus: input.paymentMethod === "card" ? "in_process" : "unpaid",
+      orderStatus: input.paymentMethod === "card" ? "awaiting_payment" : "pending",
       shippingStatus: input.shippingType === "self_pickup" ? "ready_for_pickup" : "pending",
       shippingPrice: roundMoney(input.shippingPrice),
       totals: {
@@ -269,12 +280,15 @@ export async function createOrder(input: CreateOrderInput) {
     };
 
     try {
-      reserved = await reserveInventory(input.lines);
+      reserved = await reserveInventory(input.lines, { orderId: order.id, note: "order_created" });
       await insertOrderDb(order);
       return order;
     } catch (error) {
       if (reserved) {
-        await releaseInventoryReservation(input.lines).catch(() => undefined);
+        await releaseInventoryReservation(input.lines, {
+          orderId: order.id,
+          note: "order_create_failed",
+        }).catch(() => undefined);
       }
 
       throw error;
@@ -285,13 +299,15 @@ export async function createOrder(input: CreateOrderInput) {
   const issuedAt = new Date();
   const now = issuedAt.toISOString();
   let reserved = false;
+  const issueInvoiceNow = input.paymentMethod !== "card";
   const order: StoreOrder = {
     ...input,
     id: orderId(),
-    invoiceNumber: nextInvoiceNumber(store.orders, issuedAt),
-    invoiceIssuedAt: now,
-    invoiceDueAt: invoiceDueAt(input, issuedAt),
+    invoiceNumber: issueInvoiceNow ? nextInvoiceNumber(store.orders, issuedAt) : undefined,
+    invoiceIssuedAt: issueInvoiceNow ? now : undefined,
+    invoiceDueAt: issueInvoiceNow ? invoiceDueAt(input, issuedAt) : undefined,
     paymentStatus: "pending",
+    orderStatus: input.paymentMethod === "card" ? "awaiting_payment" : "pending",
     shippingStatus: input.shippingType === "self_pickup" ? "ready_for_pickup" : "pending",
     shippingPrice: roundMoney(input.shippingPrice),
     totals: {
@@ -307,13 +323,16 @@ export async function createOrder(input: CreateOrderInput) {
   };
 
   try {
-    reserved = await reserveInventory(input.lines);
+    reserved = await reserveInventory(input.lines, { orderId: order.id, note: "order_created" });
     store.orders = [order, ...store.orders];
     await writeStore(store);
     return order;
   } catch (error) {
     if (reserved) {
-      await releaseInventoryReservation(input.lines).catch(() => undefined);
+      await releaseInventoryReservation(input.lines, {
+        orderId: order.id,
+        note: "order_create_failed",
+      }).catch(() => undefined);
     }
 
     throw error;
@@ -340,6 +359,9 @@ export async function updateOrder(
     await upsertOrderDb(updated);
     if (patch.paymentStatus && patch.paymentStatus !== order.paymentStatus) {
       await recordPaymentStatusChange(updated, order.paymentStatus, patch.paymentStatus);
+    }
+    if (patch.orderStatus && patch.orderStatus !== order.orderStatus) {
+      await recordOrderStatusChange(updated, order.orderStatus, patch.orderStatus);
     }
 
     return updated;
@@ -402,6 +424,33 @@ async function recordPaymentStatusChange(
   }
 }
 
+async function recordOrderStatusChange(
+  order: StoreOrder,
+  previousStatus: StoreOrderStatus | undefined,
+  nextStatus: StoreOrderStatus,
+) {
+  if (!hasDatabase()) {
+    return;
+  }
+
+  try {
+    await dbQuery(
+      `insert into order_status_history (
+        id, order_id, previous_status, next_status, note
+       ) values ($1,$2,$3,$4,$5)`,
+      [
+        `ordhist-${Date.now().toString(36)}-${randomBytes(6).toString("hex")}`,
+        order.id,
+        previousStatus ?? null,
+        nextStatus,
+        "order_updated",
+      ],
+    );
+  } catch (error) {
+    console.error("Order status history write failed", error);
+  }
+}
+
 export async function updateOrderByMerchantReference(
   merchantReference: string,
   patch: Partial<Omit<StoreOrder, "id" | "createdAt">>,
@@ -409,6 +458,79 @@ export async function updateOrderByMerchantReference(
   const order = await getOrderByMerchantReference(merchantReference);
 
   return order ? updateOrder(order.id, patch) : null;
+}
+
+export async function ensureInvoiceForOrder(order: StoreOrder) {
+  if (order.invoiceNumber && order.invoiceIssuedAt) {
+    return order;
+  }
+
+  const issuedAt = new Date();
+  const invoiceNumber = hasDatabase()
+    ? await nextInvoiceNumberDb(issuedAt)
+    : nextInvoiceNumber((await readStore()).orders, issuedAt);
+  const invoiceIssuedAt = issuedAt.toISOString();
+  const invoiceDueAtValue = invoiceDueAt(order, issuedAt);
+  const updated = await updateOrder(order.id, {
+    invoiceNumber,
+    invoiceIssuedAt,
+    invoiceDueAt: invoiceDueAtValue,
+  });
+  const invoiceOrder = updated ?? {
+    ...order,
+    invoiceNumber,
+    invoiceIssuedAt,
+    invoiceDueAt: invoiceDueAtValue,
+  };
+
+  if (hasDatabase()) {
+    await insertInvoiceDb(invoiceOrder);
+  }
+
+  return invoiceOrder;
+}
+
+export async function cleanupPendingCardOrders(maxAgeMinutes?: number) {
+  const ageMinutes =
+    maxAgeMinutes ??
+    Math.max(5, Number(process.env.PENDING_CARD_ORDER_TTL_MINUTES || 45) || 45);
+  const cutoff = new Date(Date.now() - ageMinutes * 60 * 1000);
+
+  if (hasDatabase()) {
+    const result = await dbQuery<{ id: string }>(
+      `select id from orders
+       where payment_method = 'card'
+         and payment_status = 'pending'
+         and created_at < $1
+       limit 100`,
+      [cutoff.toISOString()],
+    );
+    let cancelled = 0;
+
+    for (const row of result.rows) {
+      if (await cancelPendingCardOrder({ id: row.id })) {
+        cancelled += 1;
+      }
+    }
+
+    return cancelled;
+  }
+
+  const store = await readStore();
+  let cancelled = 0;
+
+  for (const order of store.orders) {
+    if (
+      order.paymentMethod === "card" &&
+      order.paymentStatus === "pending" &&
+      new Date(order.createdAt).getTime() < cutoff.getTime() &&
+      await cancelPendingCardOrder({ id: order.id })
+    ) {
+      cancelled += 1;
+    }
+  }
+
+  return cancelled;
 }
 
 export async function cancelPendingCardOrder(input: {
@@ -432,12 +554,12 @@ export async function cancelPendingCardOrder(input: {
     }
 
     const stockRestored = order.stockAdjusted
-      ? await restoreInventory(order.lines)
-      : await releaseInventoryReservation(order.lines);
+      ? await restoreInventory(order.lines, { orderId: order.id, note: "card_order_cancelled" })
+      : await releaseInventoryReservation(order.lines, { orderId: order.id, note: "card_order_cancelled" });
 
     return updateOrder(order.id, {
       paymentStatus: "cancelled",
-      orderStatus: "unpaid",
+      orderStatus: "cancelled",
       shippingStatus: "failed",
       shippingError: "Payment checkout was interrupted before completion.",
       stockAdjusted: order.stockAdjusted && stockRestored ? false : order.stockAdjusted,
@@ -468,13 +590,13 @@ export async function cancelPendingCardOrder(input: {
       }
 
       const stockRestored = order.stockAdjusted
-        ? await restoreInventory(order.lines)
-        : await releaseInventoryReservation(order.lines);
+        ? await restoreInventory(order.lines, { orderId: order.id, note: "card_order_cancelled" })
+        : await releaseInventoryReservation(order.lines, { orderId: order.id, note: "card_order_cancelled" });
 
       cancelled = {
         ...order,
         paymentStatus: "cancelled",
-        orderStatus: "unpaid",
+        orderStatus: "cancelled",
         shippingStatus: "failed",
         shippingError: "Payment checkout was interrupted before completion.",
         stockAdjusted: order.stockAdjusted && stockRestored ? false : order.stockAdjusted,
@@ -597,22 +719,11 @@ async function nextInvoiceNumberDb(issuedAt: Date) {
 
 async function insertOrderDb(order: StoreOrder) {
   await upsertOrderDb(order);
-  await dbQuery(
-    `insert into invoices (
-      id, order_id, invoice_number, issued_at, due_at, no_vat, total, currency, data
-    ) values ($1,$2,$3,$4,$5,false,$6,$7,$8::jsonb)
-    on conflict (invoice_number) do nothing`,
-    [
-      `inv-${order.id}`,
-      order.id,
-      order.invoiceNumber,
-      order.invoiceIssuedAt,
-      order.invoiceDueAt,
-      order.totals.total,
-      order.totals.currency,
-      JSON.stringify(order),
-    ],
-  );
+
+  if (order.invoiceNumber) {
+    await insertInvoiceDb(order);
+  }
+
   await dbQuery(
     `insert into payments (
       id, order_id, provider, provider_payment_id, status, amount, currency, data
@@ -659,6 +770,29 @@ async function insertOrderDb(order: StoreOrder) {
       order.trackingLink,
       order.labelUrl,
       order.labelFileId,
+      JSON.stringify(order),
+    ],
+  );
+}
+
+async function insertInvoiceDb(order: StoreOrder) {
+  if (!order.invoiceNumber || !order.invoiceIssuedAt) {
+    return;
+  }
+
+  await dbQuery(
+    `insert into invoices (
+      id, order_id, invoice_number, issued_at, due_at, no_vat, total, currency, data
+    ) values ($1,$2,$3,$4,$5,false,$6,$7,$8::jsonb)
+    on conflict (invoice_number) do nothing`,
+    [
+      `inv-${order.id}`,
+      order.id,
+      order.invoiceNumber,
+      order.invoiceIssuedAt,
+      order.invoiceDueAt,
+      order.totals.total,
+      order.totals.currency,
       JSON.stringify(order),
     ],
   );
