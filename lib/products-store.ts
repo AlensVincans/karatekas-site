@@ -156,12 +156,6 @@ export async function saveProducts(nextProducts: Product[]) {
             sku = excluded.sku,
             color = excluded.color,
             size = excluded.size,
-            purchase = excluded.purchase,
-            shipping = excluded.shipping,
-            customs = excluded.customs,
-            vat_rate = excluded.vat_rate,
-            fx = excluded.fx,
-            lots = excluded.lots,
             updated_at = now()`,
           [
             variation.id,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import { csrfHeaders } from "./client-csrf";
 import type { Product } from "./store-data";
 import type { ProductImageMap } from "./product-media-store";
 
@@ -76,7 +77,7 @@ async function saveProductImages(next: ProductImageMap) {
   const response = await fetch("/api/admin/product-images", {
     method: "PUT",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ images: next }),
   });
   const data = (await response.json().catch(() => ({}))) as {

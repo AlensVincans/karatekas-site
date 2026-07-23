@@ -1,7 +1,7 @@
 import { logAdminAction } from "../../../../../../../lib/audit-log";
 import { listProducts, saveProducts } from "../../../../../../../lib/products-store";
 import { rateLimit } from "../../../../../../../lib/rate-limit";
-import { authErrorResponse, requireAdmin } from "../../../../../../../lib/server-auth";
+import { authErrorResponse, requireAdminMutation } from "../../../../../../../lib/server-auth";
 import type { Variation } from "../../../../../../../lib/store-data";
 
 export const runtime = "nodejs";
@@ -47,7 +47,7 @@ export async function PATCH(
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

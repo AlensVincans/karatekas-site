@@ -2,7 +2,7 @@ import { listProducts, saveProducts } from "../../../../lib/products-store";
 import type { Product } from "../../../../lib/store-data";
 import { logAdminAction } from "../../../../lib/audit-log";
 import { rateLimit } from "../../../../lib/rate-limit";
-import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
+import { authErrorResponse, requireAdmin, requireAdminMutation } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -31,9 +31,26 @@ export async function PUT(request: Request) {
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
+  }
+
+  if (process.env.ALLOW_LEGACY_PRODUCT_ARRAY_PUT !== "true") {
+    await logAdminAction({
+      actorUserId: admin.id,
+      action: "blocked_replace_products_legacy",
+      entityType: "product",
+      newValue: { reason: "Legacy whole-catalog replacement is disabled." },
+    });
+
+    return Response.json(
+      {
+        error:
+          "Legacy whole-catalog product replacement is disabled. Use granular product endpoints.",
+      },
+      { status: 410 },
+    );
   }
 
   let payload: { products?: Product[] };
@@ -76,7 +93,7 @@ export async function POST(request: Request) {
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

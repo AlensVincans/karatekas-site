@@ -1,7 +1,7 @@
 import { sendB2BUnpaidInvoiceReminder } from "../../../../lib/email";
 import { listOrders } from "../../../../lib/orders";
 import { rateLimit } from "../../../../lib/rate-limit";
-import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
+import { authErrorResponse, requireAdminMutation } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await requireAdmin();
+    await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

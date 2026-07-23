@@ -55,3 +55,61 @@ test("invoice access and Montonio payment payload avoid unsafe regressions", () 
   assert.match(source("lib/montonio-shipping.ts"), /MONTONIO_SHIPPING_ALLOW_MANUAL_PRICES/);
   assert.match(source("lib/montonio-shipping.ts"), /packageWeightKg/);
 });
+
+test("legacy whole-catalog product replacement is restricted", () => {
+  const route = source("app/api/admin/products/route.ts");
+  const adminPage = source("app/admin/page.tsx");
+
+  assert.match(route, /ALLOW_LEGACY_PRODUCT_ARRAY_PUT/);
+  assert.match(route, /Legacy whole-catalog product replacement is disabled/);
+  assert.doesNotMatch(adminPage, /method:\s*"PUT"[\s\S]{0,120}\/api\/admin\/products/);
+  assert.match(adminPage, /\/api\/admin\/products\/\$\{encodeURIComponent\(productId\)\}/);
+});
+
+test("product edits do not overwrite stock or cost fields", () => {
+  const store = source("lib/products-store.ts");
+  const productPatch = source("app/api/admin/products/[id]/route.ts");
+
+  assert.doesNotMatch(store, /physical\s*=\s*excluded\.physical/);
+  assert.doesNotMatch(store, /reserved\s*=\s*excluded\.reserved/);
+  assert.doesNotMatch(store, /expected\s*=\s*excluded\.expected/);
+  assert.doesNotMatch(store, /purchase\s*=\s*excluded\.purchase/);
+  assert.doesNotMatch(store, /shipping\s*=\s*excluded\.shipping/);
+  assert.doesNotMatch(store, /customs\s*=\s*excluded\.customs/);
+  assert.doesNotMatch(store, /vat_rate\s*=\s*excluded\.vat_rate/);
+  assert.doesNotMatch(store, /fx\s*=\s*excluded\.fx/);
+  assert.doesNotMatch(store, /lots\s*=\s*excluded\.lots/);
+  assert.match(productPatch, /stock:\s*currentVariation\?\.stock\s*\?\?\s*variation\.stock/);
+  assert.match(source("app/api/admin/stock/[variationId]/cost/route.ts"), /updateInventoryCost/);
+});
+
+test("admin mutating routes require CSRF and cleanup exists", () => {
+  const auth = source("lib/server-auth.ts");
+
+  assert.match(auth, /csrfCookieName/);
+  assert.match(auth, /requireAdminMutation/);
+  assert.match(source("app/api/admin/promotions/route.ts"), /requireAdminMutation\(request\)/);
+  assert.match(source("app/api/admin/product-images/route.ts"), /requireAdminMutation\(request\)/);
+  assert.match(source("app/api/orders/[id]/route.ts"), /requireAdminMutation\(request\)/);
+  assert.match(source("app/api/admin/order-cleanup/route.ts"), /cleanupPendingCardOrders/);
+});
+
+test("order statuses and CSP avoid known legacy values", () => {
+  const orders = source("lib/orders.ts");
+  const orderRoute = source("app/api/orders/[id]/route.ts");
+  const config = source("next.config.ts");
+
+  assert.match(orders, /awaiting_payment/);
+  assert.match(orders, /normalizeStoreOrderStatus/);
+  assert.doesNotMatch(orderRoute, /"in_process"/);
+  assert.doesNotMatch(orderRoute, /"unpaid"/);
+  assert.doesNotMatch(config, /unsafe-eval/);
+});
+
+test("README documents production caveats for rate limits and image storage", () => {
+  const readme = source("README.md");
+
+  assert.match(readme, /single container\/instance/);
+  assert.match(readme, /DigitalOcean Spaces\/S3\/Cloudinary/);
+  assert.match(readme, /ALLOW_LEGACY_PRODUCT_ARRAY_PUT=false/);
+});

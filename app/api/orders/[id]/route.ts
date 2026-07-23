@@ -16,22 +16,25 @@ import {
 } from "../../../../lib/inventory";
 import { roundMoney } from "../../../../lib/montonio";
 import { logAdminAction } from "../../../../lib/audit-log";
-import { authErrorResponse, isAdmin, requireAdmin, requireUser } from "../../../../lib/server-auth";
+import {
+  authErrorResponse,
+  isAdmin,
+  requireAdminMutation,
+  requireUser,
+} from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
 const orderStatuses: StoreOrderStatus[] = [
   "pending",
   "awaiting_payment",
+  "paid",
   "processing",
+  "shipped",
+  "completed",
   "cancelled",
   "failed",
   "refunded",
-  "in_process",
-  "paid",
-  "shipped",
-  "unpaid",
-  "completed",
 ];
 const paymentStatuses: OrderPaymentStatus[] = ["pending", "paid", "failed", "cancelled"];
 const shippingStatuses: OrderShippingStatus[] = [
@@ -192,7 +195,7 @@ export async function PATCH(
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

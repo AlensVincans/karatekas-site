@@ -1,6 +1,6 @@
 import { createLabelForShipment } from "../../../../../lib/montonio-shipping";
 import { getOrderById, getOrderByMerchantReference, updateOrder } from "../../../../../lib/orders";
-import { authErrorResponse, requireAdmin } from "../../../../../lib/server-auth";
+import { authErrorResponse, requireAdminMutation } from "../../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,7 @@ type CreateLabelPayload = {
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

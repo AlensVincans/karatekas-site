@@ -1,9 +1,11 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
 import { getPublicUserById, type PublicUser } from "./auth-store";
 
 export const sessionCookieName = "kg_session";
+export const csrfCookieName = "kg_csrf";
+export const csrfHeaderName = "x-csrf-token";
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
 
 type SessionPayload = {
@@ -91,6 +93,39 @@ function cookieOptions() {
   };
 }
 
+function csrfCookieOptions() {
+  return {
+    httpOnly: false,
+    maxAge: sessionMaxAgeSeconds,
+    path: "/",
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+  };
+}
+
+function createCsrfToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+function validCsrfToken(value: string | undefined): value is string {
+  return typeof value === "string" && value.length >= 32;
+}
+
+export async function ensureCsrfCookie() {
+  const store = await cookies();
+  const existing = store.get(csrfCookieName)?.value;
+
+  if (validCsrfToken(existing)) {
+    return existing;
+  }
+
+  const token = createCsrfToken();
+
+  store.set(csrfCookieName, token, csrfCookieOptions());
+
+  return token;
+}
+
 export async function setSessionCookie(user: Pick<PublicUser, "id">) {
   const now = Math.floor(Date.now() / 1000);
   const store = await cookies();
@@ -104,6 +139,8 @@ export async function setSessionCookie(user: Pick<PublicUser, "id">) {
     }),
     cookieOptions(),
   );
+
+  store.set(csrfCookieName, createCsrfToken(), csrfCookieOptions());
 }
 
 export async function clearSessionCookie() {
@@ -111,6 +148,10 @@ export async function clearSessionCookie() {
 
   store.set(sessionCookieName, "", {
     ...cookieOptions(),
+    maxAge: 0,
+  });
+  store.set(csrfCookieName, "", {
+    ...csrfCookieOptions(),
     maxAge: 0,
   });
 }
@@ -144,6 +185,30 @@ export async function requireAdmin() {
   }
 
   return user;
+}
+
+export async function requireCsrf(request: Request) {
+  const method = request.method.toUpperCase();
+
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return;
+  }
+
+  const store = await cookies();
+  const cookieToken = store.get(csrfCookieName)?.value;
+  const headerToken = request.headers.get(csrfHeaderName) ?? undefined;
+
+  if (!validCsrfToken(cookieToken) || !validCsrfToken(headerToken) || !safeEqual(cookieToken, headerToken)) {
+    throw new AuthError(403, "CSRF validation failed.");
+  }
+}
+
+export async function requireAdminMutation(request: Request) {
+  const admin = await requireAdmin();
+
+  await requireCsrf(request);
+
+  return admin;
 }
 
 export function authErrorResponse(error: unknown) {

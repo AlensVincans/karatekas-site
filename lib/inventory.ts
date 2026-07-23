@@ -20,6 +20,25 @@ export type InventoryItem = {
   expected: number;
 };
 
+export type InventoryCostPatch = {
+  purchase?: number;
+  shipping?: number;
+  customs?: number;
+  vatRate?: number;
+  fx?: number;
+  lots?: unknown;
+};
+
+export type InventoryCostSnapshot = {
+  variationId: string;
+  purchase: number;
+  shipping: number;
+  customs: number;
+  vatRate: number;
+  fx: number;
+  lots: unknown[];
+};
+
 type InventoryOverride = {
   physical?: number;
   reserved?: number;
@@ -68,6 +87,16 @@ function normalizeQty(value: unknown) {
   const parsed = Number(value);
 
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+function normalizeCost(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function normalizeLots(value: unknown) {
+  return Array.isArray(value) ? value.filter((lot) => lot && typeof lot === "object") : [];
 }
 
 function stockHistoryId() {
@@ -307,6 +336,76 @@ export async function updateInventoryLevel(
   await writeStore(store);
 
   return inventoryLevelMap();
+}
+
+export async function updateInventoryCost(
+  variationId: string,
+  patch: InventoryCostPatch,
+): Promise<InventoryCostSnapshot | null> {
+  if (!hasDatabase()) {
+    return null;
+  }
+
+  await ensureStockSeeded();
+
+  let updated: InventoryCostSnapshot | null = null;
+
+  await dbTransaction(async (query) => {
+    const current = await query<{
+      purchase: number;
+      shipping: number;
+      customs: number;
+      vat_rate: number;
+      fx: number;
+      lots: unknown;
+    }>(
+      `select purchase, shipping, customs, vat_rate, fx, lots
+       from stock_levels
+       where variation_id = $1
+       for update`,
+      [variationId],
+    );
+    const level = current.rows[0];
+
+    if (!level) {
+      return;
+    }
+
+    const next = {
+      variationId,
+      purchase: normalizeCost(patch.purchase, Number(level.purchase) || 0),
+      shipping: normalizeCost(patch.shipping, Number(level.shipping) || 0),
+      customs: normalizeCost(patch.customs, Number(level.customs) || 0),
+      vatRate: normalizeCost(patch.vatRate, Number(level.vat_rate) || 21),
+      fx: normalizeCost(patch.fx, Number(level.fx) || 1),
+      lots: "lots" in patch ? normalizeLots(patch.lots) : normalizeLots(level.lots),
+    };
+
+    await query(
+      `update stock_levels
+       set purchase = $2,
+           shipping = $3,
+           customs = $4,
+           vat_rate = $5,
+           fx = $6,
+           lots = $7::jsonb,
+           updated_at = now()
+       where variation_id = $1`,
+      [
+        variationId,
+        next.purchase,
+        next.shipping,
+        next.customs,
+        next.vatRate,
+        next.fx,
+        JSON.stringify(next.lots),
+      ],
+    );
+
+    updated = next;
+  });
+
+  return updated;
 }
 
 export async function decrementInventory(

@@ -3,7 +3,8 @@ import {
   listInventory,
   updateInventoryLevel,
 } from "../../../lib/inventory";
-import { authErrorResponse, requireAdmin } from "../../../lib/server-auth";
+import { rateLimit } from "../../../lib/rate-limit";
+import { authErrorResponse, requireAdmin, requireAdminMutation } from "../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -26,10 +27,20 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const limited = rateLimit(request, {
+    key: "inventory:patch",
+    limit: 240,
+    windowMs: 60_000,
+  });
+
+  if (limited) {
+    return limited;
+  }
+
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

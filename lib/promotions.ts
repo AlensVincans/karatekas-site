@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import { csrfHeaders } from "./client-csrf";
 import {
   emptyPromotionState,
   type PromoBanner,
@@ -81,7 +82,7 @@ async function savePromotions(next: PromotionState) {
   const response = await fetch("/api/admin/promotions", {
     method: "PUT",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ promotions: next }),
   });
 

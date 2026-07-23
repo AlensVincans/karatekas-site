@@ -1,6 +1,6 @@
 import { listB2BRequests, reviewB2BRequest } from "../../../../lib/auth-store";
 import { logAdminAction } from "../../../../lib/audit-log";
-import { authErrorResponse, requireAdmin } from "../../../../lib/server-auth";
+import { authErrorResponse, requireAdmin, requireAdminMutation } from "../../../../lib/server-auth";
 
 export const runtime = "nodejs";
 
@@ -24,7 +24,7 @@ export async function PATCH(request: Request) {
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

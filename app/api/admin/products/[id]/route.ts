@@ -1,7 +1,7 @@
 import { logAdminAction } from "../../../../../lib/audit-log";
 import { listProducts, saveProducts } from "../../../../../lib/products-store";
 import { rateLimit } from "../../../../../lib/rate-limit";
-import { authErrorResponse, requireAdmin } from "../../../../../lib/server-auth";
+import { authErrorResponse, requireAdminMutation } from "../../../../../lib/server-auth";
 import type { Product } from "../../../../../lib/store-data";
 
 export const runtime = "nodejs";
@@ -16,6 +16,17 @@ function cleanText(value: unknown) {
 }
 
 function patchedProduct(current: Product, patch: ProductPatch): Product {
+  const nextVariations = Array.isArray(patch.variations)
+    ? patch.variations.map((variation) => {
+        const currentVariation = current.variations.find((item) => item.id === variation.id);
+
+        return {
+          ...variation,
+          stock: currentVariation?.stock ?? variation.stock,
+        };
+      })
+    : current.variations;
+
   return {
     ...current,
     name: cleanText(patch.name) ?? current.name,
@@ -53,7 +64,7 @@ function patchedProduct(current: Product, patch: ProductPatch): Product {
       : current.tags,
     sheetX: cleanText(patch.sheetX) ?? current.sheetX,
     sheetY: cleanText(patch.sheetY) ?? current.sheetY,
-    variations: Array.isArray(patch.variations) ? patch.variations : current.variations,
+    variations: nextVariations,
   };
 }
 
@@ -74,7 +85,7 @@ export async function PATCH(
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -125,7 +136,7 @@ export async function DELETE(
   let admin;
 
   try {
-    admin = await requireAdmin();
+    admin = await requireAdminMutation(request);
   } catch (error) {
     return authErrorResponse(error);
   }

@@ -38,6 +38,7 @@ MONTONIO_ENV=sandbox
 MONTONIO_SITE_URL=https://karatekas.eu
 MONTONIO_SHIPPING_USE_API=true
 MONTONIO_SHIPPING_ALLOW_MANUAL_PRICES=false
+ALLOW_LEGACY_PRODUCT_ARRAY_PUT=false
 ```
 
 The PostgreSQL connection automatically enforces `sslmode=require` and libpq-compatible SSL parsing for DigitalOcean.
@@ -107,6 +108,25 @@ Run `npm run db:migrate` once against the production `DATABASE_URL` before the f
 6. Only a valid Montonio paid webhook confirms the order, creates the final invoice, deducts `stock_levels.physical` and decreases `reserved`.
 7. Failed, cancelled, expired or abandoned card orders release `reserved` stock.
 8. Manual stock edits must use inventory endpoints, not product edit payloads.
+9. Admins can manually trigger cleanup of old pending card orders with `POST /api/admin/order-cleanup`; it releases reservations through the same stock lifecycle code.
+
+## Admin Product and Stock Flow
+
+- Product creation uses `POST /api/admin/products`.
+- Product metadata updates use `PATCH /api/admin/products/:id`.
+- Variation metadata and sell prices use `PATCH /api/admin/products/:id/variations/:variationId`.
+- Stock quantity edits use `PATCH /api/admin/stock/:variationId` or the legacy-compatible `/api/inventory` admin route.
+- Cost fields use `PATCH /api/admin/stock/:variationId/cost`.
+- Normal product edits do not update `stock_levels.physical`, `reserved`, `expected`, `purchase`, `shipping`, `customs`, `vat_rate`, `fx` or `lots`.
+- The legacy whole-catalog `PUT /api/admin/products` is disabled by default. Only set `ALLOW_LEGACY_PRODUCT_ARRAY_PUT=true` for a short, controlled migration window.
+
+## Security Notes
+
+- Auth uses a signed server session in a secure httpOnly cookie. Roles and B2B pricing are read from the server session/database, not frontend state.
+- Admin mutating endpoints require the session cookie plus the `x-csrf-token` double-submit header.
+- Rate limiting is currently in-memory per Node.js process. This is production-safe only for a single container/instance. If DigitalOcean scales the app horizontally, move rate limits to Redis, Postgres, or a WAF/rate-limit service.
+- CSP currently removes `unsafe-eval`. Inline scripts/styles remain allowed because the current Next/Vinext frontend still emits inline hydration/style code; removing `unsafe-inline` should be handled with a nonce/hash refactor and full browser verification.
+- Product and banner image references are persisted in PostgreSQL as URLs/data URLs. Real object storage upload is not implemented yet; before heavy production image management, add DigitalOcean Spaces/S3/Cloudinary upload, MIME/size validation, safe filenames and image optimization.
 
 ## Validate
 
@@ -124,3 +144,4 @@ npm run build
 - Set Montonio sandbox keys only with `MONTONIO_ENV=sandbox` and production keys only with `MONTONIO_ENV=production`.
 - Configure PostgreSQL backups and test restore before launch.
 - Keep `MONTONIO_SHIPPING_ALLOW_MANUAL_PRICES=false` in production unless manual fallback prices are intentionally approved.
+- Keep `ALLOW_LEGACY_PRODUCT_ARRAY_PUT=false` in production.

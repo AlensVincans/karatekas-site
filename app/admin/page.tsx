@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLanguage } from "../../components/language";
 import { type SessionUser, useDemoSession } from "../../components/session";
+import { csrfHeaders } from "../../lib/client-csrf";
 import { categoryLabel, money } from "../../lib/i18n";
 import {
   productImages,
@@ -57,7 +58,16 @@ type AdminProduct = {
 };
 
 type OrderPayment = "invoice15" | "card" | "invoice";
-type OrderStatus = "in_process" | "paid" | "shipped" | "unpaid" | "completed";
+type OrderStatus =
+  | "pending"
+  | "awaiting_payment"
+  | "paid"
+  | "processing"
+  | "shipped"
+  | "completed"
+  | "cancelled"
+  | "failed"
+  | "refunded";
 type OrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled";
 type OrderShippingStatus =
   | "pending"
@@ -137,7 +147,17 @@ type ApiOrder = {
   lines?: OrderRow["lines"];
 };
 
-const orderStatuses: OrderStatus[] = ["in_process", "paid", "shipped", "unpaid", "completed"];
+const orderStatuses: OrderStatus[] = [
+  "pending",
+  "awaiting_payment",
+  "paid",
+  "processing",
+  "shipped",
+  "completed",
+  "cancelled",
+  "failed",
+  "refunded",
+];
 const paymentStatuses: OrderPaymentStatus[] = ["pending", "paid", "failed", "cancelled"];
 const shippingStatuses: OrderShippingStatus[] = [
   "pending",
@@ -249,11 +269,15 @@ const copy = {
       invoice: "счёт",
     },
     statuses: {
-      in_process: "в процессе",
+      pending: "новый",
+      awaiting_payment: "ожидает оплаты",
       paid: "оплачен",
+      processing: "в обработке",
       shipped: "отправлен",
-      unpaid: "не оплачен",
       completed: "завершен",
+      cancelled: "отменен",
+      failed: "ошибка",
+      refunded: "возврат",
     },
   },
   lv: {
@@ -355,11 +379,15 @@ const copy = {
       invoice: "rēķins",
     },
     statuses: {
-      in_process: "procesā",
+      pending: "jauns",
+      awaiting_payment: "gaida apmaksu",
       paid: "apmaksāts",
+      processing: "apstrādē",
       shipped: "nosūtīts",
-      unpaid: "nav apmaksāts",
       completed: "pabeigts",
+      cancelled: "atcelts",
+      failed: "kļūda",
+      refunded: "atmaksāts",
     },
   },
   en: {
@@ -461,11 +489,15 @@ const copy = {
       invoice: "invoice",
     },
     statuses: {
-      in_process: "in process",
+      pending: "pending",
+      awaiting_payment: "awaiting payment",
       paid: "paid",
+      processing: "processing",
       shipped: "shipped",
-      unpaid: "unpaid",
       completed: "completed",
+      cancelled: "cancelled",
+      failed: "failed",
+      refunded: "refunded",
     },
   },
 } as const;
@@ -687,10 +719,10 @@ function statusFromApiOrder(order: ApiOrder): OrderStatus {
   }
 
   if (order.paymentStatus === "cancelled" || order.paymentStatus === "failed") {
-    return "unpaid";
+    return order.paymentStatus === "cancelled" ? "cancelled" : "failed";
   }
 
-  return "in_process";
+  return "processing";
 }
 
 function paymentFromApiOrder(order: ApiOrder): OrderPayment {
@@ -1229,15 +1261,6 @@ function ProductForm({
                 }
               />
             </label>
-            <label>
-              {c.stock}
-              <input
-                min={0}
-                type="number"
-                value={variation.stock}
-                onChange={(event) => onVariationChange(variation.id, { stock: Number(event.target.value) })}
-              />
-            </label>
             <label className="switch-row">
               <input
                 checked={variation.active}
@@ -1304,6 +1327,7 @@ export default function AdminPage() {
   const [emailStatus, setEmailStatus] = useState("");
   const [adminActionStatus, setAdminActionStatus] = useState("");
   const productPersistTimer = useRef<number | null>(null);
+  const persistedProductsRef = useRef<AdminProduct[]>([]);
   const availableTotal = inventoryItems.length
     ? inventoryItems.reduce((sum, item) => sum + item.available, 0)
     : adminProducts.reduce((sum, product) => sum + productStock(product), 0);
@@ -1320,17 +1344,22 @@ export default function AdminPage() {
         if (!cancelled) {
           setBanners(promotions.banners);
           setPromoRules(promotions.rules);
-          setAdminProducts(
+          const rows =
             Array.isArray(data.products) && data.products.length
               ? productRows(data.products)
-              : productRows(),
-          );
+              : productRows();
+
+          persistedProductsRef.current = rows;
+          setAdminProducts(rows);
           setProductsLoaded(true);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setAdminProducts(productRows());
+          const rows = productRows();
+
+          persistedProductsRef.current = rows;
+          setAdminProducts(rows);
           setProductsLoaded(true);
         }
       });
@@ -1485,6 +1514,70 @@ export default function AdminPage() {
     );
   }
 
+  function samePersistedProduct(left: AdminProduct, right: AdminProduct) {
+    return (
+      JSON.stringify(adminProductToProduct(left)) ===
+      JSON.stringify(adminProductToProduct(right))
+    );
+  }
+
+  async function persistProductChanges(previous: AdminProduct[], next: AdminProduct[]) {
+    const previousById = new Map(previous.map((product) => [product.id, product]));
+    const nextById = new Map(next.map((product) => [product.id, product]));
+    const requests: Promise<Response>[] = [];
+
+    nextById.forEach((product, productId) => {
+      const previousProduct = previousById.get(productId);
+      const payload = adminProductToProduct(product);
+
+      if (!previousProduct) {
+        requests.push(
+          fetch("/api/admin/products", {
+            method: "POST",
+            credentials: "include",
+            headers: csrfHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify(payload),
+          }),
+        );
+        return;
+      }
+
+      if (!samePersistedProduct(previousProduct, product)) {
+        requests.push(
+          fetch(`/api/admin/products/${encodeURIComponent(productId)}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: csrfHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify(payload),
+          }),
+        );
+      }
+    });
+
+    previousById.forEach((_product, productId) => {
+      if (!nextById.has(productId)) {
+        requests.push(
+          fetch(`/api/admin/products/${encodeURIComponent(productId)}`, {
+            method: "DELETE",
+            credentials: "include",
+            headers: csrfHeaders(),
+          }),
+        );
+      }
+    });
+
+    if (!requests.length) {
+      return;
+    }
+
+    const responses = await Promise.all(requests);
+    const failed = responses.find((response) => !response.ok);
+
+    if (failed) {
+      throw new Error("Product save failed.");
+    }
+  }
+
   function scheduleProductPersistence(next: AdminProduct[]) {
     if (typeof window === "undefined") {
       return;
@@ -1495,11 +1588,15 @@ export default function AdminPage() {
     }
 
     productPersistTimer.current = window.setTimeout(() => {
-      void fetch("/api/admin/products", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products: next.map(adminProductToProduct) }),
-      });
+      const previous = persistedProductsRef.current;
+
+      void persistProductChanges(previous, next)
+        .then(() => {
+          persistedProductsRef.current = next;
+        })
+        .catch(() => {
+          setAdminActionStatus(extra.actionFailed);
+        });
     }, 650);
   }
 
@@ -1560,7 +1657,8 @@ export default function AdminPage() {
 
     const response = await fetch("/api/inventory", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      headers: csrfHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         variationId: item.variationId,
         physical: nextPhysical,
@@ -1694,9 +1792,8 @@ export default function AdminPage() {
     try {
       const response = await fetch("/api/admin/test-email", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        credentials: "include",
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({}),
       });
       const result = (await response.json().catch(() => ({}))) as { error?: string };
@@ -1713,6 +1810,8 @@ export default function AdminPage() {
     try {
       const response = await fetch("/api/admin/email-reminders", {
         method: "POST",
+        credentials: "include",
+        headers: csrfHeaders(),
       });
       const result = (await response.json().catch(() => ({}))) as {
         sent?: number;
@@ -1733,7 +1832,8 @@ export default function AdminPage() {
     try {
       const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(patch),
       });
       const result = (await response.json().catch(() => ({}))) as {
@@ -1810,7 +1910,8 @@ export default function AdminPage() {
     try {
       const response = await fetch("/api/admin/b2b-requests", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           id: user.b2bRequest.id,
           status: approved ? "approved" : "rejected",
@@ -1832,7 +1933,8 @@ export default function AdminPage() {
     try {
       const response = await fetch("/api/auth/users", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ email: user.email, b2bEnabled: enabled }),
       });
 

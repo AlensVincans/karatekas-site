@@ -2663,7 +2663,8 @@ td span {
   text-align: center;
 }
 
-.order-status-select.status-in_process {
+.order-status-select.status-pending,
+.order-status-select.status-awaiting_payment {
   background: #eef4ff;
   color: #26467d;
 }
@@ -2673,17 +2674,24 @@ td span {
   color: #10683d;
 }
 
+.order-status-select.status-processing {
+  background: #fff7d8;
+  color: #775500;
+}
+
 .order-status-select.status-shipped {
   background: #efeaff;
   color: #5632a8;
 }
 
-.order-status-select.status-unpaid {
+.order-status-select.status-cancelled,
+.order-status-select.status-failed {
   background: #fff1e6;
   color: #a44705;
 }
 
-.order-status-select.status-completed {
+.order-status-select.status-completed,
+.order-status-select.status-refunded {
   background: #e8f6f3;
   color: var(--deep);
 }

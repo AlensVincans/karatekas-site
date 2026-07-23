@@ -29,15 +29,13 @@ export type OrderShippingType =
 export type StoreOrderStatus =
   | "pending"
   | "awaiting_payment"
+  | "paid"
   | "processing"
+  | "shipped"
+  | "completed"
   | "cancelled"
   | "failed"
-  | "refunded"
-  | "in_process"
-  | "paid"
-  | "shipped"
-  | "unpaid"
-  | "completed";
+  | "refunded";
 
 export type OrderLine = {
   productId?: string;
@@ -662,6 +660,32 @@ function dateIso(value: Date | string | null | undefined) {
   return value instanceof Date ? value.toISOString() : value;
 }
 
+const canonicalOrderStatuses = new Set<StoreOrderStatus>([
+  "pending",
+  "awaiting_payment",
+  "paid",
+  "processing",
+  "shipped",
+  "completed",
+  "cancelled",
+  "failed",
+  "refunded",
+]);
+
+function normalizeStoreOrderStatus(value: unknown): StoreOrderStatus | undefined {
+  if (value === "in_process") {
+    return "processing";
+  }
+
+  if (value === "unpaid") {
+    return "awaiting_payment";
+  }
+
+  return typeof value === "string" && canonicalOrderStatuses.has(value as StoreOrderStatus)
+    ? (value as StoreOrderStatus)
+    : undefined;
+}
+
 function mapOrderRow(row: OrderRow): StoreOrder {
   return {
     id: row.id,
@@ -673,7 +697,7 @@ function mapOrderRow(row: OrderRow): StoreOrder {
     invoiceDueAt: dateIso(row.invoice_due_at),
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
-    orderStatus: row.order_status ?? undefined,
+    orderStatus: normalizeStoreOrderStatus(row.order_status),
     noVat: false,
     language: row.language ?? undefined,
     customer: row.customer,
@@ -854,7 +878,7 @@ async function upsertOrderDb(order: StoreOrder) {
       order.invoiceDueAt,
       order.paymentMethod,
       order.paymentStatus,
-      order.orderStatus ?? "in_process",
+      order.orderStatus ?? "pending",
       order.language,
       JSON.stringify(order.customer),
       JSON.stringify(order.lines),
