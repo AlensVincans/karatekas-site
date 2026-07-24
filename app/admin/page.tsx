@@ -1673,6 +1673,26 @@ export default function AdminPage() {
     }
   }
 
+  function renderStockVariantToken(item: ClientInventoryItem) {
+    return (
+      <div className="stock-variant-token" key={item.variationId}>
+        <span className="stock-variant-title">
+          {[item.color, item.size].filter(Boolean).join(" / ") || "-"}
+        </span>
+        <input
+          aria-label={`${item.productName} ${item.color ?? ""} ${item.size ?? ""}`}
+          min={0}
+          type="number"
+          value={item.physical}
+          onChange={(event) =>
+            void updateStockLevel(item, Number(event.target.value))
+          }
+        />
+        <small>{item.available} {c.availableStock}</small>
+      </div>
+    );
+  }
+
   function initialTargetValue(targetType: PromoTargetType) {
     if (targetType === "brand") {
       return brandOptions[0] ?? "";
@@ -2640,25 +2660,18 @@ export default function AdminPage() {
                       </span>
                     </td>
                     <td className="stock-variant-cell">
-                      <div className="stock-variant-grid">
-                        {row.items.map((item) => (
-                          <div className="stock-variant-token" key={item.variationId}>
-                            <span className="stock-variant-title">
-                              {[item.color, item.size].filter(Boolean).join(" / ") || "-"}
-                            </span>
-                            <input
-                              aria-label={`${item.productName} ${item.color ?? ""} ${item.size ?? ""}`}
-                              min={0}
-                              type="number"
-                              value={item.physical}
-                              onChange={(event) =>
-                                void updateStockLevel(item, Number(event.target.value))
-                              }
-                            />
-                            <small>{item.available} {c.availableStock}</small>
-                          </div>
-                        ))}
+                      <div className="stock-variant-grid stock-variant-grid-desktop">
+                        {row.items.map(renderStockVariantToken)}
                       </div>
+                      <details className="stock-variation-details">
+                        <summary>
+                          {c.variants}
+                          <span>{row.items.length}</span>
+                        </summary>
+                        <div className="stock-variant-grid">
+                          {row.items.map(renderStockVariantToken)}
+                        </div>
+                      </details>
                     </td>
                   </tr>
                 ))}

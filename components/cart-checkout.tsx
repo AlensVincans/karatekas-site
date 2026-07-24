@@ -285,6 +285,7 @@ const manualShippingPrices: Partial<Record<DeliveryCountry, Record<string, numbe
 };
 
 const balticDeliveryCountries = new Set<DeliveryCountry>(["LV", "LT", "EE"]);
+const priorityDeliveryCountries: DeliveryCountry[] = ["LV", "LT", "EE"];
 
 function isBalticDeliveryCountry(country: DeliveryCountry) {
   return balticDeliveryCountries.has(country);
@@ -891,8 +892,8 @@ export function CartCheckout() {
   const activeShippingCountry = effectiveDeliveryCountry(shippingCountry);
   const sortedDeliveryCountries = useMemo(() => {
     const locale = localeForLanguage(language);
-
-    return [...deliveryCountries].sort((left, right) => {
+    const priorityCodes = new Set<DeliveryCountry>(priorityDeliveryCountries);
+    const byLabel = (left: (typeof deliveryCountries)[number], right: (typeof deliveryCountries)[number]) => {
       const leftLabel = countryLabel(left.code, language);
       const rightLabel = countryLabel(right.code, language);
 
@@ -900,7 +901,15 @@ export function CartCheckout() {
         leftLabel.localeCompare(rightLabel, locale, { sensitivity: "base" }) ||
         left.code.localeCompare(right.code)
       );
-    });
+    };
+    const priority = priorityDeliveryCountries
+      .map((code) => deliveryCountries.find((country) => country.code === code))
+      .filter(isPresent);
+    const rest = deliveryCountries
+      .filter((country) => !priorityCodes.has(country.code))
+      .sort(byLabel);
+
+    return [...priority, ...rest];
   }, [language]);
 
   useEffect(() => {

@@ -94,6 +94,7 @@ test("Baltic pickup point selection stays available when switching countries", (
   assert.match(checkout, /isBalticDeliveryCountry/);
   assert.match(checkout, /localizedRegionName/);
   assert.match(checkout, /sortedDeliveryCountries/);
+  assert.match(checkout, /priorityDeliveryCountries:\s*DeliveryCountry\[\]\s*=\s*\["LV", "LT", "EE"\]/);
   assert.match(checkout, /localeCompare/);
   assert.match(checkout, /Montonio International Shipping/);
   assert.match(checkout, /shipping-logos\/montonio\.png/);
@@ -116,6 +117,10 @@ test("Baltic pickup point selection stays available when switching countries", (
   assert.match(home, /EU courier/);
   assert.match(styles, /aspect-ratio:\s*1920 \/ 600/);
   assert.match(styles, /background-size:\s*100% 100%/);
+  assert.match(styles, /Mobile commerce\/admin refinements/);
+  assert.match(styles, /grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /stock-variation-details/);
+  assert.match(source("app/admin/page.tsx"), /<details className="stock-variation-details">/);
 });
 
 test("legacy whole-catalog product replacement is restricted", () => {
