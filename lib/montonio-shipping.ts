@@ -891,6 +891,7 @@ async function contractPricedFallbackMethods(countryCode = defaultCountry) {
     (method) =>
       method.shippingType === "self_pickup" ||
       method.source === "montonio" ||
+      (!isBalticShippingCountry(countryCode) && isMontonioInternationalMethod(method)) ||
       manualShippingPricesAllowed(),
   );
 }

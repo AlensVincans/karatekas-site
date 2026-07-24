@@ -92,10 +92,16 @@ test("Baltic pickup point selection stays available when switching countries", (
   assert.match(checkout, /shippingMethodsRef/);
   assert.match(checkout, /isBalticDeliveryCountry/);
   assert.match(checkout, /localizedRegionName/);
+  assert.match(checkout, /sortedDeliveryCountries/);
+  assert.match(checkout, /localeCompare/);
   assert.match(checkout, /Montonio International Shipping/);
   assert.match(checkout, /shipping-logos\/montonio\.png/);
   assert.match(shipping, /isBalticShippingCountry/);
   assert.match(shipping, /montonioInternationalName/);
+  assert.match(
+    shipping,
+    /!isBalticShippingCountry\(countryCode\) && isMontonioInternationalMethod\(method\)/,
+  );
   assert.match(shipping, /contractPricedFallbackMethods/);
   assert.match(shipping, /acceptedCarrierCodes/);
   assert.match(shipping, /pickupPointTypeMatches/);

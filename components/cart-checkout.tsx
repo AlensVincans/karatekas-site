@@ -891,6 +891,19 @@ export function CartCheckout() {
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const activeShippingCountry = effectiveDeliveryCountry(shippingCountry);
+  const sortedDeliveryCountries = useMemo(() => {
+    const locale = localeForLanguage(language);
+
+    return [...deliveryCountries].sort((left, right) => {
+      const leftLabel = countryLabel(left.code, language);
+      const rightLabel = countryLabel(right.code, language);
+
+      return (
+        leftLabel.localeCompare(rightLabel, locale, { sensitivity: "base" }) ||
+        left.code.localeCompare(right.code)
+      );
+    });
+  }, [language]);
 
   useEffect(() => {
     shippingMethodsRef.current = shippingMethods;
@@ -1443,7 +1456,7 @@ export function CartCheckout() {
               }
             >
               <option value="" />
-              {deliveryCountries.map((country) => (
+              {sortedDeliveryCountries.map((country) => (
                 <option key={country.code} value={country.code}>
                   {countryLabel(country.code, language)}
                 </option>
@@ -1571,7 +1584,7 @@ export function CartCheckout() {
                     onChange={(event) => updateAddress({ country: event.target.value })}
                   >
                     <option value="" />
-                    {deliveryCountries.map((country) => (
+                    {sortedDeliveryCountries.map((country) => (
                       <option key={country.code} value={country.code}>
                         {countryLabel(country.code, language)}
                       </option>
