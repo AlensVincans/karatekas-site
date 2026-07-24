@@ -81,15 +81,23 @@ test("invoice access and Montonio payment payload avoid unsafe regressions", () 
 test("Baltic pickup point selection stays available when switching countries", () => {
   const checkout = source("components/cart-checkout.tsx");
   const shipping = source("lib/montonio-shipping.ts");
+  const home = source("app/page.tsx");
 
   assert.match(checkout, /preferredShippingMethodId/);
   assert.match(checkout, /shippingMethodsRef/);
+  assert.match(checkout, /isBalticDeliveryCountry/);
+  assert.match(checkout, /localizedRegionName/);
+  assert.match(checkout, /Montonio International Shipping/);
+  assert.match(checkout, /shipping-logos\/montonio\.png/);
+  assert.match(shipping, /isBalticShippingCountry/);
+  assert.match(shipping, /montonioInternationalName/);
   assert.match(shipping, /contractPricedFallbackMethods/);
   assert.match(shipping, /acceptedCarrierCodes/);
   assert.match(shipping, /pickupPointTypeMatches/);
   assert.match(shipping, /normalized\.startsWith\("omniva_"\)/);
   assert.match(shipping, /normalized\.startsWith\("dpd_"\)/);
   assert.match(shipping, /normalized\.startsWith\("unisend_"\)/);
+  assert.match(home, /EU courier/);
 });
 
 test("legacy whole-catalog product replacement is restricted", () => {

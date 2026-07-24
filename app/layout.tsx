@@ -9,7 +9,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Karatekas",
   description:
-    "Интернет-магазин экипировки для карате с B2C/B2B ценами, складом, счетами, оплатой и доставкой по Балтии.",
+    "Интернет-магазин экипировки для карате с B2C/B2B ценами, складом, счетами, оплатой, доставкой по Балтии и курьерской доставкой по ЕС.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

@@ -37,7 +37,7 @@ const copy = {
     heroKicker: "Karatekas.eu / Karate Equipment",
     heroTitle: "Экипировка для карате, которую удобно выбрать и быстро получить.",
     heroText:
-      "Кимоно, защита, пояса, перчатки и тренировочный инвентарь для спортсменов, родителей и клубов. Актуальные остатки, B2C/B2B цены и доставка по Балтии.",
+      "Кимоно, защита, пояса, перчатки и тренировочный инвентарь для спортсменов, родителей и клубов. Актуальные остатки, B2C/B2B цены, доставка по Балтии и курьерская доставка по ЕС.",
     shopNow: "Открыть каталог",
     sale: "Скидочные товары",
     bestKicker: "Покупают чаще всего",
@@ -56,13 +56,13 @@ const copy = {
     products: "товаров",
     brands: "брендов",
     inStock: "единиц доступно",
-    delivery: "доставка LV / LT / EE",
+    delivery: "пакоматы в Балтии и курьер по ЕС",
     viewAll: "Все товары",
     items: "товаров",
     trustedGear: "Проверенная экипировка",
     trustedGearText: "Товары для тренировок и соревнований от брендов, ориентированных на карате.",
     benefits: [
-      ["Быстрая доставка", "Пакоматы, курьер и самовывоз для Латвии, Литвы и Эстонии."],
+      ["Быстрая доставка", "Пакоматы, курьер и самовывоз в Балтии, а также курьерская доставка по ЕС."],
       ["Качественная экипировка", "Подборка товаров для тренировок, соревнований и клубных закупок."],
       ["Безопасная оплата", "Карта, 3D Secure, Apple Pay, Google Pay и счета для клубов."],
       ["B2B условия", "После подтверждения клуб видит закупочные цены и может оформлять счета."],
@@ -73,7 +73,7 @@ const copy = {
     heroKicker: "Karatekas.eu / Karate Equipment",
     heroTitle: "Karatē ekipējums, ko ir viegli izvēlēties un ātri saņemt.",
     heroText:
-      "Kimono, aizsargi, jostas, cimdi un treniņu inventārs sportistiem, vecākiem un klubiem. Aktuāli atlikumi, B2C/B2B cenas un piegāde Baltijā.",
+      "Kimono, aizsargi, jostas, cimdi un treniņu inventārs sportistiem, vecākiem un klubiem. Aktuāli atlikumi, B2C/B2B cenas, piegāde Baltijā un kurjera piegāde ES.",
     shopNow: "Atvērt katalogu",
     sale: "Akcijas preces",
     bestKicker: "Visbiežāk pērk",
@@ -92,13 +92,13 @@ const copy = {
     products: "preces",
     brands: "zīmoli",
     inStock: "vienības pieejamas",
-    delivery: "piegāde LV / LT / EE",
+    delivery: "paku automāti Baltijā un kurjers ES",
     viewAll: "Visas preces",
     items: "preces",
     trustedGear: "Uzticams ekipējums",
     trustedGearText: "Treniņu un sacensību preces no karatē zīmoliem.",
     benefits: [
-      ["Ātra piegāde", "Paku automāti, kurjers un pašizņemšana Latvijā, Lietuvā un Igaunijā."],
+      ["Ātra piegāde", "Paku automāti, kurjers un pašizņemšana Baltijā, kā arī kurjera piegāde ES."],
       ["Kvalitatīvs ekipējums", "Preces treniņiem, sacensībām un klubu iepirkumiem."],
       ["Droša apmaksa", "Karte, 3D Secure, Apple Pay, Google Pay un rēķini klubiem."],
       ["B2B nosacījumi", "Pēc apstiprināšanas klubs redz iepirkuma cenas un var saņemt rēķinus."],
@@ -109,7 +109,7 @@ const copy = {
     heroKicker: "Karatekas.eu / Karate Equipment",
     heroTitle: "Karate equipment that is easy to choose and fast to receive.",
     heroText:
-      "Gi, protection, belts, gloves and training gear for athletes, parents and clubs. Live stock, B2C/B2B pricing and Baltic delivery.",
+      "Gi, protection, belts, gloves and training gear for athletes, parents and clubs. Live stock, B2C/B2B pricing, Baltic delivery and EU courier delivery.",
     shopNow: "Open catalog",
     sale: "Sale products",
     bestKicker: "Most bought",
@@ -128,13 +128,13 @@ const copy = {
     products: "products",
     brands: "brands",
     inStock: "units available",
-    delivery: "delivery LV / LT / EE",
+    delivery: "Baltic parcel machines and EU courier",
     viewAll: "All products",
     items: "items",
     trustedGear: "Trusted gear",
     trustedGearText: "Competition and training products from karate-focused brands.",
     benefits: [
-      ["Fast delivery", "Parcel machines, courier delivery and store pickup across Latvia, Lithuania and Estonia."],
+      ["Fast delivery", "Parcel machines, courier delivery and store pickup across the Baltics, plus EU courier delivery."],
       ["Quality gear", "Products selected for training, competition and club purchasing."],
       ["Secure checkout", "Card payments, 3D Secure, Apple Pay, Google Pay and club invoices."],
       ["B2B terms", "Approved clubs see wholesale prices and can place invoice orders."],
@@ -145,7 +145,7 @@ const copy = {
     heroKicker: "Karatekas.eu / Karate Equipment",
     heroTitle: "Karate varustus, mida on lihtne valida ja kiire saada.",
     heroText:
-      "Gi, kaitsed, vööd, kindad ja treeningvarustus sportlastele, vanematele ja klubidele. Reaalne laoseis, B2C/B2B hinnad ja Balti tarne.",
+      "Gi, kaitsed, vööd, kindad ja treeningvarustus sportlastele, vanematele ja klubidele. Reaalne laoseis, B2C/B2B hinnad, Balti tarne ja kullerteenus ELis.",
     shopNow: "Ava kataloog",
     sale: "Soodustusega tooted",
     bestKicker: "Enim ostetud",
@@ -164,13 +164,13 @@ const copy = {
     products: "toodet",
     brands: "brändi",
     inStock: "ühikut saadaval",
-    delivery: "tarne LV / LT / EE",
+    delivery: "Balti pakiautomaadid ja ELi kuller",
     viewAll: "Kõik tooted",
     items: "toodet",
     trustedGear: "Usaldusväärne varustus",
     trustedGearText: "Treeningu ja võistluse tooted karatebrändidelt.",
     benefits: [
-      ["Kiire tarne", "Pakiautomaadid, kuller ja ise järele tulemine Lätis, Leedus ja Eestis."],
+      ["Kiire tarne", "Pakiautomaadid, kuller ja ise järele tulemine Baltikumis ning kullerteenus ELis."],
       ["Kvaliteetne varustus", "Tooted treeninguks, võistlusteks ja klubitellimusteks."],
       ["Turvaline makse", "Kaardid, 3D Secure, Apple Pay, Google Pay ja klubiarved."],
       ["B2B tingimused", "Kinnitatud klubid näevad hulgihindu ja saavad tellida arvega."],
@@ -181,7 +181,7 @@ const copy = {
     heroKicker: "Karatekas.eu / Karate Equipment",
     heroTitle: "Karatė įranga, kurią lengva pasirinkti ir greitai gauti.",
     heroText:
-      "Kimono, apsaugos, diržai, pirštinės ir treniruočių inventorius sportininkams, tėvams ir klubams. Aktualūs likučiai, B2C/B2B kainos ir pristatymas Baltijoje.",
+      "Kimono, apsaugos, diržai, pirštinės ir treniruočių inventorius sportininkams, tėvams ir klubams. Aktualūs likučiai, B2C/B2B kainos, pristatymas Baltijoje ir kurjeris ES.",
     shopNow: "Atidaryti katalogą",
     sale: "Akcijų prekės",
     bestKicker: "Dažniausiai perkama",
@@ -200,13 +200,13 @@ const copy = {
     products: "prekės",
     brands: "prekių ženklai",
     inStock: "vnt. yra",
-    delivery: "pristatymas LV / LT / EE",
+    delivery: "Baltijos paštomatai ir kurjeris ES",
     viewAll: "Visos prekės",
     items: "prekių",
     trustedGear: "Patikima įranga",
     trustedGearText: "Treniruočių ir varžybų prekės iš karatė prekių ženklų.",
     benefits: [
-      ["Greitas pristatymas", "Paštomatai, kurjeris ir atsiėmimas Latvijoje, Lietuvoje ir Estijoje."],
+      ["Greitas pristatymas", "Paštomatai, kurjeris ir atsiėmimas Baltijos šalyse, taip pat kurjeris ES."],
       ["Kokybiška įranga", "Prekės treniruotėms, varžyboms ir klubų užsakymams."],
       ["Saugus apmokėjimas", "Kortelės, 3D Secure, Apple Pay, Google Pay ir sąskaitos klubams."],
       ["B2B sąlygos", "Patvirtinti klubai mato didmenines kainas ir gali užsakyti pagal sąskaitą."],
@@ -485,7 +485,7 @@ export default function Home() {
         <div><strong>{homeProducts.length}</strong><span>{c.products}</span></div>
         <div><strong>{totals.available}</strong><span>{c.inStock}</span></div>
         <div><strong>{totals.brands}</strong><span>{c.brands}</span></div>
-        <div><strong>LV/LT/EE</strong><span>{c.delivery}</span></div>
+        <div><strong>EU</strong><span>{c.delivery}</span></div>
       </section>
 
       <section className="home-category-showcase-v5">

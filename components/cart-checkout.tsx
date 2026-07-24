@@ -53,6 +53,7 @@ type DeliveryCountry =
   | "SE";
 type SelectedDeliveryCountry = "" | DeliveryCountry;
 const defaultDeliveryCountry: DeliveryCountry = "LV";
+const montonioInternationalName = "Montonio International Shipping";
 
 type ShippingMethodOption = {
   id: string;
@@ -235,6 +236,19 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     currency: "EUR",
     available: true,
   },
+  {
+    id: "dpd-courier-standard-international",
+    carrier: "montonio_international",
+    carrierCode: "dpd",
+    carrierName: "Montonio",
+    name: montonioInternationalName,
+    type: "courier",
+    shippingType: "courier",
+    subtype: "international",
+    price: 8.5,
+    currency: "EUR",
+    available: true,
+  },
 ];
 
 const manualShippingPrices: Partial<Record<DeliveryCountry, Record<string, number>>> = {
@@ -270,11 +284,32 @@ const manualShippingPrices: Partial<Record<DeliveryCountry, Record<string, numbe
   },
 };
 
+const balticDeliveryCountries = new Set<DeliveryCountry>(["LV", "LT", "EE"]);
+
+function isBalticDeliveryCountry(country: DeliveryCountry) {
+  return balticDeliveryCountries.has(country);
+}
+
+function isMontonioInternationalMethod(method: Pick<ShippingMethodOption, "id" | "carrier" | "name">) {
+  return (
+    method.id.includes("international") ||
+    method.carrier === "montonio_international" ||
+    method.name.toLowerCase().includes("montonio international")
+  );
+}
+
 function fallbackShippingMethods(country: DeliveryCountry) {
   const defaultPrices = manualShippingPrices[defaultDeliveryCountry] ?? {};
   const prices = manualShippingPrices[country] ?? defaultPrices;
+  const availableMethods = isBalticDeliveryCountry(country)
+    ? baseFallbackShippingMethods.filter((method) => !isMontonioInternationalMethod(method))
+    : baseFallbackShippingMethods.filter(
+        (method) =>
+          method.shippingType === "self_pickup" ||
+          isMontonioInternationalMethod(method),
+      );
 
-  return baseFallbackShippingMethods.map((method) => ({
+  return availableMethods.map((method) => ({
     ...method,
     price:
       prices[`${method.carrierCode}:${method.shippingType}`] ??
@@ -357,7 +392,7 @@ const copy = {
   ru: {
     title: "Корзина и оплата",
     empty: "Корзина пустая. Добавьте товары из каталога.",
-    checkout: "Checkout",
+    checkout: "Оформление",
     shipping: "Доставка",
     pickupSearch: "Поиск пункта выдачи",
     pickupSelect: "Выберите пункт выдачи",
@@ -405,7 +440,7 @@ const copy = {
   lv: {
     title: "Grozs un apmaksa",
     empty: "Grozs ir tukšs. Pievienojiet preces no kataloga.",
-    checkout: "Checkout",
+    checkout: "Noformēšana",
     shipping: "Piegāde",
     pickupSearch: "Meklēt saņemšanas punktu",
     pickupSelect: "Izvēlieties saņemšanas punktu",
@@ -620,17 +655,17 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
+function localeForLanguage(language: Language) {
+  if (language === "lv") return "lv-LV";
+  if (language === "en") return "en-GB";
+  if (language === "et") return "et-EE";
+  if (language === "lt") return "lt-LT";
+
+  return "ru-RU";
+}
+
 function cartMoney(value: number, language: Language) {
-  const locale =
-    language === "lv"
-      ? "lv-LV"
-      : language === "en"
-        ? "en-GB"
-        : language === "et"
-          ? "et-EE"
-          : language === "lt"
-            ? "lt-LT"
-            : "ru-RU";
+  const locale = localeForLanguage(language);
 
   return new Intl.NumberFormat(locale, {
     style: "currency",
@@ -696,6 +731,14 @@ const deliveryLabels = {
   },
 } as const;
 
+function localizedRegionName(code: DeliveryCountry, language: Language) {
+  try {
+    return new Intl.DisplayNames([localeForLanguage(language)], { type: "region" }).of(code);
+  } catch {
+    return undefined;
+  }
+}
+
 function shippingLabels(language: Language) {
   return deliveryLabels[language as keyof typeof deliveryLabels] ?? deliveryLabels.en;
 }
@@ -703,7 +746,12 @@ function shippingLabels(language: Language) {
 function countryLabel(code: DeliveryCountry, language: Language) {
   const labels = shippingLabels(language).countries as Partial<Record<DeliveryCountry, string>>;
 
-  return labels[code] ?? deliveryCountries.find((country) => country.code === code)?.name ?? code;
+  return (
+    labels[code] ??
+    localizedRegionName(code, language) ??
+    deliveryCountries.find((country) => country.code === code)?.name ??
+    code
+  );
 }
 
 function methodName(method: ShippingMethodOption, language: Language) {
@@ -714,6 +762,10 @@ function methodName(method: ShippingMethodOption, language: Language) {
   }
 
   if (method.shippingType === "courier") {
+    if (isMontonioInternationalMethod(method)) {
+      return montonioInternationalName;
+    }
+
     return labels.courierName;
   }
 
@@ -754,6 +806,14 @@ function carrierIcon(method: ShippingMethodOption) {
 
   if (method.shippingType === "self_pickup" || carrierText.includes("self")) {
     return { alt: "Self pickup", className: "self", src: "/shipping-logos/pickup.webp?v=20260710" };
+  }
+
+  if (carrierText.includes("montonio")) {
+    return {
+      alt: "Montonio",
+      className: "montonio",
+      src: "/shipping-logos/montonio.png?v=20260724",
+    };
   }
 
   if (method.shippingType === "courier") {

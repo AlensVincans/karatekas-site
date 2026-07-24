@@ -93,6 +93,20 @@ const productionShippingApiBase = "https://shipping.montonio.com/api/v2";
 const sandboxShippingApiBase = "https://sandbox-shipping.montonio.com/api/v2";
 const publicContractPricesApi = "https://shipping.montonio.com/api/v2/contract-prices";
 const defaultCountry = "LV";
+const balticShippingCountries = new Set(["LV", "LT", "EE"]);
+const montonioInternationalName = "Montonio International Shipping";
+
+function isBalticShippingCountry(countryCode = defaultCountry) {
+  return balticShippingCountries.has(countryCode.trim().toUpperCase());
+}
+
+function isMontonioInternationalMethod(method: Pick<ShippingMethodOption, "id" | "carrier" | "name">) {
+  return (
+    method.id.includes("international") ||
+    method.carrier === "montonio_international" ||
+    method.name.toLowerCase().includes("montonio international")
+  );
+}
 
 const carrierNames: Record<string, string> = {
   omniva: "Omniva",
@@ -203,6 +217,20 @@ const fallbackMethods: ShippingMethodOption[] = [
     shippingType: "courier",
     subtype: "standard",
     price: 6.38,
+    currency: "EUR",
+    available: true,
+    source: "fallback",
+  },
+  {
+    id: "dpd-courier-standard-international",
+    carrier: "montonio_international",
+    carrierCode: "dpd",
+    carrierName: "Montonio",
+    name: montonioInternationalName,
+    type: "courier",
+    shippingType: "courier",
+    subtype: "international",
+    price: 8.5,
     currency: "EUR",
     available: true,
     source: "fallback",
@@ -655,15 +683,17 @@ function normalizeMethods(
 
     for (const method of carrier.shippingMethods ?? []) {
       if (method.type === "courier" && !courierAdded) {
+        const international = !isBalticShippingCountry(countryCode);
+
         methods.push({
-          id: `${carrierCode}-courier-standard`,
+          id: `${carrierCode}-courier-standard${international ? "-international" : ""}`,
           carrier: carrierCode,
           carrierCode,
-          carrierName: "Courier",
-          name: "Courier delivery",
+          carrierName: international ? "Montonio" : "Courier",
+          name: international ? montonioInternationalName : "Courier delivery",
           type: "courier",
           shippingType: "courier",
-          subtype: method.subtypes?.[0]?.code || "standard",
+          subtype: international ? "international" : method.subtypes?.[0]?.code || "standard",
           price: priceFor(carrierCode, "courier", countryCode),
           currency: "EUR",
           available: true,
@@ -708,7 +738,15 @@ function normalizeMethods(
 }
 
 function fallbackShippingMethodCandidates(countryCode = defaultCountry) {
-  return fallbackMethods.map((method) => ({
+  const candidates = isBalticShippingCountry(countryCode)
+    ? fallbackMethods.filter((method) => !isMontonioInternationalMethod(method))
+    : fallbackMethods.filter(
+        (method) =>
+          method.shippingType === "self_pickup" ||
+          isMontonioInternationalMethod(method),
+      );
+
+  return candidates.map((method) => ({
     ...method,
     available: true,
     price: priceFor(method.carrierCode, method.shippingType, countryCode),

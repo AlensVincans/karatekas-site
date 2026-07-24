@@ -6175,8 +6175,17 @@ textarea {
 .carrier-icon.smartposti,
 .carrier-icon.unisend,
 .carrier-icon.venipak,
-.carrier-icon.pasts {
+.carrier-icon.pasts,
+.carrier-icon.montonio {
   background: #fff;
+}
+
+.carrier-icon.montonio {
+  padding: 0;
+}
+
+.carrier-icon.montonio .carrier-logo {
+  object-fit: cover;
 }
 
 .carrier-icon.self,

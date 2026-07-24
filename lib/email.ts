@@ -240,7 +240,7 @@ function emailShell(input: {
             </tr>
             <tr>
               <td style="background:#f7f5f2;padding:18px 28px;color:#776f67;font-size:12px;line-height:1.6;">
-                Karatekas.eu - premium karate equipment, Baltic delivery and secure checkout.<br />
+                Karatekas.eu - premium karate equipment, Baltic delivery, EU courier delivery and secure checkout.<br />
                 This email was sent automatically from info@karatekas.eu.
               </td>
             </tr>
