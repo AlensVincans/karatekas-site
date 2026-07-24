@@ -96,8 +96,13 @@ test("Baltic pickup point selection stays available when switching countries", (
   assert.match(checkout, /localeCompare/);
   assert.match(checkout, /Montonio International Shipping/);
   assert.match(checkout, /shipping-logos\/montonio\.png/);
+  assert.match(checkout, /nova-post-courier-standard-international/);
+  assert.match(checkout, /carrierCode:\s*"nova_post"/);
   assert.match(shipping, /isBalticShippingCountry/);
   assert.match(shipping, /montonioInternationalName/);
+  assert.match(shipping, /carrierCode:\s*"nova_post"/);
+  assert.match(shipping, /return "novaPost"/);
+  assert.match(shipping, /publicCarrierCode\(order\.shippingCarrier\)/);
   assert.match(
     shipping,
     /!isBalticShippingCountry\(countryCode\) && isMontonioInternationalMethod\(method\)/,

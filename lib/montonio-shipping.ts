@@ -126,6 +126,8 @@ const carrierNames: Record<string, string> = {
   latvijas_pasts: "Latvijas Pasts",
   latvijaspasts: "Latvijas Pasts",
   pasts: "Latvijas Pasts",
+  nova_post: "Montonio",
+  novapost: "Montonio",
 };
 
 const fallbackMethods: ShippingMethodOption[] = [
@@ -228,9 +230,9 @@ const fallbackMethods: ShippingMethodOption[] = [
     source: "fallback",
   },
   {
-    id: "dpd-courier-standard-international",
+    id: "nova-post-courier-standard-international",
     carrier: "montonio_international",
-    carrierCode: "dpd",
+    carrierCode: "nova_post",
     carrierName: "Montonio",
     name: montonioInternationalName,
     type: "courier",
@@ -434,6 +436,10 @@ function normalizeCarrierCode(carrier: string) {
     return "unisend";
   }
 
+  if (normalized === "novapost" || normalized === "nova_post" || normalized.startsWith("nova_post_")) {
+    return "nova_post";
+  }
+
   return normalized;
 }
 
@@ -446,6 +452,10 @@ function carrierCodeCandidates(carrier: string) {
 
   if (normalized === "latvijas_pasts") {
     return ["latvijas_pasts", "latvian_post", "latvia_post", "pasts"];
+  }
+
+  if (normalized === "nova_post") {
+    return ["novaPost", "nova_post", "novapost"];
   }
 
   return [normalized];
@@ -779,6 +789,10 @@ function publicCarrierCode(carrierCode: string) {
     return "latvian_post";
   }
 
+  if (normalized === "nova_post") {
+    return "novaPost";
+  }
+
   return normalized;
 }
 
@@ -1033,7 +1047,7 @@ async function resolveCourierServiceId(order: StoreOrder) {
 
   const data = await shippingRequest<MontonioCourierServicesResponse>(
     `/shipping-methods/courier-services?carrierCode=${encodeURIComponent(
-      order.shippingCarrier,
+      publicCarrierCode(order.shippingCarrier),
     )}&countryCode=${encodeURIComponent(order.shippingAddress?.country || defaultCountry)}`,
   );
 

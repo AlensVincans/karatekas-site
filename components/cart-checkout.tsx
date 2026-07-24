@@ -237,9 +237,9 @@ const baseFallbackShippingMethods: ShippingMethodOption[] = [
     available: true,
   },
   {
-    id: "dpd-courier-standard-international",
+    id: "nova-post-courier-standard-international",
     carrier: "montonio_international",
-    carrierCode: "dpd",
+    carrierCode: "nova_post",
     carrierName: "Montonio",
     name: montonioInternationalName,
     type: "courier",
