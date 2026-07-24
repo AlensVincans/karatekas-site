@@ -76,6 +76,11 @@ test("invoice access and Montonio payment payload avoid unsafe regressions", () 
   assert.doesNotMatch(source("app/api/montonio/order/route.ts"), /preferredMethod/);
   assert.match(source("lib/montonio-shipping.ts"), /MONTONIO_SHIPPING_ALLOW_MANUAL_PRICES/);
   assert.match(source("lib/montonio-shipping.ts"), /packageWeightKg/);
+  assert.match(source("lib/montonio-shipping.ts"), /defaultMontonioParcel/);
+  assert.match(source("lib/montonio-shipping.ts"), /weightKg:\s*5/);
+  assert.match(source("lib/montonio-shipping.ts"), /lengthCm:\s*45/);
+  assert.match(source("lib/montonio-shipping.ts"), /widthCm:\s*30/);
+  assert.match(source("lib/montonio-shipping.ts"), /heightCm:\s*10/);
 });
 
 test("Baltic pickup point selection stays available when switching countries", () => {

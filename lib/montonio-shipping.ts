@@ -95,6 +95,12 @@ const publicContractPricesApi = "https://shipping.montonio.com/api/v2/contract-p
 const defaultCountry = "LV";
 const balticShippingCountries = new Set(["LV", "LT", "EE"]);
 const montonioInternationalName = "Montonio International Shipping";
+const defaultMontonioParcel = {
+  weightKg: 5,
+  lengthCm: 45,
+  widthCm: 30,
+  heightCm: 10,
+} as const;
 
 function isBalticShippingCountry(countryCode = defaultCountry) {
   return balticShippingCountries.has(countryCode.trim().toUpperCase());
@@ -1135,12 +1141,18 @@ function shipmentProducts(order: StoreOrder) {
 function packageWeightKg(order: StoreOrder) {
   const grams = order.lines.reduce((sum, line) => {
     const lineWeight = Number(line.weightGrams);
-    const safeWeight = Number.isFinite(lineWeight) && lineWeight > 0 ? lineWeight : 500;
+    if (!Number.isFinite(lineWeight) || lineWeight <= 0) {
+      return sum;
+    }
 
-    return sum + safeWeight * Math.max(1, line.quantity);
+    return sum + lineWeight * Math.max(1, line.quantity);
   }, 0);
 
-  return Math.max(0.1, roundMoney(grams / 1000));
+  if (grams <= 0) {
+    return defaultMontonioParcel.weightKg;
+  }
+
+  return Math.max(defaultMontonioParcel.weightKg, roundMoney(grams / 1000));
 }
 
 function packageDimensions(order: StoreOrder) {
@@ -1161,13 +1173,17 @@ function packageDimensions(order: StoreOrder) {
     );
 
   if (!dimensions.length) {
-    return undefined;
+    return {
+      length: defaultMontonioParcel.lengthCm,
+      width: defaultMontonioParcel.widthCm,
+      height: defaultMontonioParcel.heightCm,
+    };
   }
 
   return {
-    length: Math.max(...dimensions.map((item) => item.length)),
-    width: Math.max(...dimensions.map((item) => item.width)),
-    height: Math.max(...dimensions.map((item) => item.height)),
+    length: Math.max(defaultMontonioParcel.lengthCm, ...dimensions.map((item) => item.length)),
+    width: Math.max(defaultMontonioParcel.widthCm, ...dimensions.map((item) => item.width)),
+    height: Math.max(defaultMontonioParcel.heightCm, ...dimensions.map((item) => item.height)),
   };
 }
 
