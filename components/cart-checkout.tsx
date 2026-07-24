@@ -304,9 +304,7 @@ function fallbackShippingMethods(country: DeliveryCountry) {
   const availableMethods = isBalticDeliveryCountry(country)
     ? baseFallbackShippingMethods.filter((method) => !isMontonioInternationalMethod(method))
     : baseFallbackShippingMethods.filter(
-        (method) =>
-          method.shippingType === "self_pickup" ||
-          isMontonioInternationalMethod(method),
+        (method) => method.shippingType === "self_pickup",
       );
 
   return availableMethods.map((method) => ({

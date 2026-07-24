@@ -771,10 +771,16 @@ function fallbackShippingMethodCandidates(countryCode = defaultCountry) {
 
 export function fallbackShippingMethods(countryCode = defaultCountry) {
   return fallbackShippingMethodCandidates(countryCode)
-    .filter((method) => method.shippingType === "self_pickup" || manualShippingPricesAllowed())
+    .filter(
+      (method) =>
+        method.shippingType === "self_pickup" ||
+        (!isMontonioInternationalMethod(method) && manualShippingPricesAllowed()),
+    )
     .map((method) => ({
       ...method,
-      available: method.shippingType === "self_pickup" || manualShippingPricesAllowed(),
+      available:
+        method.shippingType === "self_pickup" ||
+        (!isMontonioInternationalMethod(method) && manualShippingPricesAllowed()),
     }));
 }
 
@@ -902,11 +908,17 @@ async function contractPricedFallbackMethods(countryCode = defaultCountry) {
   );
 
   return methods.filter(
-    (method) =>
-      method.shippingType === "self_pickup" ||
-      method.source === "montonio" ||
-      (!isBalticShippingCountry(countryCode) && isMontonioInternationalMethod(method)) ||
-      manualShippingPricesAllowed(),
+    (method) => {
+      if (isMontonioInternationalMethod(method)) {
+        return method.source === "montonio";
+      }
+
+      return (
+        method.shippingType === "self_pickup" ||
+        method.source === "montonio" ||
+        manualShippingPricesAllowed()
+      );
+    },
   );
 }
 

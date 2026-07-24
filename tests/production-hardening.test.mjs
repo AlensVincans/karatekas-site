@@ -87,6 +87,7 @@ test("Baltic pickup point selection stays available when switching countries", (
   const checkout = source("components/cart-checkout.tsx");
   const shipping = source("lib/montonio-shipping.ts");
   const home = source("app/page.tsx");
+  const styles = source("app/globals.css");
 
   assert.match(checkout, /preferredShippingMethodId/);
   assert.match(checkout, /shippingMethodsRef/);
@@ -103,10 +104,9 @@ test("Baltic pickup point selection stays available when switching countries", (
   assert.match(shipping, /carrierCode:\s*"nova_post"/);
   assert.match(shipping, /return "novaPost"/);
   assert.match(shipping, /publicCarrierCode\(order\.shippingCarrier\)/);
-  assert.match(
-    shipping,
-    /!isBalticShippingCountry\(countryCode\) && isMontonioInternationalMethod\(method\)/,
-  );
+  assert.match(shipping, /if \(isMontonioInternationalMethod\(method\)\)/);
+  assert.match(shipping, /return method\.source === "montonio"/);
+  assert.match(checkout, /method\) => method\.shippingType === "self_pickup"/);
   assert.match(shipping, /contractPricedFallbackMethods/);
   assert.match(shipping, /acceptedCarrierCodes/);
   assert.match(shipping, /pickupPointTypeMatches/);
@@ -114,6 +114,8 @@ test("Baltic pickup point selection stays available when switching countries", (
   assert.match(shipping, /normalized\.startsWith\("dpd_"\)/);
   assert.match(shipping, /normalized\.startsWith\("unisend_"\)/);
   assert.match(home, /EU courier/);
+  assert.match(styles, /aspect-ratio:\s*1920 \/ 600/);
+  assert.match(styles, /background-size:\s*100% 100%/);
 });
 
 test("legacy whole-catalog product replacement is restricted", () => {

@@ -7635,6 +7635,7 @@ textarea {
 
 /* Final storefront polish overrides */
 .home-promo-top-v5 .promo-carousel {
+  aspect-ratio: 1920 / 600;
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -7648,12 +7649,13 @@ textarea {
 }
 
 .home-promo-top-v5 .promo-image-banner {
-  aspect-ratio: 1920 / 600;
+  aspect-ratio: auto;
   background-color: #080808;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: contain;
+  background-size: 100% 100%;
   display: block;
+  height: 100%;
   min-height: 0;
   width: 100%;
 }
@@ -7806,8 +7808,13 @@ textarea {
 }
 
 @media (max-width: 640px) {
-  .home-promo-top-v5 .promo-image-banner {
+  .home-promo-top-v5 .promo-carousel {
     aspect-ratio: 1920 / 600;
+  }
+
+  .home-promo-top-v5 .promo-image-banner {
+    aspect-ratio: auto;
+    height: 100%;
   }
 
   .courier-address-head-v2 {
